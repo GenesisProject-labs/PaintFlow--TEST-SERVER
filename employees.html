@@ -1037,6 +1037,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? `http://${window.location.hostname}:8002`
@@ -1044,7 +1045,10 @@
         let allEmpleados = [];
         let allSucursales = [];
         let sucursalesUnicas = [];
-        let activeSucursal = 'Alameda'; // Para guardar la sucursal activa
+        let activeSucursal = 'Dashboard'; // Para guardar la pestaña activa
+        let analystMetricsCache = null;
+        let analystZoneUsageChart = null;
+        let analystCompletionChart = null;
         
         function fmt(posicion) {
             const map = {
@@ -1079,6 +1083,9 @@
                 extraerSucursalesUnicas();
                 renderSubtabs();
                 renderEmpleadosPorSucursal();
+                if (activeSucursal === 'Dashboard') {
+                    loadAnalystDashboardData();
+                }
             } catch (err) {
                 console.error('Error loading data:', err);
             }
@@ -1116,10 +1123,17 @@
         function renderSubtabs() {
             const container = document.getElementById('subtabsContainer');
             container.innerHTML = '';
+
+            const dashBtn = document.createElement('button');
+            dashBtn.className = 'subtab-btn' + (activeSucursal === 'Dashboard' ? ' active' : '');
+            dashBtn.textContent = '📊 Dashboard';
+            dashBtn.onclick = (event) => switchSucursal(event, 'Dashboard');
+            container.appendChild(dashBtn);
             
             sucursalesUnicas.forEach((sucursal, index) => {
                 const btn = document.createElement('button');
-                btn.className = 'subtab-btn' + (index === 0 ? ' active' : '');
+                const isActive = activeSucursal === sucursal || (activeSucursal !== 'Dashboard' && index === 0 && !sucursalesUnicas.includes(activeSucursal));
+                btn.className = 'subtab-btn' + (isActive ? ' active' : '');
                 btn.textContent = sucursal;
                 btn.onclick = () => switchSucursal(event, sucursal);
                 container.appendChild(btn);
@@ -1139,6 +1153,78 @@
         function renderEmpleadosPorSucursal() {
             const container = document.getElementById('tablasContainer');
             container.innerHTML = '';
+
+            const dashboardDiv = document.createElement('div');
+            dashboardDiv.id = 'sucursal-Dashboard';
+            dashboardDiv.className = 'subtab-content' + (activeSucursal === 'Dashboard' ? ' active' : '');
+            dashboardDiv.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px;">
+                    <div style="padding: 12px; border: 1px solid #dce8f8; border-radius: 10px; background: #f8fbff;">
+                        <div style="font-size: 0.82rem; color: #5e7287;">Sucursales Activas</div>
+                        <div id="analystTotalSucursales" style="font-weight: 700; color: #15395b; margin-top: 4px; font-size: 1.1rem;">0</div>
+                    </div>
+                    <div style="padding: 12px; border: 1px solid #dce8f8; border-radius: 10px; background: #f8fbff;">
+                        <div style="font-size: 0.82rem; color: #5e7287;">Empleados Activos</div>
+                        <div id="analystTotalEmpleadosActivos" style="font-weight: 700; color: #15395b; margin-top: 4px; font-size: 1.1rem;">0</div>
+                    </div>
+                    <div style="padding: 12px; border: 1px solid #dce8f8; border-radius: 10px; background: #f8fbff;">
+                        <div style="font-size: 0.82rem; color: #5e7287;">Promedio Finalización</div>
+                        <div id="analystAvgCompletion" style="font-weight: 700; color: #15395b; margin-top: 4px; font-size: 1.1rem;">0 min</div>
+                    </div>
+                    <div style="padding: 12px; border: 1px solid #dce8f8; border-radius: 10px; background: #f8fbff;">
+                        <div style="font-size: 0.82rem; color: #5e7287;">Órdenes Finalizadas</div>
+                        <div id="analystCompletedOrders" style="font-weight: 700; color: #15395b; margin-top: 4px; font-size: 1.1rem;">0</div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px;">
+                    <div style="height: 320px; padding: 12px; border: 1px solid #dce8f8; border-radius: 10px; background: #ffffff;">
+                        <canvas id="analystZoneUsageChart"></canvas>
+                    </div>
+                    <div style="height: 320px; padding: 12px; border: 1px solid #dce8f8; border-radius: 10px; background: #ffffff;">
+                        <canvas id="analystCompletionChart"></canvas>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 14px;">
+                    <div>
+                        <h4 style="margin: 0 0 8px; font-size: 0.95rem; color: #325172;">Productos Más Trabajados por Zona</h4>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: #f5f5f5;">
+                                    <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Zona</th>
+                                    <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Producto</th>
+                                    <th style="padding: 8px; text-align: right; border: 1px solid #ddd;">Cantidad</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analystZoneTopProductsBody">
+                                <tr><td colspan="3" style="text-align: center; padding: 10px; border: 1px solid #ddd;">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <h4 style="margin: 0 0 8px; font-size: 0.95rem; color: #325172;">Sucursales por Zona y Último Login</h4>
+                        <div style="max-height: 320px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: #f5f5f5; position: sticky; top: 0;">
+                                        <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Zona</th>
+                                        <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Sucursal</th>
+                                        <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Último Login</th>
+                                        <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Usuario</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="analystSucursalLoginBody">
+                                    <tr><td colspan="4" style="text-align: center; padding: 10px; border: 1px solid #ddd;">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="analystDashboardStatus" style="font-size: 0.85rem; color: #5e7287; min-height: 18px;"></div>
+            `;
+            container.appendChild(dashboardDiv);
             
             sucursalesUnicas.forEach((sucursal, index) => {
                 const empleadosSucursal = allEmpleados.filter(e => e.sucursal_nombre === sucursal);
@@ -1204,6 +1290,111 @@
                 container.appendChild(div);
             });
         }
+
+        function renderAnalystDashboard(data) {
+            const totalSuc = document.getElementById('analystTotalSucursales');
+            const totalEmpA = document.getElementById('analystTotalEmpleadosActivos');
+            const avgComp = document.getElementById('analystAvgCompletion');
+            const totalComp = document.getElementById('analystCompletedOrders');
+            const status = document.getElementById('analystDashboardStatus');
+
+            if (totalSuc) totalSuc.textContent = String((allSucursales || []).filter(s => s.activo !== false).length);
+            if (totalEmpA) totalEmpA.textContent = String((allEmpleados || []).filter(e => e.activo === true || e.activo === 1).length);
+            if (avgComp) avgComp.textContent = `${Number(data.avg_completion_minutes_overall || 0).toFixed(2)} min`;
+            if (totalComp) totalComp.textContent = String(Number(data.total_completed_orders || 0));
+
+            const topBody = document.getElementById('analystZoneTopProductsBody');
+            if (topBody) {
+                const rows = [];
+                (data.zone_top_products || []).forEach(zone => {
+                    (zone.top_products || []).slice(0, 3).forEach(p => {
+                        rows.push({ zona: zone.zona, producto: p.producto, cantidad: Number(p.cantidad || 0) });
+                    });
+                });
+                topBody.innerHTML = rows.length
+                    ? rows.map(r => `<tr><td style="padding:8px;border:1px solid #ddd;">${(r.zona || '').replace(/_/g, ' ')}</td><td style="padding:8px;border:1px solid #ddd;">${r.producto || 'N/A'}</td><td style="padding:8px;border:1px solid #ddd;text-align:right;">${r.cantidad}</td></tr>`).join('')
+                    : '<tr><td colspan="3" style="text-align:center; padding:10px; border:1px solid #ddd;">Sin datos</td></tr>';
+            }
+
+            const loginBody = document.getElementById('analystSucursalLoginBody');
+            if (loginBody) {
+                const rows = [];
+                (data.sucursal_login_by_zone || []).forEach(group => {
+                    (group.sucursales || []).forEach(s => {
+                        const dt = s.ultimo_login ? new Date(s.ultimo_login) : null;
+                        const dtTxt = dt && !Number.isNaN(dt.getTime())
+                            ? `${dt.toLocaleDateString('es-DO')} ${dt.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}`
+                            : 'Sin registro';
+                        rows.push({
+                            zona: group.zona,
+                            sucursal: s.sucursal,
+                            login: dtTxt,
+                            user: s.ultimo_login_username || '-'
+                        });
+                    });
+                });
+                loginBody.innerHTML = rows.length
+                    ? rows.map(r => `<tr><td style="padding:8px;border:1px solid #ddd;">${(r.zona || '').replace(/_/g, ' ')}</td><td style="padding:8px;border:1px solid #ddd;">${r.sucursal || 'N/A'}</td><td style="padding:8px;border:1px solid #ddd;">${r.login}</td><td style="padding:8px;border:1px solid #ddd;">${r.user}</td></tr>`).join('')
+                    : '<tr><td colspan="4" style="text-align:center; padding:10px; border:1px solid #ddd;">Sin datos</td></tr>';
+            }
+
+            const zones = data.zona_usage || [];
+            const usageCanvas = document.getElementById('analystZoneUsageChart');
+            if (usageCanvas && typeof Chart !== 'undefined') {
+                if (analystZoneUsageChart) analystZoneUsageChart.destroy();
+                analystZoneUsageChart = new Chart(usageCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: zones.map(z => (z.zona || '').replace(/_/g, ' ')),
+                        datasets: [
+                            { label: 'Facturas', data: zones.map(z => Number(z.facturas || 0)), backgroundColor: '#1a73e8' },
+                            { label: 'Items', data: zones.map(z => Number(z.items || 0)), backgroundColor: '#17a398' }
+                        ]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Carga por Zona' } } }
+                });
+            }
+
+            const completionCanvas = document.getElementById('analystCompletionChart');
+            if (completionCanvas && typeof Chart !== 'undefined') {
+                if (analystCompletionChart) analystCompletionChart.destroy();
+                analystCompletionChart = new Chart(completionCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: zones.map(z => (z.zona || '').replace(/_/g, ' ')),
+                        datasets: [
+                            { label: 'Promedio finalización (min)', data: zones.map(z => Number(z.avg_completion_minutes || 0)), backgroundColor: '#f59e0b' },
+                            { label: 'Órdenes finalizadas', type: 'line', data: zones.map(z => Number(z.ordenes_finalizadas || 0)), borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,0.2)', yAxisID: 'y1' }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Tiempo de Finalización por Zona' } },
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: 'Minutos' } },
+                            y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Órdenes' } }
+                        }
+                    }
+                });
+            }
+
+            if (status) status.textContent = `Actualizado: ${new Date().toLocaleTimeString('es-DO')}`;
+        }
+
+        async function loadAnalystDashboardData() {
+            const status = document.getElementById('analystDashboardStatus');
+            if (status) status.textContent = 'Cargando métricas...';
+            try {
+                const res = await fetch(API + '/api/v1/labelsapp/usage-metrics?product_limit=5');
+                if (!res.ok) throw new Error('No se pudo cargar dashboard de analista');
+                const data = await res.json();
+                analystMetricsCache = data;
+                renderAnalystDashboard(data);
+            } catch (err) {
+                if (status) status.textContent = err.message || 'Error cargando métricas';
+            }
+        }
         
         function switchSucursal(event, sucursal) {
             activeSucursal = sucursal; // Guardar sucursal activa
@@ -1216,6 +1407,14 @@
                 content.classList.remove('active');
             });
             document.getElementById('sucursal-' + sucursal.replace(/\s+/g, '-')).classList.add('active');
+
+            if (sucursal === 'Dashboard') {
+                if (analystMetricsCache) {
+                    renderAnalystDashboard(analystMetricsCache);
+                } else {
+                    loadAnalystDashboardData();
+                }
+            }
         }
         
         function switchInactivos(event) {
