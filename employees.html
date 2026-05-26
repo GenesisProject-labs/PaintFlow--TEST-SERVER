@@ -1192,6 +1192,8 @@
         let analystZoneUsageChart = null;
         let analystCompletionChart = null;
         let analystCurrentZona = 'ALL';
+        let analystMetricsInFlight = null;
+        let analystLastFetchMs = 0;
         
         function fmt(posicion) {
             const map = {
@@ -1226,6 +1228,11 @@
                 extraerSucursalesUnicas();
                 renderSubtabs();
                 renderEmpleadosPorSucursal();
+
+                // Precarga no bloqueante para abrir dashboard casi instantaneo.
+                setTimeout(() => {
+                    loadAnalystDashboardData({ silent: true });
+                }, 0);
             } catch (err) {
                 console.error('Error loading data:', err);
             }
@@ -1605,39 +1612,70 @@
             if (status) status.textContent = `Actualizado: ${new Date().toLocaleTimeString('es-DO')}`;
         }
 
-        async function loadAnalystDashboardData() {
+        function isAnalystDashboardOpen() {
+            const modal = document.getElementById('modalDashboardAnalista');
+            return !!(modal && modal.classList.contains('active'));
+        }
+
+        async function loadAnalystDashboardData(options = {}) {
+            const { silent = false, force = false } = options;
             const status = document.getElementById('analystDashboardStatus');
-            if (status) status.textContent = 'Cargando métricas...';
-            try {
-                const cached = getCachedAnalystMetrics();
-                if (cached) {
-                    analystMetricsCache = cached;
-                    renderAnalystDashboard(cached);
-                    if (status) status.textContent = 'Mostrando cache, actualizando datos...';
+
+            if (analystMetricsInFlight) {
+                return analystMetricsInFlight;
+            }
+
+            if (!silent && status) status.textContent = 'Cargando métricas...';
+
+            const cached = getCachedAnalystMetrics();
+            if (cached) {
+                analystMetricsCache = cached;
+                renderAnalystDashboard(cached);
+
+                const cacheIsVeryFresh = (Date.now() - analystLastFetchMs) < 30000;
+                if (cacheIsVeryFresh && !force) {
+                    if (!silent && status) {
+                        status.textContent = `Actualizado (cache): ${new Date().toLocaleTimeString('es-DO')}`;
+                    }
+                    return;
                 }
 
-                const res = await fetchWithTimeout(API + '/api/v1/labelsapp/usage-metrics?product_limit=5', 5000);
+                if (!silent && status) status.textContent = 'Mostrando cache, actualizando datos...';
+            }
+
+            analystMetricsInFlight = (async () => {
+            try {
+                const res = await fetchWithTimeout(API + '/api/v1/labelsapp/usage-metrics?product_limit=5', 3500);
                 if (!res.ok) throw new Error('No se pudo cargar dashboard de analista');
                 const data = await res.json();
                 analystMetricsCache = data;
                 setCachedAnalystMetrics(data);
+                analystLastFetchMs = Date.now();
                 renderAnalystDashboard(data);
-                if (status) status.textContent = `Actualizado: ${new Date().toLocaleTimeString('es-DO')}`;
+                if ((!silent || isAnalystDashboardOpen()) && status) {
+                    status.textContent = `Actualizado: ${new Date().toLocaleTimeString('es-DO')}`;
+                }
             } catch (err) {
                 try {
                     const fallback = await buildAnalystFallbackMetrics();
                     analystMetricsCache = fallback;
                     setCachedAnalystMetrics(fallback);
+                    analystLastFetchMs = Date.now();
                     renderAnalystDashboard(fallback);
-                    if (status) {
+                    if ((!silent || isAnalystDashboardOpen()) && status) {
                         status.textContent = `Modo fallback activo: métricas live por zonas (${new Date().toLocaleTimeString('es-DO')})`;
                     }
                 } catch (fallbackErr) {
-                    if (status) {
+                    if ((!silent || isAnalystDashboardOpen()) && status) {
                         status.textContent = 'No se pudo cargar dashboard de analista';
                     }
                 }
+            } finally {
+                analystMetricsInFlight = null;
             }
+            })();
+
+            return analystMetricsInFlight;
         }
 
         function normalizeTextBasic(text) {
@@ -1692,47 +1730,47 @@
             }
         }
 
-        async function mapWithConcurrency(items, limit, mapper) {
-            const results = new Array(items.length);
-            let current = 0;
-            const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-                while (true) {
-                    const idx = current;
-                    current += 1;
-                    if (idx >= items.length) break;
-                    results[idx] = await mapper(items[idx], idx);
-                }
-            });
-            await Promise.all(workers);
-            return results;
-        }
-
         async function buildAnalystFallbackMetrics() {
-            const sucRes = await fetchWithTimeout(API + '/api/v1/sucursales', 5000);
-            if (!sucRes.ok) throw new Error('No se pudo consultar sucursales para fallback');
-            const sucData = await sucRes.json();
-            const sucursales = Array.isArray(sucData.sucursales) ? sucData.sucursales : [];
+            let sucursales = Array.isArray(allSucursales) ? allSucursales : [];
+            if (!sucursales.length) {
+                const sucRes = await fetchWithTimeout(API + '/api/v1/sucursales', 3000);
+                if (sucRes.ok) {
+                    const sucData = await sucRes.json();
+                    sucursales = Array.isArray(sucData.sucursales) ? sucData.sucursales : [];
+                }
+            }
 
             const filteredSucursales = sucursales.filter(s => (s && (s.nombre || '').trim()));
+            const sucursal_usage_map = {};
 
-            const requests = await mapWithConcurrency(filteredSucursales, 4, async suc => {
-                const sucursalNombre = suc.nombre || 'N/A';
-                const zona = normalizeZonaKey(suc.zona || suc.zona_nombre || suc.region || 'Sin Zona');
-                const slug = normalizeSucursalSlug(sucursalNombre);
-                try {
-                    const qRes = await fetchWithTimeout(API + `/api/v1/labelsapp/live-queue?sucursal=${encodeURIComponent(slug)}&limit=250`, 4500);
-                    if (!qRes.ok) return { sucursal: sucursalNombre, zona, facturas: 0, items: 0 };
+            // Fallback rapido: una sola llamada global y agregacion local por sucursal/zona.
+            try {
+                const qRes = await fetchWithTimeout(API + '/api/v1/labelsapp/live-queue?limit=500', 2500);
+                if (qRes.ok) {
                     const queue = await qRes.json();
-                    const items = Array.isArray(queue.items) ? queue.items : [];
-                    const facturas = Number(queue.total || items.length || 0);
-                    const totalItems = items.reduce((acc, row) => acc + Number(row.items || 0), 0);
-                    return { sucursal: sucursalNombre, zona, facturas, items: totalItems };
-                } catch (_) {
-                    return { sucursal: sucursalNombre, zona, facturas: 0, items: 0 };
-                }
-            });
+                    const items = Array.isArray(queue.items) ? queue.items : (Array.isArray(queue.queue) ? queue.queue : []);
+                    items.forEach(row => {
+                        const sucursalNombre = (row.sucursal_nombre || row.sucursal || row.tienda || '').toString().trim();
+                        if (!sucursalNombre) return;
+                        const zona = normalizeZonaKey(
+                            row.zona ||
+                            (filteredSucursales.find(s => normalizeTextBasic(s.nombre || s.sucursal_nombre || s.name) === normalizeTextBasic(sucursalNombre)) || {}).zona ||
+                            'Sin Zona'
+                        );
 
-            const sucursal_usage = requests.filter(r => Number(r.facturas || 0) > 0 || Number(r.items || 0) > 0);
+                        const key = `${sucursalNombre}||${zona}`;
+                        if (!sucursal_usage_map[key]) {
+                            sucursal_usage_map[key] = { sucursal: sucursalNombre, zona, facturas: 0, items: 0 };
+                        }
+
+                        sucursal_usage_map[key].facturas += 1;
+                        sucursal_usage_map[key].items += Number(row.items || row.cantidad || 1);
+                    });
+                }
+            } catch (_) {}
+
+            const sucursal_usage = Object.values(sucursal_usage_map)
+                .filter(r => Number(r.facturas || 0) > 0 || Number(r.items || 0) > 0);
             sucursal_usage.sort((a, b) => (Number(b.facturas || 0) - Number(a.facturas || 0)) || (Number(b.items || 0) - Number(a.items || 0)));
 
             const zonaMap = {};
