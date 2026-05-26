@@ -1316,6 +1316,13 @@ async function checkExistingSession() {
                 window.location.href = '/employees';
                 return;
             }
+
+            // Si es facturador/cajero CON SESIÓN ACTIVA, redirigir a LabelsApp Web
+            if (userRole === 'facturador' || userRole === 'cajero') {
+                console.log('Usuario de tienda detectado, redirigiendo a /labelsapp-web');
+                window.location.href = '/labelsapp-web';
+                return;
+            }
             
             // Solo mostrar dashboard si es administrador con sesión válida
             if (userRole === 'administrador') {
@@ -1373,6 +1380,13 @@ function goToDashboard() {
             window.location.href = '/employees';
             return;
         }
+
+        // Si es facturador/cajero, ir a LabelsApp Web
+        if (rol === 'facturador' || rol === 'cajero') {
+            console.log('Usuario de tienda detectado, redirigiendo a /labelsapp-web');
+            window.location.href = '/labelsapp-web';
+            return;
+        }
         
         // Si es admin, mostrar dashboard
         console.log('Usuario administrador detectado, mostrando dashboard');
@@ -1424,6 +1438,13 @@ async function handleLogin(e) {
         if (userRole === 'analista') {
             console.log('Usuario analista detectado, redirigiendo a /employees');
             window.location.href = '/employees';
+            return;
+        }
+
+        // Si es FACTURADOR/CAJERO, redirigir directo a LabelsApp Web
+        if (userRole === 'facturador' || userRole === 'cajero') {
+            console.log('Usuario de tienda detectado, redirigiendo a /labelsapp-web');
+            window.location.href = '/labelsapp-web';
             return;
         }
         
@@ -2932,9 +2953,14 @@ document.addEventListener('DOMContentLoaded', async function() {
             window.location.href = '/formulas?role=' + encodeURIComponent(userRole);
         }
 
+        function goToLabelsAppWeb() {
+            window.location.href = '/labelsapp-web';
+        }
+
         function updateUserMenu(userRole) {
             const dropdown = document.getElementById('userDropdown');
             const navbarTabs = document.getElementById('navbarTabs');
+            userRole = (userRole || '').toLowerCase();
             
             if (!dropdown) return;
             
@@ -2949,6 +2975,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     <button onclick="window.location.href='/'" style="color: #fff; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">🏠 Dashboard</button>
                     <button onclick="goToAnalystView()" style="color: #fff; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">👥 Gestión Empleados</button>
                     <button onclick="goToFormulas()" style="color: #fff; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">🧪 Gestión Fórmulas</button>
+                    <button onclick="goToLabelsAppWeb()" style="color: #fff; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">🏷️ LabelsApp Web</button>
                     ${baseButtons}
                 `;
                 
@@ -2957,6 +2984,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     navbarTabs.innerHTML = `
                         <button class="tab-btn" onclick="switchTab(event, 'sucursales')">SUCURSALES</button>
                         <button class="tab-btn" onclick="switchTab(event, 'usuarios')">USUARIOS</button>
+                        <button class="tab-btn" onclick="goToLabelsAppWeb()">LABELSAPP</button>
                     `;
                 }
             } else if (userRole === 'analista') {
@@ -2964,6 +2992,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 dropdown.innerHTML = `
                     <button onclick="goToAnalystView()" style="color: #fff; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">👥 Gestión Empleados</button>
                     <button onclick="goToFormulas()" style="color: #fff; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">🧪 Gestión Fórmulas</button>
+                    <button onclick="goToLabelsAppWeb()" style="color: #fff; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">🏷️ LabelsApp Web</button>
                     ${baseButtons}
                 `;
                 
@@ -2971,6 +3000,19 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (navbarTabs) {
                     navbarTabs.innerHTML = `
                         <button class="tab-btn" onclick="goToFormulas()">FÓRMULAS</button>
+                        <button class="tab-btn" onclick="goToLabelsAppWeb()">LABELSAPP</button>
+                    `;
+                }
+            } else if (userRole === 'facturador' || userRole === 'cajero') {
+                // Menú de operación para tienda
+                dropdown.innerHTML = `
+                    <button onclick="goToLabelsAppWeb()" style="color: #fff; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">🏷️ LabelsApp Web</button>
+                    ${baseButtons}
+                `;
+
+                if (navbarTabs) {
+                    navbarTabs.innerHTML = `
+                        <button class="tab-btn" onclick="goToLabelsAppWeb()">LABELSAPP</button>
                     `;
                 }
             } else {

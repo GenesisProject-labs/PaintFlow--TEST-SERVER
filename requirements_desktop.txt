@@ -1,0 +1,7 @@
+ttkbootstrap==1.14.2
+pandas==2.2.2
+reportlab==4.2.2
+Pillow==10.4.0
+requests==2.32.3
+# Optional on Windows for direct printer integration in LabelsApp
+pywin32==306 ; platform_system == "Windows"

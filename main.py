@@ -5,9 +5,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import logging
 from datetime import datetime
+import csv
 import time
 import os
-from typing import Optional
+import re
+import unicodedata
+from typing import Optional, List
 from pydantic import BaseModel
 
 class FormulaNormalCreate(BaseModel):
@@ -45,6 +48,44 @@ class EmpleadoUpdate(BaseModel):
     telefono: str = None
     codigo_empleado: str = None
     activo: bool = True
+
+
+class LabelsAppItem(BaseModel):
+    codigo: str
+    descripcion: str = ""
+    producto: str
+    terminacion: str = ""
+    presentacion: str = ""
+    cantidad: int = 1
+    base: str = ""
+    ubicacion: str = ""
+    codigo_base: str = ""
+    prioridad: Optional[str] = None
+
+
+class LabelsAppSendRequest(BaseModel):
+    id_factura: str
+    prioridad: str = "Media"
+    username: Optional[str] = None
+    usuario_id: Optional[int] = None
+    sucursal: Optional[str] = None
+    operador: Optional[str] = None
+    items: List[LabelsAppItem]
+
+
+class LabelsAppCodigoBaseRequest(BaseModel):
+    base: str
+    producto: str
+    terminacion: str
+
+
+class LabelsAppFacturaPriorityRequest(BaseModel):
+    prioridad: str
+
+
+class LabelsAppFacturaItemsUpdateRequest(BaseModel):
+    prioridad: Optional[str] = None
+    items: List[LabelsAppItem]
 
 from config import settings
 from database import DatabasePool, get_db
@@ -152,6 +193,1366 @@ async def serve_logo():
     raise HTTPException(status_code=404, detail="Logo not found")
 
 
+@app.get("/labelsapp-web")
+async def labelsapp_web_page():
+    """Servir interfaz web de LabelsApp"""
+    html_path = os.path.join(os.path.dirname(__file__), "labelsapp_web.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="LabelsApp Web page not found")
+
+
+def _normalize_sucursal_slug(text: str) -> str:
+    raw = (text or "").strip().lower()
+    if not raw:
+        return "principal"
+    norm = unicodedata.normalize("NFD", raw)
+    norm = "".join(ch for ch in norm if unicodedata.category(ch) != "Mn")
+    norm = re.sub(r"[^a-z0-9]+", "_", norm).strip("_")
+    return norm or "principal"
+
+
+def _safe_table_for_sucursal(sucursal_slug: str) -> str:
+    slug = _normalize_sucursal_slug(sucursal_slug)
+    if not re.match(r"^[a-z0-9_]+$", slug):
+        slug = "principal"
+    return f"pedidos_pendientes_{slug}"
+
+
+PERSONALIZADOS_CSV_PATH = os.path.join(os.path.dirname(__file__), "productos_personalizados.csv")
+PERSONALIZADO_CODIGO_MAX = 7
+PERSONALIZADO_NOMBRE_MAX = 20
+
+
+class LabelsAppPersonalizedProductRequest(BaseModel):
+    codigo: str
+    nombre: str
+
+
+def _load_personalized_products() -> List[dict]:
+    items = []
+    if not os.path.exists(PERSONALIZADOS_CSV_PATH):
+        return items
+
+    try:
+        with open(PERSONALIZADOS_CSV_PATH, "r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                codigo = (row.get("codigo") or "").strip()
+                nombre = (row.get("nombre") or "").strip()
+                if not codigo:
+                    continue
+                items.append({
+                    "codigo": codigo,
+                    "nombre": nombre,
+                    "base": row.get("base", "") or "",
+                    "ubicacion": row.get("ubicacion", "") or "",
+                    "fecha_creacion": row.get("fecha_creacion", "") or "",
+                    "personalizado": True,
+                })
+    except Exception as e:
+        logger.warning(f"Error loading personalized products: {e}")
+    return items
+
+
+def _save_personalized_products(items: List[dict]) -> None:
+    fieldnames = ["codigo", "nombre", "base", "ubicacion", "fecha_creacion"]
+    os.makedirs(os.path.dirname(PERSONALIZADOS_CSV_PATH), exist_ok=True)
+    with open(PERSONALIZADOS_CSV_PATH, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for item in items:
+            writer.writerow({
+                "codigo": (item.get("codigo") or "").strip(),
+                "nombre": (item.get("nombre") or "").strip(),
+                "base": (item.get("base") or "").strip(),
+                "ubicacion": (item.get("ubicacion") or "").strip(),
+                "fecha_creacion": (item.get("fecha_creacion") or "").strip(),
+            })
+
+
+def _find_personalized_product_by_code(codigo: str) -> Optional[dict]:
+    codigo_norm = (codigo or "").strip().lower()
+    for item in _load_personalized_products():
+        if (item.get("codigo") or "").strip().lower() == codigo_norm:
+            return item
+    return None
+
+
+def _resolve_sucursal_slug(db, username: Optional[str] = None, usuario_id: Optional[int] = None, sucursal_text: Optional[str] = None) -> str:
+    if sucursal_text:
+        return _normalize_sucursal_slug(sucursal_text)
+
+    try:
+        cur = db.cursor()
+        if username:
+            cur.execute(
+                """
+                SELECT COALESCE(s.codigo, s.nombre, '')
+                FROM usuarios u
+                LEFT JOIN sucursales s ON u.sucursal_id = s.id
+                WHERE LOWER(u.username) = LOWER(%s)
+                LIMIT 1
+                """,
+                (username,)
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                return _normalize_sucursal_slug(str(row[0]))
+
+        if usuario_id:
+            cur.execute(
+                """
+                SELECT COALESCE(s.codigo, s.nombre, '')
+                FROM usuarios u
+                LEFT JOIN sucursales s ON u.sucursal_id = s.id
+                WHERE u.id = %s
+                LIMIT 1
+                """,
+                (usuario_id,)
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                return _normalize_sucursal_slug(str(row[0]))
+    except Exception:
+        pass
+
+    return "principal"
+
+
+def _resolve_operador_label(db, username: Optional[str] = None, usuario_id: Optional[int] = None, operador: Optional[str] = None) -> str:
+    explicit = (operador or "").strip()
+    if explicit:
+        return explicit
+
+    # El operador real lo decide el gestor; desde web no lo inventamos.
+    return ""
+
+
+def _get_labelsapp_live_queue(db, table_name: str, limit: int = 50):
+    cur = db.cursor()
+    cur.execute(
+        f"""
+        SELECT id_factura,
+               COUNT(*) AS total,
+               SUM(CASE WHEN TRIM(COALESCE(estado,'')) IN ('Finalizado','Completado') THEN 1 ELSE 0 END) AS cnt_final,
+               SUM(CASE WHEN TRIM(COALESCE(estado,'')) = 'En Proceso' THEN 1 ELSE 0 END) AS cnt_proc,
+               MAX(CASE TRIM(COALESCE(prioridad,'')) WHEN 'Alta' THEN 3 WHEN 'Media' THEN 2 WHEN 'Baja' THEN 1 ELSE 0 END) AS pr_rank,
+               MAX(COALESCE(operador, '—')) AS operador
+        FROM {table_name}
+        WHERE TRIM(COALESCE(estado,'')) <> 'Cancelado'
+        GROUP BY id_factura
+        HAVING SUM(CASE WHEN TRIM(COALESCE(estado,'')) IN ('Finalizado','Completado') THEN 1 ELSE 0 END) < COUNT(*)
+        ORDER BY pr_rank DESC, id_factura DESC
+        LIMIT %s
+        """,
+        (limit,)
+    )
+    rows = cur.fetchall()
+    items = []
+    for factura, total, cnt_final, cnt_proc, pr_rank, operador in rows:
+        prioridad_txt = 'Alta' if pr_rank == 3 else ('Media' if pr_rank == 2 else ('Baja' if pr_rank == 1 else '—'))
+        if cnt_final == total and total > 0:
+            estado_txt = 'Finalizado'
+        elif cnt_proc > 0:
+            estado_txt = 'En Proceso'
+        else:
+            estado_txt = 'Pendiente'
+        items.append({
+            "factura": factura or '—',
+            "items": int(total or 0),
+            "operador": operador or '—',
+            "en_proceso": int(cnt_proc or 0),
+            "finalizados": int(cnt_final or 0),
+            "prioridad": prioridad_txt,
+            "estado": estado_txt,
+        })
+    return items
+
+
+def _get_labelsapp_factura_items(db, table_name: str, factura: str, limit: int = 300):
+    cur = db.cursor()
+    cur.execute(
+        f"""
+        SELECT COALESCE(id_orden_profesional, ''),
+               COALESCE(codigo, ''),
+               COALESCE(producto, ''),
+               COALESCE(terminacion, ''),
+               COALESCE(presentacion, ''),
+               COALESCE(cantidad, 1),
+               COALESCE(base, ''),
+               COALESCE(ubicacion, ''),
+               COALESCE(codigo_base, ''),
+               COALESCE(prioridad, 'Media'),
+               COALESCE(estado, 'Pendiente')
+        FROM {table_name}
+        WHERE id_factura = %s
+          AND TRIM(COALESCE(estado, '')) <> 'Cancelado'
+        ORDER BY id ASC
+        LIMIT %s
+        """,
+        (factura, limit)
+    )
+    rows = cur.fetchall()
+    return [
+        {
+            "id_orden_profesional": r[0],
+            "codigo": r[1],
+            "producto": r[2],
+            "terminacion": r[3],
+            "presentacion": r[4],
+            "cantidad": int(r[5] or 1),
+            "base": r[6],
+            "ubicacion": r[7],
+            "codigo_base": r[8],
+            "prioridad": r[9],
+            "estado": r[10],
+        }
+        for r in rows
+    ]
+
+
+def _get_table_columns(db, table_name: str) -> set:
+    cur = db.cursor()
+    cur.execute(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema='public' AND table_name=%s
+        """,
+        (table_name,)
+    )
+    return {r[0] for r in cur.fetchall()}
+
+
+def _ensure_pedidos_table(db, table_name: str) -> None:
+    cur = db.cursor()
+    cur.execute(f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id SERIAL PRIMARY KEY,
+            id_orden_profesional VARCHAR(20) UNIQUE,
+            id_factura VARCHAR(120) NOT NULL,
+            codigo VARCHAR(60),
+            producto VARCHAR(160),
+            terminacion VARCHAR(120),
+            presentacion VARCHAR(40),
+            cantidad INTEGER DEFAULT 1,
+            prioridad VARCHAR(10) DEFAULT 'Media',
+            estado VARCHAR(20) DEFAULT 'Pendiente',
+            tiempo_estimado INTEGER DEFAULT 0,
+            base VARCHAR(60),
+            ubicacion VARCHAR(80),
+            sucursal VARCHAR(120),
+            operador VARCHAR(120),
+            codigo_base VARCHAR(80),
+            fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            fecha_asignacion TIMESTAMP NULL,
+            fecha_completado TIMESTAMP NULL
+        )
+    """)
+    cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_factura ON {table_name}(id_factura)")
+    cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_estado ON {table_name}(estado)")
+
+
+def _generate_order_id(id_factura: str, codigo: str, idx: int) -> str:
+    seed = f"{id_factura}|{codigo}|{idx}|{time.time_ns()}"
+    digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:9].upper()
+    return f"O{digest}"
+
+
+def _calculate_codigo_base(db, base: str, producto: str, terminacion: str) -> str:
+    if not base or not producto or not terminacion:
+        return ""
+
+    def _norm(s: str) -> str:
+        text = (s or "").strip().lower()
+        text = unicodedata.normalize("NFKD", text)
+        text = "".join(ch for ch in text if not unicodedata.combining(ch))
+        text = re.sub(r"\s+", " ", text)
+        return text
+
+    prod = _norm(producto)
+    term = _norm(terminacion)
+    base_clean = (base or "").strip()
+    base_norm = _norm(base_clean)
+
+    # Alias de terminaciones comunes (alineado al escritorio).
+    term_alias = {
+        "flat": "mate",
+        "mate": "mate",
+        "satin": "satin",
+        "satinado": "satin",
+        "semi gloss": "semigloss",
+        "semigloss": "semigloss",
+        "sgi": "semigloss",
+        "semi mate": "semimate",
+        "semimate": "semimate",
+        "gloss": "gloss",
+        "brillo": "brillo",
+        "semisatin": "semisatin",
+    }
+    term_canon = term_alias.get(term, term)
+
+    def _expand_template(template: str, row_map: dict) -> str:
+        def repl(match):
+            token = (match.group(1) or "").strip().lower()
+            value = row_map.get(token)
+            return "" if value is None else str(value).strip()
+
+        return re.sub(r"\{([a-zA-Z0-9_]+)\}", repl, template)
+
+    def _is_excello_premium() -> bool:
+        return "excello premium" in prod
+
+    def _special_excello_from_desktop(row_map: dict) -> str | None:
+        # Lógica tomada del escritorio para Excello Premium + bases Ultra Deep.
+        if not _is_excello_premium():
+            return None
+
+        es_ultra_deep_ii = any(k in base_norm for k in ["ultra deep ii", "ultradeep ii", "ultra-deep ii", "ultra deep 2"])
+        if es_ultra_deep_ii:
+            return "PP4-"
+
+        es_ultra_deep = ("ultra deep" in base_norm) and (not es_ultra_deep_ii)
+        if es_ultra_deep:
+            if term_canon == "semisatin":
+                return "A27WDR03-"
+            return "No Aplica"
+
+        if not row_map:
+            return None
+        if term_canon == "mate":
+            return str(row_map.get("flat") or "").strip() or "No Aplica"
+        if term_canon == "satin":
+            return str(row_map.get("satin") or "").strip() or "No Aplica"
+        if term_canon == "semigloss":
+            return str(row_map.get("sgi") or "").strip() or "No Aplica"
+        return "No Aplica"
+
+    row_map = {}
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT * FROM CodigoBase WHERE base ILIKE %s LIMIT 1", (base_clean,))
+        row = cur.fetchone()
+        if row:
+            cols = [desc[0].lower() for desc in cur.description]
+            row_map = {cols[i]: row[i] for i in range(len(cols))}
+    except Exception:
+        row_map = {}
+
+    try:
+        cur = db.cursor()
+
+        # Estrategia de búsqueda más flexible para ReglasCodigo (alineada al escritorio):
+        # 1) exacta por producto + terminación + base
+        # 2) exacta por producto + terminación sin base fija
+        # 3) contiene producto + terminación + base
+        # 4) contiene producto + terminación sin base fija
+        search_pairs = [(prod, term_canon)]
+        if term_canon in ("brillo", "gloss"):
+            search_pairs.append((prod, "gloss" if term_canon == "brillo" else "brillo"))
+
+        query_patterns = []
+        for pval, tval in search_pairs:
+            query_patterns.extend([
+                (pval, tval, base_clean, base_clean),
+                (pval, tval, "", ""),
+                (f"%{pval}%", tval, base_clean, base_clean),
+                (f"%{pval}%", tval, "", ""),
+            ])
+
+        codigo = ""
+        for p_q, t_q, b_q, b_order in query_patterns:
+            cur.execute(
+                """
+                SELECT codigo
+                FROM ReglasCodigo
+                WHERE activo = TRUE
+                  AND producto ILIKE %s
+                  AND terminacion ILIKE %s
+                  AND (base_color ILIKE %s OR base_color IS NULL)
+                ORDER BY CASE WHEN base_color ILIKE %s THEN 0 ELSE 1 END, prioridad DESC NULLS LAST, id DESC
+                LIMIT 1
+                """,
+                (p_q, t_q, b_q, b_order)
+            )
+            rule = cur.fetchone()
+            if rule and rule[0]:
+                codigo = str(rule[0]).strip()
+                break
+
+        if codigo:
+            if "{" in codigo and "}" in codigo and row_map:
+                codigo = _expand_template(codigo, row_map)
+            if codigo:
+                return codigo
+
+        # Sin regla en tabla: aplicar lógica hardcodeada del escritorio.
+        if not row_map:
+            return "No encontrado"
+
+        tath = str(row_map.get("tath") or "").strip()
+        tath2 = str(row_map.get("tath2") or "").strip()
+        tath3 = str(row_map.get("tath3") or "").strip()
+        flat = str(row_map.get("flat") or "").strip()
+        satin = str(row_map.get("satin") or "").strip()
+        sgi = str(row_map.get("sgi") or "").strip()
+        flat2 = str(row_map.get("flat2") or "").strip()
+        satin3 = str(row_map.get("satin3") or "").strip()
+        sg4 = str(row_map.get("sg4") or "").strip()
+        satinkq = str(row_map.get("satinkq") or "").strip()
+        flatkp = str(row_map.get("flatkp") or "").strip()
+        flatmp = str(row_map.get("flatmp") or "").strip()
+        flatcov = str(row_map.get("flatcov") or "").strip()
+        flatpas = str(row_map.get("flatpas") or "").strip()
+        satinem = str(row_map.get("satinem") or "").strip()
+        sgem = str(row_map.get("sgem") or "").strip()
+        flatsp = str(row_map.get("flatsp") or "").strip()
+        satinsp = str(row_map.get("satinsp") or "").strip()
+        glossp = str(row_map.get("glossp") or "").strip()
+        flatap = str(row_map.get("flatap") or "").strip()
+        satinap = str(row_map.get("satinap") or "").strip()
+        satinsan = str(row_map.get("satinsan") or "").strip()
+
+        term_cmp = term_canon
+        base_color = base_norm
+
+        es_esmalte = "esmalte multiuso" in prod
+        es_kempro = "kem pro" in prod
+        es_kemaqua = "kem aqua" in prod
+        es_masterpaint = "master paint" in prod
+        es_pastel = "excello pastel" in prod
+        es_emerald = "emerald" in prod
+        es_superpaint = "super paint" in prod
+        es_superpaintAP = "airpurtec" in prod
+        es_sanitizing = "sanitizing" in prod
+        es_laca = "laca" in prod
+        es_EsmalteIndustrial = "esmalte kem" in prod
+        es_uretano = "uretano" in prod
+        es_tintealthinner = "tinte al thinner" in prod
+        es_monocapa = "monocapa" in prod
+        es_excellocov = "excello voc" in prod
+        es_excellopremium = "excello premium" in prod
+        es_waterblocking = "water blocking" in prod
+        es_airpuretec = "airpuretec" in prod
+        es_hcsiloconeacr = "h&c silicone-acrylic" in prod
+        es_hcheavyshield = "h&c heavy-shield" in prod
+        es_ProMarEgShel = "promar® 200 voc" in prod
+        es_ProMarEgShel400 = "promar® 400 voc" in prod
+        es_proindustrialDTM = "pro industrial dtm" in prod
+        es_armoseal = "armoseal 1000hs" in prod
+        es_armosealtp = "armoseal t-p" in prod
+        es_scufftuff = "scuff tuff-wb" in prod
+        es_UrethaneAlkyd = "urethane alkyd" in prod
+        es_industrialenamels = "industrial enamel" in prod
+        es_macropoxy646 = "macropoxy 646" in prod
+        es_sherplate600 = "sherplate 600" in prod
+        es_macropoxy4600 = "macropoxy 4600" in prod
+        es_tileclad = "tile clad" in prod
+        es_acrolon7300 = "acrolon 7300" in prod
+        es_acrolon218 = "acrolon 218" in prod
+        es_ARMORSEAL_HS_PT = "armorseal hs-pt" in prod
+        es_HISOLIDS_EP = "hi-solids pt" in prod
+        es_HISOLIDS_EP250 = "hi-solids 250" in prod
+        es_ARMORSEAL_REXTHANE = "armorseal rexthane" in prod
+        es_duraplate = "dura-plate 235" in prod
+        es_duraplatePW = "dura-plate pw" in prod
+        es_WATER_BASECATALYZED = "water-base catalyzed" in prod
+        es_SHER_LOXANE_800 = "sher-loxane 800" in prod
+
+        # Estrategia 2 del escritorio: product_code_generator (si existe).
+        try:
+            try:
+                from product_code_generator import get_product_code  # type: ignore
+            except Exception:
+                get_product_code = None
+            if get_product_code:
+                product_flags = {
+                    'es_SHER_LOXANE_800': es_SHER_LOXANE_800,
+                    'es_WATER_BASECATALYZED': es_WATER_BASECATALYZED,
+                    'es_duraplatePW': es_duraplatePW,
+                    'es_duraplate': es_duraplate,
+                    'es_ARMORSEAL_REXTHANE': es_ARMORSEAL_REXTHANE,
+                    'es_HISOLIDS_EP250': es_HISOLIDS_EP250,
+                    'es_HISOLIDS_EP': es_HISOLIDS_EP,
+                    'es_ARMORSEAL_HS_PT': es_ARMORSEAL_HS_PT,
+                    'es_acrolon218': es_acrolon218,
+                    'es_acrolon7300': es_acrolon7300,
+                    'es_tileclad': es_tileclad,
+                    'es_macropoxy4600': es_macropoxy4600,
+                    'es_macropoxy646': es_macropoxy646,
+                    'es_sherplate600': es_sherplate600,
+                    'es_airpuretec': es_airpuretec,
+                    'es_waterblocking': es_waterblocking,
+                    'es_proindustrialDTM': es_proindustrialDTM,
+                    'es_scufftuff': es_scufftuff,
+                    'es_UrethaneAlkyd': es_UrethaneAlkyd,
+                    'es_industrialenamels': es_industrialenamels,
+                    'es_hcheavyshield': es_hcheavyshield,
+                    'es_ProMarEgShel': es_ProMarEgShel,
+                    'es_ProMarEgShel400': es_ProMarEgShel400,
+                    'es_armoseal': es_armoseal,
+                    'es_armosealtp': es_armosealtp,
+                    'es_hcsiloconeacr': es_hcsiloconeacr,
+                    'es_kemaqua': es_kemaqua,
+                    'es_excellocov': es_excellocov,
+                    'es_laca': es_laca,
+                    'es_EsmalteIndustrial': es_EsmalteIndustrial,
+                    'es_tintealthinner': es_tintealthinner,
+                    'es_esmalte': es_esmalte,
+                    'es_kempro': es_kempro,
+                    'es_masterpaint': es_masterpaint,
+                    'es_pastel': es_pastel,
+                    'es_emerald': es_emerald,
+                    'es_superpaint': es_superpaint,
+                    'es_superpaintAP': es_superpaintAP,
+                    'es_sanitizing': es_sanitizing,
+                    'es_uretano': es_uretano,
+                    'es_monocapa': es_monocapa,
+                    'es_excellopremium': es_excellopremium,
+                }
+                variables_map = {
+                    'tath': tath,
+                    'tath2': tath2,
+                    'tath3': tath3,
+                    'flat': flat,
+                    'satin': satin,
+                    'sgi': sgi,
+                    'flat2': flat2,
+                    'satin3': satin3,
+                    'sg4': sg4,
+                    'satinkq': satinkq,
+                    'flatkp': flatkp,
+                    'flatmp': flatmp,
+                    'flatcov': flatcov,
+                    'flatpas': flatpas,
+                    'satinem': satinem,
+                    'sgem': sgem,
+                    'flatsp': flatsp,
+                    'satinsp': satinsp,
+                    'glossp': glossp,
+                    'flatap': flatap,
+                    'satinap': satinap,
+                    'satinsan': satinsan,
+                }
+                codigo_gen = get_product_code(product_flags, term_cmp, base_color, variables=variables_map)
+                if isinstance(codigo_gen, str) and codigo_gen not in ("No Aplica", "Error", "No encontrado") and codigo_gen:
+                    return codigo_gen
+        except Exception:
+            pass
+
+        if es_SHER_LOXANE_800:
+            if term_cmp in ("brillo", "gloss"):
+                if base_color == "extra white":
+                    return "B80W501-"
+                if base_color == "ultra deep":
+                    return "B80T504-"
+            return "No Aplica"
+
+        if es_WATER_BASECATALYZED:
+            if term_cmp in ("brillo", "gloss"):
+                if base_color == "extra white":
+                    return "B73W311-"
+            return "No Aplica"
+
+        if es_duraplatePW:
+            if term_cmp == "semigloss" and base_color == "extra white":
+                return "B67WX235-"
+            return "No Aplica"
+
+        if es_duraplate:
+            if term_cmp == "semigloss" and base_color == "extra white":
+                return "B67W235-"
+            return "No Aplica"
+
+        if es_ARMORSEAL_REXTHANE:
+            if term_cmp in ("brillo", "gloss") and base_color == "extra white":
+                return "B65W60-"
+            return "No Aplica"
+
+        if es_HISOLIDS_EP250:
+            if term_cmp in ("brillo", "gloss") and base_color == "extra white":
+                return "B65WJ311-"
+            return "No Aplica"
+
+        if es_HISOLIDS_EP:
+            if term_cmp in ("brillo", "gloss"):
+                if base_color == "extra white":
+                    return "B65W311-"
+                if base_color == "ultra deep":
+                    return "B65T304-"
+            return "No Aplica"
+
+        if es_ARMORSEAL_HS_PT:
+            if term_cmp in ("brillo", "gloss"):
+                if base_color == "extra white":
+                    return "B65W220-"
+                if base_color == "ultra deep":
+                    return "B65T220-"
+            return "No Aplica"
+
+        if es_acrolon218:
+            if term_cmp in ("brillo", "gloss"):
+                if base_color == "extra white":
+                    return "B65W611-"
+                if base_color == "ultra deep":
+                    return "B65T604-"
+            elif term_cmp == "semigloss":
+                if base_color == "extra white":
+                    return "B65W651-"
+                if base_color == "ultra deep":
+                    return "B65T654-"
+            return "No Aplica"
+
+        if es_acrolon7300:
+            if term_cmp in ("brillo", "gloss"):
+                if base_color == "extra white":
+                    return "B65W01301-"
+                if base_color == "ultra deep":
+                    return "B65T01304-3"
+            return "No Aplica"
+
+        if es_tileclad:
+            if term_cmp in ("brillo", "gloss"):
+                if base_color == "extra white":
+                    return "B62WZ111-"
+                if base_color == "ultra deep":
+                    return "B62TZ104-"
+            return "No Aplica"
+
+        if es_macropoxy4600:
+            if term_cmp == "semigloss" and base_color == "extra white":
+                return "B58WW730-"
+            return "No Aplica"
+
+        if es_macropoxy646:
+            if term_cmp == "semigloss":
+                if base_color == "extra white":
+                    return "B58W610-"
+                if base_color == "ultra deep":
+                    return "B58T604-"
+            return "No Aplica"
+
+        if es_sherplate600:
+            if term_cmp in ("brillo", "gloss") and base_color == "extra white":
+                return "B58W681-"
+            return "No Aplica"
+
+        if es_kemaqua:
+            return satinkq if term_cmp == "satin" else "No Aplica"
+
+        if es_airpuretec:
+            if term_cmp == "mate":
+                if base_color == "extra white":
+                    return "A86W00061-"
+                if base_color == "deep":
+                    return "A86W00063-"
+            elif term_cmp == "satin":
+                if base_color == "extra white":
+                    return "A87W00061-"
+                if base_color == "deep":
+                    return "A87W00063-"
+            return "No Aplica"
+
+        if es_waterblocking:
+            return "LX12WDR50-" if term_cmp == "mate" else "No Aplica"
+
+        if es_excellocov:
+            if term_cmp == "mate":
+                return "A30WDR2651"
+            if term_cmp == "satin":
+                return "A20WDR2651-"
+            return "No Aplica"
+
+        if es_laca:
+            return "L15-" if term_cmp in ("mate", "semimate", "brillo") else "No Aplica"
+
+        if es_EsmalteIndustrial:
+            return "F300-" if term_cmp in ("mate", "semimate", "brillo") else "No Aplica"
+
+        if es_hcsiloconeacr:
+            if term_cmp in ("mate", "satin"):
+                if base_color == "extra white":
+                    return "20.101214-"
+                if base_color == "deep":
+                    return "20.102214-"
+                if base_color == "ultra deep":
+                    return "20.103214-"
+            return "No Aplica"
+
+        if es_proindustrialDTM:
+            if term_cmp in ("brillo", "gloss"):
+                if base_color == "extra white":
+                    return "B66W1051-"
+                if base_color == "ultra deep":
+                    return "B66T1054-"
+            return "No Aplica"
+
+        if es_scufftuff:
+            if term_cmp == "mate":
+                if base_color == "extra white":
+                    return "S23W00051-"
+                if base_color == "ultra deep":
+                    return "S23T00154-"
+                if base_color == "deep":
+                    return "S23W00153-"
+            elif term_cmp == "satin":
+                return "S24W00051-"
+            elif term_cmp == "semigloss":
+                return "S26W00051-"
+            return "No Aplica"
+
+        if es_UrethaneAlkyd:
+            if term_cmp == "brillo":
+                if base_color == "extra white":
+                    return "B54W00151-"
+                if base_color == "ultra deep":
+                    return "B54T00154-"
+            return "No Aplica"
+
+        if es_industrialenamels:
+            if term_cmp == "brillo":
+                if base_color == "extra white":
+                    return "B54W101-"
+                if base_color == "ultra deep":
+                    return "B54T101-"
+            return "No Aplica"
+
+        if es_hcheavyshield:
+            if term_cmp in ("brillo", "gloss"):
+                if base_color == "extra white":
+                    return "35.100214-"
+                if base_color == "deep":
+                    return "35.100314-"
+                if base_color == "ultra deep":
+                    return "35.100414-"
+            return "No Aplica"
+
+        if es_ProMarEgShel:
+            if term_cmp == "satin":
+                if base_color == "deep":
+                    return "B20W02653-"
+                if base_color == "extra white":
+                    return "B20W12651-"
+            elif term_cmp == "mate":
+                if base_color == "ultra deep":
+                    return "B30T02654-"
+                if base_color == "extra white":
+                    return "B30W02651-"
+                if base_color == "deep":
+                    return "B30W02653-"
+            elif term_cmp == "semigloss":
+                if base_color == "extra white":
+                    return "B31W02651-"
+            return "No Aplica"
+
+        if es_ProMarEgShel400:
+            if term_cmp == "satin" and base_color == "extra white":
+                return "B20W04651-"
+            return "No Aplica"
+
+        if es_armoseal:
+            if term_cmp in ("brillo", "gloss"):
+                if base_color == "extra white":
+                    return "B67W2001-"
+                if base_color == "ultra deep":
+                    return "B67T2004-"
+            return "No Aplica"
+
+        if es_armosealtp:
+            if term_cmp == "semigloss":
+                if base_color == "extra white":
+                    return "B90T104-"
+                if base_color == "ultra deep":
+                    return "B90W111-"
+            return "No Aplica"
+
+        if es_uretano:
+            if term_cmp in ("mate", "semimate", "brillo"):
+                if base_color == "extra white":
+                    return "ASPPA-"
+                if base_color in ("deep", "ultra deep"):
+                    return "ASPPB-"
+                return "ASPPD-"
+            return "No Aplica"
+
+        if es_tintealthinner:
+            if term_cmp == "claro":
+                return tath
+            if term_cmp == "intermedio":
+                return tath2
+            if term_cmp == "especial":
+                return tath3
+            return "No Aplica"
+
+        if es_monocapa:
+            if term_cmp in ("mate", "semimate", "brillo"):
+                if base_color == "extra white":
+                    return "ASMCA-"
+                if base_color in ("deep", "ultra deep"):
+                    return "ASMCB-"
+                return "ASMCD-"
+            return "No Aplica"
+
+        if es_esmalte:
+            if term_cmp == "mate":
+                return flat2
+            if term_cmp == "satin":
+                return satin3
+            if term_cmp in ("brillo", "gloss"):
+                return sg4
+            return "No Aplica"
+
+        if es_kempro:
+            return flatkp if term_cmp == "mate" else "No Aplica"
+
+        if es_masterpaint:
+            return flatmp if term_cmp == "mate" else "No Aplica"
+
+        if es_pastel:
+            return flatpas if term_cmp == "mate" else "No Aplica"
+
+        if es_emerald:
+            if term_cmp == "satin":
+                return "K37W02751-"
+            if term_cmp == "semigloss":
+                if "extra white" in base_color:
+                    return "K38W02751-"
+                if "ultradeep" in base_color or "ultra deep" in base_color or "ultra-deep" in base_color:
+                    return "K38T01754-"
+                if "deep" in base_color and "ultra" not in base_color:
+                    return "K38W01753-"
+                return "K38W02751-"
+            return "No Aplica"
+
+        if es_superpaint:
+            if term_cmp == "mate":
+                return flatsp
+            if term_cmp == "satin":
+                return satinsp
+            if term_cmp in ("brillo", "gloss"):
+                return glossp
+            return "No Aplica"
+
+        if es_superpaintAP:
+            if term_cmp == "mate":
+                return flatap
+            if term_cmp == "satin":
+                return satinap
+            return "No Aplica"
+
+        if es_sanitizing:
+            return satinsan if term_cmp == "satin" else "No Aplica"
+
+        if es_excellopremium:
+            es_ultra_deep_ii = any(k in base_color for k in ["ultra deep ii", "ultradeep ii", "ultra-deep ii", "ultra deep 2"])
+            if es_ultra_deep_ii:
+                return "PP4-"
+
+            es_ultra_deep = ("ultra deep" in base_color) and not es_ultra_deep_ii
+            if es_ultra_deep:
+                return "A27WDR03-" if term_cmp == "semisatin" else "No Aplica"
+
+            if term_cmp == "mate":
+                return flat
+            if term_cmp == "satin":
+                return satin
+            if term_cmp == "semigloss":
+                return sgi
+            return "No Aplica"
+
+        # Fallback final del escritorio.
+        if term_cmp in ("mate", "flat"):
+            return flat if flat else "No Aplica"
+        if term_cmp in ("satin", "satin"):
+            return satin if satin else "No Aplica"
+        if term_cmp in ("semigloss", "sgi"):
+            return sgi if sgi else "No Aplica"
+        return "No Aplica"
+
+    except Exception:
+        pass
+    return "Error"
+
+
+@app.get("/api/v1/labelsapp/products")
+async def labelsapp_products(q: str = "", limit: int = 250, db=Depends(get_db)):
+    """Buscar productos para LabelsApp Web"""
+    try:
+        safe_limit = None if limit <= 0 else max(1, min(limit, 50000))
+        query = (q or "").strip()
+        cur = db.cursor()
+        if query:
+            params = (f"%{query}%", f"%{query}%")
+            sql = """
+                SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
+                FROM ProductSW
+                WHERE (activo = TRUE OR activo IS NULL)
+                  AND (codigo ILIKE %s OR nombre ILIKE %s)
+                ORDER BY nombre
+            """
+            if safe_limit is not None:
+                sql += "\n                LIMIT %s"
+                params = params + (safe_limit,)
+            cur.execute(
+                sql,
+                params
+            )
+        else:
+            sql = """
+                SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
+                FROM ProductSW
+                WHERE (activo = TRUE OR activo IS NULL)
+                ORDER BY nombre
+            """
+            params = ()
+            if safe_limit is not None:
+                sql += "\n                LIMIT %s"
+                params = (safe_limit,)
+            cur.execute(sql, params)
+
+        rows = cur.fetchall()
+        products = [
+            {
+                "codigo": r[0],
+                "nombre": r[1],
+                "base": r[2],
+                "ubicacion": r[3],
+            }
+            for r in rows
+        ]
+
+        personalized = _load_personalized_products()
+        existing = {str(p.get("codigo") or "").strip().lower() for p in products}
+        for item in personalized:
+            code = (item.get("codigo") or "").strip()
+            if not code or code.lower() in existing:
+                continue
+            products.append({
+                "codigo": code,
+                "nombre": (item.get("nombre") or "").strip(),
+                "base": (item.get("base") or "").strip(),
+                "ubicacion": (item.get("ubicacion") or "").strip(),
+                "personalizado": True,
+            })
+            existing.add(code.lower())
+
+        if query:
+            qn = query.lower()
+            products = [p for p in products if qn in str(p.get("codigo") or "").lower() or qn in str(p.get("nombre") or "").lower()]
+
+        products.sort(key=lambda p: (str(p.get("nombre") or "").lower(), str(p.get("codigo") or "").lower()))
+
+        if safe_limit is not None:
+            products = products[:safe_limit]
+        return {"total": len(products), "productos": products}
+    except Exception as e:
+        logger.error(f"Error listing labelsapp products: {e}")
+        raise HTTPException(status_code=500, detail="Error listando productos")
+
+
+@app.get("/api/v1/labelsapp/product/{codigo}")
+async def labelsapp_product_by_code(codigo: str, db=Depends(get_db)):
+    """Obtener producto por código para autocompletar formulario"""
+    try:
+        cur = db.cursor()
+        cur.execute(
+            """
+            SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
+            FROM ProductSW
+            WHERE codigo = %s
+            LIMIT 1
+            """,
+            (codigo,)
+        )
+        row = cur.fetchone()
+        if not row:
+            personalized = _find_personalized_product_by_code(codigo)
+            if personalized:
+                return personalized
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+        return {
+            "codigo": row[0],
+            "nombre": row[1],
+            "base": row[2],
+            "ubicacion": row[3],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting labelsapp product: {e}")
+        raise HTTPException(status_code=500, detail="Error obteniendo producto")
+
+
+@app.get("/api/v1/labelsapp/personalizados")
+async def labelsapp_personalized_products():
+    return {"items": _load_personalized_products()}
+
+
+@app.post("/api/v1/labelsapp/personalizados")
+async def labelsapp_create_personalized_product(payload: LabelsAppPersonalizedProductRequest):
+    codigo = (payload.codigo or "").strip()
+    nombre = (payload.nombre or "").strip()
+    if not codigo or not nombre:
+        raise HTTPException(status_code=400, detail="Debe indicar código y nombre")
+
+    if len(codigo) > PERSONALIZADO_CODIGO_MAX:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El código no puede exceder {PERSONALIZADO_CODIGO_MAX} caracteres (contando espacios)",
+        )
+
+    if len(nombre) > PERSONALIZADO_NOMBRE_MAX:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La descripción no puede exceder {PERSONALIZADO_NOMBRE_MAX} caracteres",
+        )
+
+    items = _load_personalized_products()
+    if any((item.get("codigo") or "").strip().lower() == codigo.lower() for item in items):
+        raise HTTPException(status_code=409, detail="El código ya existe en productos personalizados")
+
+    items.append({
+        "codigo": codigo,
+        "nombre": nombre,
+        "base": "",
+        "ubicacion": "",
+        "fecha_creacion": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    })
+    _save_personalized_products(items)
+    return {"message": "Producto personalizado guardado", "codigo": codigo, "nombre": nombre}
+
+
+@app.delete("/api/v1/labelsapp/personalizados/{codigo}")
+async def labelsapp_delete_personalized_product(codigo: str):
+    items = _load_personalized_products()
+    filtered = [item for item in items if (item.get("codigo") or "").strip().lower() != (codigo or "").strip().lower()]
+    if len(filtered) == len(items):
+        raise HTTPException(status_code=404, detail="Código no encontrado en productos personalizados")
+    _save_personalized_products(filtered)
+    return {"message": "Producto personalizado eliminado", "codigo": codigo}
+
+
+@app.post("/api/v1/labelsapp/codigo-base")
+async def labelsapp_codigo_base(payload: LabelsAppCodigoBaseRequest, db=Depends(get_db)):
+    """Calcular código base aproximado para LabelsApp Web"""
+    try:
+        codigo = _calculate_codigo_base(db, payload.base, payload.producto, payload.terminacion)
+        return {"codigo_base": codigo}
+    except Exception as e:
+        logger.error(f"Error calculating codigo base: {e}")
+        raise HTTPException(status_code=500, detail="Error calculando código base")
+
+
+@app.post("/api/v1/labelsapp/send")
+async def labelsapp_send(payload: LabelsAppSendRequest, db=Depends(get_db)):
+    """Enviar lote de productos de LabelsApp Web a la cola de espera"""
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="Debe enviar al menos un producto")
+
+    try:
+        prioridad = (payload.prioridad or "Media").strip().title()
+        if prioridad not in ["Alta", "Media", "Baja"]:
+            prioridad = "Media"
+
+        sucursal_slug = _resolve_sucursal_slug(
+            db,
+            username=payload.username,
+            usuario_id=payload.usuario_id,
+            sucursal_text=payload.sucursal,
+        )
+        table_name = _safe_table_for_sucursal(sucursal_slug)
+
+        _ensure_pedidos_table(db, table_name)
+        columns = _get_table_columns(db, table_name)
+
+        inserted = 0
+        cur = db.cursor()
+        operador_label = _resolve_operador_label(db, username=payload.username, usuario_id=payload.usuario_id, operador=payload.operador)
+
+        for idx, item in enumerate(payload.items):
+            cantidad = max(1, int(item.cantidad or 1))
+            item_priority = (item.prioridad or prioridad or "Media").strip().title()
+            if item_priority not in ["Alta", "Media", "Baja"]:
+                item_priority = prioridad
+            codigo_base = (item.codigo_base or "").strip() or _calculate_codigo_base(db, item.base, item.producto, item.terminacion)
+
+            data = {
+                "id_orden_profesional": _generate_order_id(payload.id_factura, item.codigo, idx),
+                "id_factura": payload.id_factura,
+                "codigo": item.codigo,
+                "producto": item.producto,
+                "terminacion": item.terminacion,
+                "presentacion": item.presentacion,
+                "cantidad": cantidad,
+                "prioridad": item_priority,
+                "estado": "Pendiente",
+                "base": item.base,
+                "ubicacion": item.ubicacion,
+                "sucursal": sucursal_slug,
+                "codigo_base": codigo_base,
+                "fecha_creacion": datetime.now(),
+            }
+
+            if operador_label:
+                data["operador"] = operador_label
+
+            insert_cols = [c for c in data.keys() if c in columns]
+            values = [data[c] for c in insert_cols]
+
+            if not insert_cols:
+                continue
+
+            placeholders = ", ".join(["%s"] * len(insert_cols))
+            sql = f"INSERT INTO {table_name} ({', '.join(insert_cols)}) VALUES ({placeholders})"
+            cur.execute(sql, values)
+            inserted += 1
+
+        try:
+            cur.execute(f"NOTIFY pedidos_actualizados, 'labels:web:{payload.id_factura}'")
+        except Exception:
+            pass
+
+        db.commit()
+
+        return {
+            "message": "Lote enviado a cola correctamente",
+            "id_factura": payload.id_factura,
+            "sucursal": sucursal_slug,
+            "tabla": table_name,
+            "inserted": inserted,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.error(f"Error sending labelsapp batch: {e}")
+        raise HTTPException(status_code=500, detail="Error enviando lote a cola")
+
+
+@app.get("/api/v1/labelsapp/live-queue")
+async def labelsapp_live_queue(
+    limit: int = 50,
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    sucursal: Optional[str] = None,
+    db=Depends(get_db)
+):
+    """Obtener la cola agrupada en tiempo real para la vista web."""
+    try:
+        limit = max(1, min(int(limit or 50), 250))
+        sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
+        table_name = _safe_table_for_sucursal(sucursal_slug)
+
+        _ensure_pedidos_table(db, table_name)
+        items = _get_labelsapp_live_queue(db, table_name, limit=limit)
+
+        return {
+            "sucursal": sucursal_slug,
+            "tabla": table_name,
+            "total": len(items),
+            "items": items,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching labelsapp live queue: {e}")
+        raise HTTPException(status_code=500, detail="Error consultando la cola en tiempo real")
+
+
+@app.get("/api/v1/labelsapp/factura/{id_factura}/items")
+async def labelsapp_factura_items(
+    id_factura: str,
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    sucursal: Optional[str] = None,
+    db=Depends(get_db)
+):
+    try:
+        sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
+        table_name = _safe_table_for_sucursal(sucursal_slug)
+        _ensure_pedidos_table(db, table_name)
+        items = _get_labelsapp_factura_items(db, table_name, id_factura)
+        return {
+            "id_factura": id_factura,
+            "sucursal": sucursal_slug,
+            "tabla": table_name,
+            "items": items,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching factura items: {e}")
+        raise HTTPException(status_code=500, detail="Error consultando items de factura")
+
+
+@app.patch("/api/v1/labelsapp/factura/{id_factura}/prioridad")
+async def labelsapp_factura_priority(
+    id_factura: str,
+    payload: LabelsAppFacturaPriorityRequest,
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    sucursal: Optional[str] = None,
+    db=Depends(get_db)
+):
+    prioridad = (payload.prioridad or "Media").strip().title()
+    if prioridad not in ["Alta", "Media", "Baja"]:
+        raise HTTPException(status_code=400, detail="Prioridad inválida")
+
+    try:
+        sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
+        table_name = _safe_table_for_sucursal(sucursal_slug)
+        _ensure_pedidos_table(db, table_name)
+        cur = db.cursor()
+        cur.execute(
+            f"""
+            UPDATE {table_name}
+            SET prioridad = %s
+            WHERE id_factura = %s
+              AND TRIM(COALESCE(estado,'')) <> 'Cancelado'
+            """,
+            (prioridad, id_factura)
+        )
+        updated = int(cur.rowcount or 0)
+        try:
+            cur.execute(f"NOTIFY pedidos_actualizados, 'labels:prioridad:{id_factura}:{prioridad}'")
+        except Exception:
+            pass
+        db.commit()
+        return {"id_factura": id_factura, "prioridad": prioridad, "updated": updated}
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.error(f"Error updating factura priority: {e}")
+        raise HTTPException(status_code=500, detail="Error actualizando prioridad")
+
+
+@app.patch("/api/v1/labelsapp/factura/{id_factura}/cancel")
+async def labelsapp_factura_cancel(
+    id_factura: str,
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    sucursal: Optional[str] = None,
+    db=Depends(get_db)
+):
+    try:
+        sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
+        table_name = _safe_table_for_sucursal(sucursal_slug)
+        _ensure_pedidos_table(db, table_name)
+        cur = db.cursor()
+        cur.execute(
+            f"""
+            UPDATE {table_name}
+            SET estado = 'Cancelado'
+            WHERE id_factura = %s
+              AND TRIM(COALESCE(estado,'')) <> 'Cancelado'
+            """,
+            (id_factura,)
+        )
+        updated = int(cur.rowcount or 0)
+        try:
+            cur.execute(f"NOTIFY pedidos_actualizados, 'labels:cancelado:{id_factura}'")
+        except Exception:
+            pass
+        db.commit()
+        return {"id_factura": id_factura, "cancelados": updated}
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.error(f"Error canceling factura: {e}")
+        raise HTTPException(status_code=500, detail="Error cancelando factura")
+
+
+@app.put("/api/v1/labelsapp/factura/{id_factura}/items")
+async def labelsapp_factura_replace_items(
+    id_factura: str,
+    payload: LabelsAppFacturaItemsUpdateRequest,
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    sucursal: Optional[str] = None,
+    db=Depends(get_db)
+):
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="Debe enviar items para actualizar")
+
+    try:
+        prioridad_global = (payload.prioridad or "Media").strip().title()
+        if prioridad_global not in ["Alta", "Media", "Baja"]:
+            prioridad_global = "Media"
+
+        sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
+        table_name = _safe_table_for_sucursal(sucursal_slug)
+        _ensure_pedidos_table(db, table_name)
+        columns = _get_table_columns(db, table_name)
+        cur = db.cursor()
+
+        cur.execute(
+            f"""
+            DELETE FROM {table_name}
+            WHERE id_factura = %s
+              AND TRIM(COALESCE(estado,'')) <> 'Cancelado'
+            """,
+            (id_factura,)
+        )
+
+        inserted = 0
+        for idx, item in enumerate(payload.items):
+            cantidad = max(1, int(item.cantidad or 1))
+            item_priority = (item.prioridad or prioridad_global or "Media").strip().title()
+            if item_priority not in ["Alta", "Media", "Baja"]:
+                item_priority = prioridad_global
+
+            codigo_base = (item.codigo_base or "").strip() or _calculate_codigo_base(db, item.base, item.producto, item.terminacion)
+            data = {
+                "id_orden_profesional": _generate_order_id(id_factura, item.codigo, idx),
+                "id_factura": id_factura,
+                "codigo": item.codigo,
+                "producto": item.producto,
+                "terminacion": item.terminacion,
+                "presentacion": item.presentacion,
+                "cantidad": cantidad,
+                "prioridad": item_priority,
+                "estado": "Pendiente",
+                "base": item.base,
+                "ubicacion": item.ubicacion,
+                "sucursal": sucursal_slug,
+                "codigo_base": codigo_base,
+                "fecha_creacion": datetime.now(),
+            }
+
+            insert_cols = [c for c in data.keys() if c in columns]
+            if not insert_cols:
+                continue
+            values = [data[c] for c in insert_cols]
+            placeholders = ", ".join(["%s"] * len(insert_cols))
+            sql = f"INSERT INTO {table_name} ({', '.join(insert_cols)}) VALUES ({placeholders})"
+            cur.execute(sql, values)
+            inserted += 1
+
+        try:
+            cur.execute(f"NOTIFY pedidos_actualizados, 'labels:editada:{id_factura}'")
+        except Exception:
+            pass
+        db.commit()
+        return {"id_factura": id_factura, "inserted": inserted, "tabla": table_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.error(f"Error replacing factura items: {e}")
+        raise HTTPException(status_code=500, detail="Error editando factura")
+
+
 # ============================================================
 # LOGIN ENDPOINT
 # ============================================================
@@ -162,7 +1563,7 @@ def get_departamento(rol):
         return "Departamento TI"
     elif rol and rol.lower() in ['gerente', 'contabilidad']:
         return "Finanzas"
-    elif rol and rol.lower() in ['facturador', 'colorista', 'analista']:
+    elif rol and rol.lower() in ['facturador', 'cajero', 'colorista', 'analista']:
         return "Tienda"
     return "Otros"
 
@@ -190,10 +1591,10 @@ async def login(username: str, password: str, db=Depends(get_db)):
         if not activo:
             raise HTTPException(status_code=403, detail="Esta cuenta está inactiva")
         
-        # Verificar que sea administrador o analista
-        allowed_roles = ['administrador', 'analista']
+        # Verificar que tenga un rol permitido en el portal
+        allowed_roles = ['administrador', 'analista', 'facturador', 'cajero']
         if not rol or rol.lower() not in allowed_roles:
-            raise HTTPException(status_code=403, detail="Acceso restringido a administradores y analistas")
+            raise HTTPException(status_code=403, detail="Acceso restringido para este rol")
         
         # Registrar login en login_audits
         try:
