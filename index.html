@@ -436,6 +436,86 @@
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
+
+        .labels-grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .labels-grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .labels-mini-card {
+            padding: 12px;
+            border: 1px solid #dce8f8;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%);
+        }
+
+        .labels-mini-title {
+            font-size: 0.82rem;
+            color: #5e7287;
+        }
+
+        .labels-mini-value {
+            font-weight: 700;
+            color: #15395b;
+            margin-top: 4px;
+            font-size: 1.02rem;
+        }
+
+        .labels-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .labels-toolbar select {
+            padding: 8px 10px;
+            border: 1px solid #cdddf2;
+            border-radius: 8px;
+            background: #fff;
+            color: #1f3d5b;
+            font-weight: 600;
+        }
+
+        .labels-status {
+            font-size: 0.85rem;
+            color: #5e7287;
+            min-height: 18px;
+        }
+
+        .labels-chart-wrap {
+            height: 320px;
+            padding: 12px;
+            border: 1px solid #dce8f8;
+            border-radius: 10px;
+            background: #ffffff;
+        }
+
+        @media (max-width: 992px) {
+            .labels-grid-4, .labels-grid-2 {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .labels-grid-4, .labels-grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .labels-toolbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
         
         /* Sección mejorada */
         .section { 
@@ -995,28 +1075,46 @@
 
             <div id="dashboard" class="tab-content active">
                 <div class="dashboard-card" style="padding: 20px; min-height: 300px; display: flex; flex-direction: column; margin-top: 20px;">
-                    <h3 style="margin-bottom: 15px; flex-shrink: 0;">Métricas de Uso LabelsApp</h3>
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px;">
-                        <div style="padding: 10px; border: 1px solid #e3ebf5; border-radius: 10px; background: #f8fbff;">
-                            <div style="font-size: 0.82rem; color: #5e7287;">Último Login</div>
-                            <div id="labelsLastLogin" style="font-weight: 700; color: #15395b; margin-top: 4px;">-</div>
-                        </div>
-                        <div style="padding: 10px; border: 1px solid #e3ebf5; border-radius: 10px; background: #f8fbff;">
-                            <div style="font-size: 0.82rem; color: #5e7287;">Facturas Enviadas</div>
-                            <div id="labelsFacturasTotal" style="font-weight: 700; color: #15395b; margin-top: 4px;">0</div>
-                        </div>
-                        <div style="padding: 10px; border: 1px solid #e3ebf5; border-radius: 10px; background: #f8fbff;">
-                            <div style="font-size: 0.82rem; color: #5e7287;">Items Enviados</div>
-                            <div id="labelsItemsTotal" style="font-weight: 700; color: #15395b; margin-top: 4px;">0</div>
-                        </div>
-                        <div style="padding: 10px; border: 1px solid #e3ebf5; border-radius: 10px; background: #f8fbff;">
-                            <div style="font-size: 0.82rem; color: #5e7287;">Sucursal Más / Menos Uso</div>
-                            <div id="labelsTopSucursal" style="font-weight: 700; color: #15395b; margin-top: 4px;">-</div>
-                            <div id="labelsLowSucursal" style="font-size: 0.84rem; color: #5e7287; margin-top: 2px;">-</div>
+                    <div class="labels-toolbar">
+                        <h3 style="margin: 0;">Métricas Generales LabelsApp por Zonas</h3>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 0.85rem; color: #4f6f90; font-weight: 600;">Vista:</span>
+                            <select id="labelsZonaSelector" onchange="updateLabelsZoneView()">
+                                <option value="ALL">Todas las Zonas</option>
+                            </select>
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                    <div class="labels-grid-4">
+                        <div class="labels-mini-card">
+                            <div class="labels-mini-title">Último Login</div>
+                            <div id="labelsLastLogin" class="labels-mini-value">-</div>
+                        </div>
+                        <div class="labels-mini-card">
+                            <div class="labels-mini-title">Facturas Enviadas</div>
+                            <div id="labelsFacturasTotal" class="labels-mini-value">0</div>
+                        </div>
+                        <div class="labels-mini-card">
+                            <div class="labels-mini-title">Items Enviados</div>
+                            <div id="labelsItemsTotal" class="labels-mini-value">0</div>
+                        </div>
+                        <div class="labels-mini-card">
+                            <div class="labels-mini-title">Zonas / Sucursales con Uso</div>
+                            <div id="labelsTopZona" class="labels-mini-value">-</div>
+                            <div id="labelsUsageCounts" style="font-size: 0.84rem; color: #5e7287; margin-top: 2px;">-</div>
+                        </div>
+                    </div>
+
+                    <div class="labels-grid-2" style="margin-bottom: 14px;">
+                        <div class="labels-chart-wrap">
+                            <canvas id="labelsZonaUsageChart"></canvas>
+                        </div>
+                        <div class="labels-chart-wrap">
+                            <canvas id="labelsTopSucursalesChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="labels-grid-2">
                         <div>
                             <h4 style="margin: 0 0 8px; font-size: 0.9rem; color: #325172;">Productos Más Usados</h4>
                             <ul id="labelsTopProducts" style="margin: 0; padding-left: 18px; color: #2f4358;"></ul>
@@ -1027,18 +1125,21 @@
                         </div>
                     </div>
 
+                    <div id="labelsMetricStatus" class="labels-status" style="margin-top: 10px;"></div>
+
                     <div style="margin-top: 16px;">
-                        <h4 style="margin: 0 0 8px; font-size: 0.9rem; color: #325172;">Uso por Sucursal</h4>
+                        <h4 style="margin: 0 0 8px; font-size: 0.9rem; color: #325172;">Uso por Sucursal (según filtro de zona)</h4>
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="background: #f5f5f5;">
                                     <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Sucursal</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Zona</th>
                                     <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Facturas</th>
                                     <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Items</th>
                                 </tr>
                             </thead>
                             <tbody id="labelsSucursalUsageBody">
-                                <tr><td colspan="3" style="text-align: center; padding: 10px; border: 1px solid #ddd;">Cargando...</td></tr>
+                                <tr><td colspan="4" style="text-align: center; padding: 10px; border: 1px solid #ddd;">Cargando...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1634,6 +1735,9 @@ let empleadosPorSucursalChart = null;
 let usuariosPorRolChart = null;
 let estadoUsuariosChart = null;
 let loginActivityRefreshInterval = null;  // Intervalo para actualización automática
+let labelsZonaUsageChart = null;
+let labelsTopSucursalesChart = null;
+let labelsMetricsCache = null;
 
 // Función para actualizar gráficas del dashboard
 function updateDashboardCharts() {
@@ -1644,9 +1748,33 @@ function updateDashboardCharts() {
     if (loginActivityRefreshInterval) clearInterval(loginActivityRefreshInterval);
     loginActivityRefreshInterval = setInterval(() => {
         updateLabelsAppUsageMetrics();
-    }, 5000);
+    }, 10000);
 
     console.log('✓ updateDashboardCharts completado');
+}
+
+function normalizeTextBasic(text) {
+    return (text || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+}
+
+function zoneKeyToLabel(zoneKey) {
+    return (zoneKey || 'Sin_Zona').replace(/_/g, ' ');
+}
+
+function getZonaFromSucursalName(sucursalName) {
+    const target = normalizeTextBasic(sucursalName);
+    if (!target) return 'Sin_Zona';
+    for (const [zoneKey, names] of Object.entries(zonas || {})) {
+        if ((names || []).some(n => normalizeTextBasic(n) === target)) {
+            return zoneKey;
+        }
+    }
+    return 'Sin_Zona';
 }
 
 function renderLabelsProductList(elementId, rows) {
@@ -1659,20 +1787,170 @@ function renderLabelsProductList(elementId, rows) {
     el.innerHTML = rows.map(r => `<li>${r.producto} (${Number(r.cantidad || 0)})</li>`).join('');
 }
 
+function getZonaUsageRows(data) {
+    if (Array.isArray(data.zona_usage) && data.zona_usage.length) {
+        return data.zona_usage;
+    }
+
+    const byZona = {};
+    (data.sucursal_usage || []).forEach(row => {
+        const zona = row.zona || getZonaFromSucursalName(row.sucursal);
+        if (!byZona[zona]) {
+            byZona[zona] = { zona, facturas: 0, items: 0, sucursales: 0 };
+        }
+        byZona[zona].facturas += Number(row.facturas || 0);
+        byZona[zona].items += Number(row.items || 0);
+        byZona[zona].sucursales += 1;
+    });
+
+    return Object.values(byZona).sort((a, b) => (b.facturas - a.facturas) || (b.items - a.items));
+}
+
+function updateLabelsZoneSelector(data) {
+    const selector = document.getElementById('labelsZonaSelector');
+    if (!selector) return;
+    const current = selector.value || 'ALL';
+    const zonasRows = getZonaUsageRows(data);
+    const opts = ['<option value="ALL">Todas las Zonas</option>'];
+    zonasRows.forEach(z => {
+        opts.push(`<option value="${z.zona}">${zoneKeyToLabel(z.zona)}</option>`);
+    });
+    selector.innerHTML = opts.join('');
+
+    const exists = zonasRows.some(z => z.zona === current);
+    selector.value = exists || current === 'ALL' ? current : 'ALL';
+}
+
+function getFilteredSucursalUsage(data, selectedZona) {
+    const rows = (data.sucursal_usage || []).map(row => ({
+        ...row,
+        zona: row.zona || getZonaFromSucursalName(row.sucursal)
+    }));
+    if (!selectedZona || selectedZona === 'ALL') return rows;
+    return rows.filter(r => r.zona === selectedZona);
+}
+
+function renderLabelsUsageTable(rows) {
+    const usageBody = document.getElementById('labelsSucursalUsageBody');
+    if (!usageBody) return;
+
+    if (!rows.length) {
+        usageBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 10px; border: 1px solid #ddd;">Sin datos</td></tr>';
+        return;
+    }
+
+    usageBody.innerHTML = rows.slice(0, 12).map(row => (
+        `<tr>` +
+        `<td style="padding: 10px; border: 1px solid #ddd;">${row.sucursal || 'N/A'}</td>` +
+        `<td style="padding: 10px; border: 1px solid #ddd;">${zoneKeyToLabel(row.zona || 'Sin_Zona')}</td>` +
+        `<td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${Number(row.facturas || 0)}</td>` +
+        `<td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${Number(row.items || 0)}</td>` +
+        `</tr>`
+    )).join('');
+}
+
+function renderLabelsCharts(data, selectedZona) {
+    if (typeof Chart === 'undefined') return;
+
+    const zonaRows = getZonaUsageRows(data);
+    const zonaCanvas = document.getElementById('labelsZonaUsageChart');
+    if (zonaCanvas) {
+        if (labelsZonaUsageChart) labelsZonaUsageChart.destroy();
+        labelsZonaUsageChart = new Chart(zonaCanvas, {
+            type: 'bar',
+            data: {
+                labels: zonaRows.map(z => zoneKeyToLabel(z.zona)),
+                datasets: [{
+                    label: 'Facturas por Zona',
+                    data: zonaRows.map(z => Number(z.facturas || 0)),
+                    backgroundColor: ['#0b6cf0', '#17a398', '#ff8c42', '#7a5af8', '#ec4899', '#22c55e']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    title: { display: true, text: 'Vista General por Zonas' }
+                },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    const sucRows = getFilteredSucursalUsage(data, selectedZona)
+        .sort((a, b) => (Number(b.facturas || 0) - Number(a.facturas || 0)))
+        .slice(0, 8);
+    const topCanvas = document.getElementById('labelsTopSucursalesChart');
+    if (topCanvas) {
+        if (labelsTopSucursalesChart) labelsTopSucursalesChart.destroy();
+        labelsTopSucursalesChart = new Chart(topCanvas, {
+            type: 'doughnut',
+            data: {
+                labels: sucRows.map(r => r.sucursal || 'N/A'),
+                datasets: [{
+                    label: 'Facturas',
+                    data: sucRows.map(r => Number(r.facturas || 0)),
+                    backgroundColor: ['#1a73e8', '#00a896', '#ff9f1c', '#ef476f', '#8338ec', '#3a86ff', '#fb5607', '#43aa8b']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    title: {
+                        display: true,
+                        text: selectedZona === 'ALL'
+                            ? 'Top Sucursales (Todas las Zonas)'
+                            : `Top Sucursales (${zoneKeyToLabel(selectedZona)})`
+                    }
+                }
+            }
+        });
+    }
+}
+
+function updateLabelsZoneView() {
+    if (!labelsMetricsCache) return;
+
+    const selector = document.getElementById('labelsZonaSelector');
+    const selectedZona = selector ? selector.value : 'ALL';
+    const filteredRows = getFilteredSucursalUsage(labelsMetricsCache, selectedZona);
+
+    const facturasTotal = filteredRows.reduce((acc, r) => acc + Number(r.facturas || 0), 0);
+    const itemsTotal = filteredRows.reduce((acc, r) => acc + Number(r.items || 0), 0);
+    const zonasActivas = new Set(filteredRows.map(r => r.zona || 'Sin_Zona')).size;
+
+    const facturasEl = document.getElementById('labelsFacturasTotal');
+    const itemsEl = document.getElementById('labelsItemsTotal');
+    const topZonaEl = document.getElementById('labelsTopZona');
+    const countsEl = document.getElementById('labelsUsageCounts');
+    if (facturasEl) facturasEl.textContent = Number(facturasTotal || 0);
+    if (itemsEl) itemsEl.textContent = Number(itemsTotal || 0);
+    if (topZonaEl) topZonaEl.textContent = selectedZona === 'ALL' ? 'General' : zoneKeyToLabel(selectedZona);
+    if (countsEl) countsEl.textContent = `${zonasActivas} zonas / ${filteredRows.length} sucursales`;
+
+    renderLabelsUsageTable(filteredRows);
+    renderLabelsCharts(labelsMetricsCache, selectedZona);
+}
+
 async function updateLabelsAppUsageMetrics() {
+    const statusEl = document.getElementById('labelsMetricStatus');
     try {
         const res = await fetch(API + '/api/v1/labelsapp/usage-metrics?product_limit=5');
-        if (!res.ok) throw new Error('No se pudo cargar métricas de LabelsApp');
+        if (!res.ok) {
+            let detail = '';
+            try {
+                const body = await res.json();
+                detail = body.detail || '';
+            } catch (_) {}
+            throw new Error(detail || 'No se pudo cargar métricas de LabelsApp');
+        }
         const data = await res.json();
+        labelsMetricsCache = data;
 
-        const facturasEl = document.getElementById('labelsFacturasTotal');
-        const itemsEl = document.getElementById('labelsItemsTotal');
         const lastLoginEl = document.getElementById('labelsLastLogin');
-        const topSucEl = document.getElementById('labelsTopSucursal');
-        const lowSucEl = document.getElementById('labelsLowSucursal');
-
-        if (facturasEl) facturasEl.textContent = Number(data.total_facturas || 0);
-        if (itemsEl) itemsEl.textContent = Number(data.total_items || 0);
 
         if (lastLoginEl) {
             if (data.last_login && data.last_login.fecha_hora_login) {
@@ -1686,42 +1964,20 @@ async function updateLabelsAppUsageMetrics() {
             }
         }
 
-        if (topSucEl) {
-            const top = data.sucursal_mas_uso;
-            topSucEl.textContent = top ? `${top.sucursal} (${Number(top.facturas || 0)} fact.)` : 'Sin datos';
-        }
-        if (lowSucEl) {
-            const low = data.sucursal_menos_uso;
-            lowSucEl.textContent = low ? `Menos: ${low.sucursal} (${Number(low.facturas || 0)} fact.)` : 'Menos: Sin datos';
-        }
-
         renderLabelsProductList('labelsTopProducts', data.top_products || []);
         renderLabelsProductList('labelsLowProducts', data.low_products || []);
+        updateLabelsZoneSelector(data);
+        updateLabelsZoneView();
 
-        const usageBody = document.getElementById('labelsSucursalUsageBody');
-        if (usageBody) {
-            const usage = data.sucursal_usage || [];
-            if (!usage.length) {
-                usageBody.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 10px; border: 1px solid #ddd;">Sin datos</td></tr>';
-            } else {
-                usageBody.innerHTML = usage.slice(0, 10).map(row => (
-                    `<tr>` +
-                    `<td style="padding: 10px; border: 1px solid #ddd;">${row.sucursal || 'N/A'}</td>` +
-                    `<td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${Number(row.facturas || 0)}</td>` +
-                    `<td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${Number(row.items || 0)}</td>` +
-                    `</tr>`
-                )).join('');
-            }
-        }
+        if (statusEl) statusEl.textContent = `Actualizado: ${new Date().toLocaleTimeString('es-DO')}`;
     } catch (e) {
+        console.error('Error metrics labelsapp:', e);
         const lastLoginEl = document.getElementById('labelsLastLogin');
         if (lastLoginEl) lastLoginEl.textContent = 'Error cargando métricas';
         renderLabelsProductList('labelsTopProducts', []);
         renderLabelsProductList('labelsLowProducts', []);
-        const usageBody = document.getElementById('labelsSucursalUsageBody');
-        if (usageBody) {
-            usageBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: red; padding: 10px; border: 1px solid #ddd;">Error cargando datos</td></tr>';
-        }
+        renderLabelsUsageTable([]);
+        if (statusEl) statusEl.textContent = `Error: ${e.message || 'No se pudo cargar la vista general'}`;
     }
 }
 

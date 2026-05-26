@@ -220,6 +220,26 @@ def _safe_table_for_sucursal(sucursal_slug: str) -> str:
     return f"pedidos_pendientes_{slug}"
 
 
+def _normalize_zona_key(text: str) -> str:
+    raw = (text or "").strip().lower()
+    if not raw:
+        return "Sin_Zona"
+    norm = unicodedata.normalize("NFD", raw)
+    norm = "".join(ch for ch in norm if unicodedata.category(ch) != "Mn")
+    norm = re.sub(r"[^a-z0-9]+", "_", norm).strip("_")
+    if norm in {"santo_domingo", "santo_dom", "sto_domingo"}:
+        return "Santo_Domingo"
+    if norm in {"zona_este", "este"}:
+        return "Zona_Este"
+    if norm in {"zona_norte", "norte"}:
+        return "Zona_Norte"
+    if norm in {"zona_sur", "sur"}:
+        return "Zona_Sur"
+    if not norm:
+        return "Sin_Zona"
+    return "_".join(p.capitalize() for p in norm.split("_"))
+
+
 PERSONALIZADOS_CSV_PATH = os.path.join(os.path.dirname(__file__), "productos_personalizados.csv")
 PERSONALIZADO_CODIGO_MAX = 7
 PERSONALIZADO_NOMBRE_MAX = 20
@@ -2470,11 +2490,38 @@ async def labelsapp_usage_metrics(product_limit: int = 5, db=Depends(get_db)):
             sucursal_slug = table_name.replace("pedidos_pendientes_", "").strip() or "principal"
 
             cur.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema='public' AND table_name=%s
+                """,
+                (table_name,)
+            )
+            table_columns = {r[0] for r in (cur.fetchall() or []) if r and r[0]}
+            factura_col = "id_factura" if "id_factura" in table_columns else None
+            cantidad_col = "cantidad" if "cantidad" in table_columns else None
+            producto_col = "producto" if "producto" in table_columns else None
+            if not factura_col and "factura" in table_columns:
+                factura_col = "factura"
+            if not producto_col and "nombre_producto" in table_columns:
+                producto_col = "nombre_producto"
+
+            facturas_expr = (
+                f"COUNT(DISTINCT NULLIF(TRIM(COALESCE({factura_col}::text, '')), ''))"
+                if factura_col else
+                "COUNT(*)"
+            )
+            items_expr = (
+                f"COALESCE(SUM(COALESCE({cantidad_col}, 1)), 0)"
+                if cantidad_col else
+                "COUNT(*)"
+            )
+
+            cur.execute(
                 f"""
-                SELECT COUNT(DISTINCT id_factura) AS facturas,
-                       COALESCE(SUM(COALESCE(cantidad, 1)), 0) AS items
+                SELECT {facturas_expr} AS facturas,
+                       {items_expr} AS items
                 FROM {table_name}
-                WHERE TRIM(COALESCE(id_factura, '')) <> ''
                 """
             )
             facts_row = cur.fetchone() or (0, 0)
@@ -2489,39 +2536,73 @@ async def labelsapp_usage_metrics(product_limit: int = 5, db=Depends(get_db)):
             total_facturas += facturas_count
             total_items += items_count
 
-            cur.execute(
-                f"""
-                SELECT TRIM(COALESCE(producto, '')) AS producto,
-                       COALESCE(SUM(COALESCE(cantidad, 1)), 0) AS qty
-                FROM {table_name}
-                WHERE TRIM(COALESCE(producto, '')) <> ''
-                GROUP BY TRIM(COALESCE(producto, ''))
-                """
-            )
-            for producto, qty in cur.fetchall() or []:
-                product_name = (producto or "").strip()
-                if not product_name:
-                    continue
-                product_totals[product_name] += int(qty or 0)
+            if producto_col:
+                product_qty_expr = (
+                    f"COALESCE(SUM(COALESCE({cantidad_col}, 1)), 0)"
+                    if cantidad_col else
+                    "COUNT(*)"
+                )
+                cur.execute(
+                    f"""
+                    SELECT TRIM(COALESCE({producto_col}::text, '')) AS producto,
+                           {product_qty_expr} AS qty
+                    FROM {table_name}
+                    WHERE TRIM(COALESCE({producto_col}::text, '')) <> ''
+                    GROUP BY TRIM(COALESCE({producto_col}::text, ''))
+                    """
+                )
+                for producto, qty in cur.fetchall() or []:
+                    product_name = (producto or "").strip()
+                    if not product_name:
+                        continue
+                    product_totals[product_name] += int(qty or 0)
 
-        # Mapa de sucursal_slug -> nombre real
-        cur.execute("SELECT nombre FROM sucursales")
-        slug_to_name = {}
-        for row in cur.fetchall() or []:
-            suc_name = (row[0] or "").strip()
-            if not suc_name:
-                continue
-            slug_to_name[_normalize_sucursal_slug(suc_name)] = suc_name
+        # Mapa de sucursal_slug -> metadatos reales
+        slug_to_meta = {}
+        try:
+            cur.execute("SELECT nombre, zona FROM sucursales")
+            for row in cur.fetchall() or []:
+                suc_name = (row[0] or "").strip()
+                if not suc_name:
+                    continue
+                zona = _normalize_zona_key(row[1] or "")
+                slug_to_meta[_normalize_sucursal_slug(suc_name)] = {
+                    "nombre": suc_name,
+                    "zona": zona,
+                }
+        except Exception:
+            slug_to_meta = {}
 
         sucursal_usage = []
         for slug, data in sucursal_totals.items():
+            suc_meta = slug_to_meta.get(slug, {})
+            zona = suc_meta.get("zona") or "Sin_Zona"
             sucursal_usage.append({
-                "sucursal": slug_to_name.get(slug, slug.replace("_", " ").title()),
+                "sucursal": suc_meta.get("nombre") or slug.replace("_", " ").title(),
                 "sucursal_slug": slug,
+                "zona": zona,
                 "facturas": data["facturas"],
                 "items": data["items"],
             })
         sucursal_usage.sort(key=lambda x: (-x["facturas"], -x["items"], x["sucursal"]))
+
+        zona_totals = defaultdict(lambda: {"facturas": 0, "items": 0, "sucursales": 0})
+        for row in sucursal_usage:
+            zona = _normalize_zona_key(row.get("zona") or "")
+            zona_totals[zona]["facturas"] += int(row.get("facturas") or 0)
+            zona_totals[zona]["items"] += int(row.get("items") or 0)
+            zona_totals[zona]["sucursales"] += 1
+
+        zona_usage = [
+            {
+                "zona": z,
+                "facturas": int(v["facturas"]),
+                "items": int(v["items"]),
+                "sucursales": int(v["sucursales"]),
+            }
+            for z, v in zona_totals.items()
+        ]
+        zona_usage.sort(key=lambda x: (-x["facturas"], -x["items"], x["zona"]))
 
         product_usage = [
             {"producto": k, "cantidad": int(v)}
@@ -2532,24 +2613,27 @@ async def labelsapp_usage_metrics(product_limit: int = 5, db=Depends(get_db)):
         top_products = product_usage[:safe_limit]
         low_products = sorted(product_usage, key=lambda x: (x["cantidad"], x["producto"].lower()))[:safe_limit]
 
-        cur.execute(
-            """
-            SELECT username, nombre_completo, rol, sucursal, fecha_hora_login
-            FROM login_audits
-            ORDER BY fecha_hora_login DESC
-            LIMIT 1
-            """
-        )
-        last_login_row = cur.fetchone()
         last_login = None
-        if last_login_row:
-            last_login = {
-                "username": last_login_row[0],
-                "nombre_completo": last_login_row[1],
-                "rol": last_login_row[2],
-                "sucursal": last_login_row[3],
-                "fecha_hora_login": last_login_row[4].isoformat() if last_login_row[4] else None,
-            }
+        try:
+            cur.execute(
+                """
+                SELECT username, nombre_completo, rol, sucursal, fecha_hora_login
+                FROM login_audits
+                ORDER BY fecha_hora_login DESC
+                LIMIT 1
+                """
+            )
+            last_login_row = cur.fetchone()
+            if last_login_row:
+                last_login = {
+                    "username": last_login_row[0],
+                    "nombre_completo": last_login_row[1],
+                    "rol": last_login_row[2],
+                    "sucursal": last_login_row[3],
+                    "fecha_hora_login": last_login_row[4].isoformat() if last_login_row[4] else None,
+                }
+        except Exception:
+            last_login = None
 
         return {
             "total_facturas": total_facturas,
@@ -2558,8 +2642,11 @@ async def labelsapp_usage_metrics(product_limit: int = 5, db=Depends(get_db)):
             "top_products": top_products,
             "low_products": low_products,
             "sucursal_usage": sucursal_usage,
+            "zona_usage": zona_usage,
             "sucursal_mas_uso": sucursal_usage[0] if sucursal_usage else None,
             "sucursal_menos_uso": sucursal_usage[-1] if sucursal_usage else None,
+            "zona_mas_uso": zona_usage[0] if zona_usage else None,
+            "zona_menos_uso": zona_usage[-1] if zona_usage else None,
         }
     except Exception as e:
         logger.error(f"Error getting labelsapp usage metrics: {e}")
