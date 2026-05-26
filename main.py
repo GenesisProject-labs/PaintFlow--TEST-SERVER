@@ -1572,7 +1572,13 @@ async def login(username: str, password: str, db=Depends(get_db)):
     try:
         cur = db.cursor()
         cur.execute(
-            "SELECT id, username, nombre_completo, email, password_hash, rol, sucursal_id, telefono, activo FROM usuarios WHERE username = %s",
+            """
+            SELECT id, username, nombre_completo, email, password_hash, rol, sucursal_id, telefono, activo
+            FROM usuarios
+            WHERE LOWER(TRIM(username)) = LOWER(TRIM(%s))
+            ORDER BY id DESC
+            LIMIT 1
+            """,
             (username,)
         )
         usuario = cur.fetchone()
@@ -1581,6 +1587,7 @@ async def login(username: str, password: str, db=Depends(get_db)):
             raise HTTPException(status_code=401, detail="Usuario o contraseña inválida")
         
         usuario_id, db_username, nombre_completo, email, password_hash, rol, sucursal_id, telefono, activo = usuario
+        rol_normalizado = (rol or "").strip().lower()
         
         # Verificar contraseña con SHA256
         password_check = hashlib.sha256(password.encode()).hexdigest()
@@ -1593,7 +1600,7 @@ async def login(username: str, password: str, db=Depends(get_db)):
         
         # Verificar que tenga un rol permitido en el portal
         allowed_roles = ['administrador', 'analista', 'facturador', 'cajero']
-        if not rol or rol.lower() not in allowed_roles:
+        if not rol_normalizado or rol_normalizado not in allowed_roles:
             raise HTTPException(status_code=403, detail="Acceso restringido para este rol")
         
         # Registrar login en login_audits
@@ -1618,9 +1625,9 @@ async def login(username: str, password: str, db=Depends(get_db)):
             "username": db_username,
             "nombre_completo": nombre_completo,
             "email": email,
-            "rol": rol,
+            "rol": rol_normalizado,
             "sucursal_id": sucursal_id,
-            "departamento": get_departamento(rol),
+            "departamento": get_departamento(rol_normalizado),
             "ultima_actividad": time.time()
         }
         
@@ -1629,7 +1636,7 @@ async def login(username: str, password: str, db=Depends(get_db)):
             "username": db_username,
             "nombre_completo": nombre_completo,
             "email": email,
-            "rol": rol,
+            "rol": rol_normalizado,
             "sucursal_id": sucursal_id,
             "telefono": telefono,
             "activo": activo
