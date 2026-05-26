@@ -2155,6 +2155,8 @@
             queue.length = 0;
             renderQueue();
             editingFacturaId = null;
+            const facturaInput = document.getElementById("idFactura");
+            if (facturaInput) facturaInput.value = "";
             setWorkflowStep("codigo");
             setStatus("Lista limpia", "warn");
         }
