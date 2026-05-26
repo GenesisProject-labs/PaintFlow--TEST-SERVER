@@ -497,6 +497,10 @@ def _calculate_codigo_base(db, base: str, producto: str, terminacion: str) -> st
     base_clean = (base or "").strip()
     base_norm = _norm(base_clean)
 
+    # Regla fija de negocio: Texturizado (incluyendo alias mal escritos) usa este código base.
+    if any(alias in prod for alias in ["texturizado", "exc. texturizado", "exc texturizado", "exc. texdturizado", "exc texdturizado"]):
+        return "A44WGBX01-"
+
     # Alias de terminaciones comunes (alineado al escritorio).
     term_alias = {
         "flat": "mate",

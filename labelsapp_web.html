@@ -2080,6 +2080,13 @@
             const terminacion = document.getElementById("terminacion").value;
             const presentacion = document.getElementById("presentacion").value;
 
+            const forcedByProduct = forcedCodeForProductName(producto);
+            if (forcedByProduct) {
+                document.getElementById("codigoBase").value = forcedByProduct;
+                document.getElementById("codigo").value = forcedByProduct;
+                return;
+            }
+
             if (!base || !producto || !terminacion) {
                 document.getElementById("codigoBase").value = "";
                 return;

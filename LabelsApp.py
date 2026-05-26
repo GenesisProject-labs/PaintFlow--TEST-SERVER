@@ -6935,6 +6935,10 @@ def _buscar_regla_en_bd(producto_norm, terminacion_norm, base_color_norm, priori
 
 def obtener_codigo_base(base, producto, terminacion):
     try:
+        producto_norm_check = (producto or "").strip().lower()
+        if any(alias in producto_norm_check for alias in ["texturizado", "exc. texturizado", "exc texturizado", "exc. texdturizado", "exc texdturizado"]):
+            return "A44WGBX01-"
+
         # Buscar fila en caché para evitar abrir conexión por cada consulta
         base_key = (base or "").strip().lower()
         row = _CACHE_ROW_CODIGO_BASE.get(base_key)
