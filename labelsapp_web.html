@@ -170,6 +170,7 @@
             background: rgba(8, 22, 43, 0.52);
             z-index: 3000;
             display: none;
+            pointer-events: none;
             align-items: center;
             justify-content: center;
             padding: 16px;
@@ -177,6 +178,7 @@
 
         .profile-modal.active {
             display: flex;
+            pointer-events: auto;
         }
 
         .profile-modal-content {
@@ -1700,12 +1702,16 @@
                     activeSuggestionIndex = idx;
                     setCodeSuggestions(codeSuggestions);
                 });
-                el.addEventListener("mousedown", (ev) => {
+                const onPick = (ev) => {
                     ev.preventDefault();
                     document.getElementById("codigo").value = codeSuggestions[idx].code;
                     hideCodeSuggestions();
                     fillByCodigo();
+                };
+                el.addEventListener("mousedown", (ev) => {
+                    onPick(ev);
                 });
+                el.addEventListener("click", onPick);
             });
         }
 
@@ -1735,13 +1741,17 @@
                     activeDescriptionSuggestionIndex = idx;
                     setDescriptionSuggestions(descriptionSuggestions);
                 });
-                el.addEventListener("mousedown", (ev) => {
+                const onPick = (ev) => {
                     ev.preventDefault();
                     document.getElementById("codigo").value = descriptionSuggestions[idx].code;
                     document.getElementById("descripcion").value = descriptionSuggestions[idx].name || "";
                     hideDescriptionSuggestions();
                     fillByCodigo();
+                };
+                el.addEventListener("mousedown", (ev) => {
+                    onPick(ev);
                 });
+                el.addEventListener("click", onPick);
             });
         }
 
@@ -1785,14 +1795,18 @@
                     activeProductSuggestionIndex = idx;
                     setProductSuggestions(productSuggestions);
                 });
-                el.addEventListener("mousedown", (ev) => {
+                const onPick = (ev) => {
                     ev.preventDefault();
                     document.getElementById("producto").value = productSuggestions[idx].name;
                     bumpProductUsage(productSuggestions[idx].name);
                     hideProductSuggestions();
                     setWorkflowStep("terminacion");
                     applyProductRules();
+                };
+                el.addEventListener("mousedown", (ev) => {
+                    onPick(ev);
                 });
+                el.addEventListener("click", onPick);
             });
         }
 
@@ -2675,6 +2689,9 @@
 
         (function init() {
             ensureSession();
+            cerrarModalPerfil();
+            cerrarModalLogout();
+            closeUserDropdown();
             updateUserMenu();
             setProductOptions(PRODUCT_OPTIONS);
             setSelectOptions("terminacion", DEFAULT_TERMINACIONES);
