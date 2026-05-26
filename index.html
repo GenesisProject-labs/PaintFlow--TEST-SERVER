@@ -1762,6 +1762,12 @@ function normalizeTextBasic(text) {
         .trim();
 }
 
+function normalizeSucursalSlug(text) {
+    return normalizeTextBasic(text)
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'principal';
+}
+
 function zoneKeyToLabel(zoneKey) {
     return (zoneKey || 'Sin_Zona').replace(/_/g, ' ');
 }
@@ -1935,6 +1941,60 @@ function updateLabelsZoneView() {
     renderLabelsCharts(labelsMetricsCache, selectedZona);
 }
 
+async function buildFallbackLabelsMetrics() {
+    const sucRes = await fetch(API + '/api/v1/sucursales');
+    if (!sucRes.ok) throw new Error('No se pudo consultar sucursales para fallback');
+    const sucData = await sucRes.json();
+    const sucursales = Array.isArray(sucData.sucursales) ? sucData.sucursales : [];
+
+    const requests = sucursales.map(async suc => {
+        const sucursalNombre = suc.nombre || 'N/A';
+        const zona = suc.zona || getZonaFromSucursalName(sucursalNombre);
+        const slug = normalizeSucursalSlug(sucursalNombre);
+        try {
+            const qRes = await fetch(API + `/api/v1/labelsapp/live-queue?sucursal=${encodeURIComponent(slug)}&limit=250`);
+            if (!qRes.ok) return { sucursal: sucursalNombre, zona, facturas: 0, items: 0 };
+            const queue = await qRes.json();
+            const items = Array.isArray(queue.items) ? queue.items : [];
+            const facturas = Number(queue.total || items.length || 0);
+            const totalItems = items.reduce((acc, row) => acc + Number(row.items || 0), 0);
+            return { sucursal: sucursalNombre, zona, facturas, items: totalItems };
+        } catch (_) {
+            return { sucursal: sucursalNombre, zona, facturas: 0, items: 0 };
+        }
+    });
+
+    const sucursal_usage = (await Promise.all(requests)).filter(r => Number(r.facturas || 0) > 0 || Number(r.items || 0) > 0);
+    sucursal_usage.sort((a, b) => (Number(b.facturas || 0) - Number(a.facturas || 0)) || (Number(b.items || 0) - Number(a.items || 0)));
+
+    const zonaMap = {};
+    sucursal_usage.forEach(row => {
+        const zona = row.zona || 'Sin_Zona';
+        if (!zonaMap[zona]) zonaMap[zona] = { zona, facturas: 0, items: 0, sucursales: 0 };
+        zonaMap[zona].facturas += Number(row.facturas || 0);
+        zonaMap[zona].items += Number(row.items || 0);
+        zonaMap[zona].sucursales += 1;
+    });
+    const zona_usage = Object.values(zonaMap).sort((a, b) => (b.facturas - a.facturas) || (b.items - a.items));
+    const total_facturas = sucursal_usage.reduce((acc, r) => acc + Number(r.facturas || 0), 0);
+    const total_items = sucursal_usage.reduce((acc, r) => acc + Number(r.items || 0), 0);
+
+    return {
+        total_facturas,
+        total_items,
+        last_login: null,
+        top_products: [],
+        low_products: [],
+        sucursal_usage,
+        zona_usage,
+        sucursal_mas_uso: sucursal_usage[0] || null,
+        sucursal_menos_uso: sucursal_usage[sucursal_usage.length - 1] || null,
+        zona_mas_uso: zona_usage[0] || null,
+        zona_menos_uso: zona_usage[zona_usage.length - 1] || null,
+        source: 'fallback_live_queue'
+    };
+}
+
 async function updateLabelsAppUsageMetrics() {
     const statusEl = document.getElementById('labelsMetricStatus');
     try {
@@ -1972,12 +2032,26 @@ async function updateLabelsAppUsageMetrics() {
         if (statusEl) statusEl.textContent = `Actualizado: ${new Date().toLocaleTimeString('es-DO')}`;
     } catch (e) {
         console.error('Error metrics labelsapp:', e);
-        const lastLoginEl = document.getElementById('labelsLastLogin');
-        if (lastLoginEl) lastLoginEl.textContent = 'Error cargando métricas';
-        renderLabelsProductList('labelsTopProducts', []);
-        renderLabelsProductList('labelsLowProducts', []);
-        renderLabelsUsageTable([]);
-        if (statusEl) statusEl.textContent = `Error: ${e.message || 'No se pudo cargar la vista general'}`;
+        try {
+            const fallbackData = await buildFallbackLabelsMetrics();
+            labelsMetricsCache = fallbackData;
+            const lastLoginEl = document.getElementById('labelsLastLogin');
+            if (lastLoginEl) lastLoginEl.textContent = 'No disponible (modo live)';
+            renderLabelsProductList('labelsTopProducts', [{ producto: 'No disponible en modo live', cantidad: 0 }]);
+            renderLabelsProductList('labelsLowProducts', [{ producto: 'No disponible en modo live', cantidad: 0 }]);
+            updateLabelsZoneSelector(fallbackData);
+            updateLabelsZoneView();
+            if (statusEl) {
+                statusEl.textContent = `Modo fallback activo: métricas live por zonas (${new Date().toLocaleTimeString('es-DO')})`;
+            }
+        } catch (fallbackError) {
+            const lastLoginEl = document.getElementById('labelsLastLogin');
+            if (lastLoginEl) lastLoginEl.textContent = 'Error cargando métricas';
+            renderLabelsProductList('labelsTopProducts', []);
+            renderLabelsProductList('labelsLowProducts', []);
+            renderLabelsUsageTable([]);
+            if (statusEl) statusEl.textContent = `Error: ${fallbackError.message || e.message || 'No se pudo cargar la vista general'}`;
+        }
     }
 }
 
