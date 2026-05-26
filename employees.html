@@ -1264,7 +1264,7 @@
                 const btn = document.createElement('button');
                 btn.className = 'subtab-btn' + (activeSucursal === sucursal ? ' active' : '');
                 btn.textContent = sucursal;
-                btn.onclick = () => switchSucursal(event, sucursal);
+                btn.onclick = (event) => switchSucursal(event, sucursal);
                 container.appendChild(btn);
             });
             
@@ -1272,7 +1272,7 @@
             const inactivosBtn = document.createElement('button');
             inactivosBtn.className = 'subtab-btn inactive-btn';
             inactivosBtn.textContent = '🔒 Inactivos';
-            inactivosBtn.onclick = () => switchInactivos(event);
+            inactivosBtn.onclick = (event) => switchInactivos(event);
             inactivosBtn.style.background = '#f57c00';
             inactivosBtn.style.color = 'white';
             inactivosBtn.style.marginLeft = '10px';
@@ -1449,8 +1449,149 @@
                 analystMetricsCache = data;
                 renderAnalystDashboard(data);
             } catch (err) {
-                if (status) status.textContent = err.message || 'Error cargando métricas';
+                try {
+                    const fallback = await buildAnalystFallbackMetrics();
+                    analystMetricsCache = fallback;
+                    renderAnalystDashboard(fallback);
+                    if (status) {
+                        status.textContent = 'Mostrando datos base por contingencia (usage-metrics no disponible).';
+                    }
+                } catch (fallbackErr) {
+                    if (status) {
+                        status.textContent = 'No se pudo cargar dashboard de analista';
+                    }
+                }
             }
+        }
+
+        function normalizeZonaKey(value) {
+            if (!value) return 'SIN_ZONA';
+            return String(value)
+                .trim()
+                .toUpperCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, '_');
+        }
+
+        function createEmptyZoneMetrics(zonaSet) {
+            return Array.from(zonaSet).map(z => ({
+                zona: z,
+                facturas: 0,
+                items: 0,
+                avg_completion_minutes: 0,
+                ordenes_finalizadas: 0
+            }));
+        }
+
+        async function buildAnalystFallbackMetrics() {
+            const sucursales = Array.isArray(allSucursales) ? allSucursales : [];
+            const empleados = Array.isArray(allEmpleados) ? allEmpleados : [];
+
+            const sucursalToZona = new Map();
+            const zonaToSucursales = new Map();
+            const zonas = new Set();
+
+            sucursales.forEach(s => {
+                const sucNombre = s.nombre || s.sucursal_nombre || s.name || '';
+                const zona = normalizeZonaKey(s.zona || s.zona_nombre || s.region || 'SIN_ZONA');
+                if (sucNombre) sucursalToZona.set(String(sucNombre).trim().toLowerCase(), zona);
+                zonas.add(zona);
+                if (!zonaToSucursales.has(zona)) zonaToSucursales.set(zona, []);
+                zonaToSucursales.get(zona).push({
+                    sucursal: sucNombre || 'N/A',
+                    ultimo_login: s.ultimo_login || null,
+                    ultimo_login_username: s.ultimo_login_username || s.username_ultimo_login || '-'
+                });
+            });
+
+            if (zonas.size === 0) {
+                zonas.add('SIN_ZONA');
+            }
+
+            const usageMap = new Map(createEmptyZoneMetrics(zonas).map(z => [z.zona, z]));
+            const productMap = new Map();
+            const facturaSetByZona = new Map();
+            let completedOrders = 0;
+
+            let liveQueue = [];
+            try {
+                const liveRes = await fetch(API + '/api/v1/labelsapp/live-queue');
+                if (liveRes.ok) {
+                    const liveData = await liveRes.json();
+                    liveQueue = liveData.items || liveData.queue || (Array.isArray(liveData) ? liveData : []);
+                }
+            } catch (_) {
+                liveQueue = [];
+            }
+
+            liveQueue.forEach(item => {
+                const suc = (item.sucursal_nombre || item.sucursal || item.tienda || '').toString().trim().toLowerCase();
+                const zona = sucursalToZona.get(suc) || normalizeZonaKey(item.zona || 'SIN_ZONA');
+                if (!usageMap.has(zona)) {
+                    usageMap.set(zona, {
+                        zona,
+                        facturas: 0,
+                        items: 0,
+                        avg_completion_minutes: 0,
+                        ordenes_finalizadas: 0
+                    });
+                }
+
+                const usage = usageMap.get(zona);
+                const qty = Number(item.cantidad || item.qty || 1);
+                usage.items += Number.isFinite(qty) ? qty : 1;
+
+                const factura = item.factura || item.id_factura || item.numero_factura || item.pedido || item.order_id;
+                if (factura) {
+                    if (!facturaSetByZona.has(zona)) facturaSetByZona.set(zona, new Set());
+                    facturaSetByZona.get(zona).add(String(factura));
+                }
+
+                const status = String(item.estado || item.status || '').toLowerCase();
+                if (status.includes('finaliz') || status.includes('complet')) {
+                    usage.ordenes_finalizadas += 1;
+                    completedOrders += 1;
+                }
+
+                const producto = item.producto || item.product_name || item.descripcion || 'N/A';
+                const productKey = `${zona}||${producto}`;
+                productMap.set(productKey, (productMap.get(productKey) || 0) + 1);
+            });
+
+            usageMap.forEach((usage, zona) => {
+                usage.facturas = (facturaSetByZona.get(zona) || new Set()).size;
+            });
+
+            const zone_top_products = Array.from(usageMap.keys()).map(zona => {
+                const top_products = Array.from(productMap.entries())
+                    .filter(([k]) => k.startsWith(`${zona}||`))
+                    .map(([k, cantidad]) => ({
+                        producto: k.split('||')[1],
+                        cantidad
+                    }))
+                    .sort((a, b) => b.cantidad - a.cantidad)
+                    .slice(0, 5);
+                return { zona, top_products };
+            });
+
+            const sucursal_login_by_zone = Array.from(usageMap.keys()).map(zona => ({
+                zona,
+                sucursales: zonaToSucursales.get(zona) || []
+            }));
+
+            if (sucursal_login_by_zone.length === 0) {
+                sucursal_login_by_zone.push({ zona: 'SIN_ZONA', sucursales: [] });
+            }
+
+            return {
+                avg_completion_minutes_overall: 0,
+                total_completed_orders: completedOrders,
+                zona_usage: Array.from(usageMap.values()),
+                zone_top_products,
+                sucursal_login_by_zone,
+                _source: 'fallback'
+            };
         }
 
         function abrirDashboardAnalista() {
