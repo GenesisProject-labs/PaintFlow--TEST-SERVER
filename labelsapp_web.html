@@ -2161,16 +2161,16 @@
 
         async function copyQueueCodigos() {
             if (!queue.length) {
-                setStatus("No hay codigos en la lista para copiar", "warn");
+                setStatus("No hay codigos base en la lista para copiar", "warn");
                 return;
             }
 
             const codigos = queue
-                .map(item => (item?.codigo || "").toString().trim())
+                .map(item => (item?.codigo_base || "").toString().trim())
                 .filter(Boolean);
 
             if (!codigos.length) {
-                setStatus("No hay codigos validos para copiar", "warn");
+                setStatus("No hay codigos base validos para copiar", "warn");
                 return;
             }
 
@@ -2190,9 +2190,9 @@
                     document.execCommand("copy");
                     document.body.removeChild(tmp);
                 }
-                setStatus(`${codigos.length} codigo(s) copiados al portapapeles`, "ok");
+                setStatus(`${codigos.length} codigo(s) base copiados al portapapeles`, "ok");
             } catch {
-                setStatus("No se pudo copiar los codigos", "error");
+                setStatus("No se pudo copiar los codigos base", "error");
             }
         }
 
