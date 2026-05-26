@@ -2416,17 +2416,33 @@ async function updateLabelsAppUsageMetrics() {
             console.error('Error metrics labelsapp:', e);
             try {
                 const fallbackData = await buildFallbackLabelsMetrics();
-                labelsMetricsCache = fallbackData;
-                setCachedLabelsMetrics(fallbackData);
+                const mergedFallback = {
+                    ...fallbackData,
+                    zone_top_products: Array.isArray(cached?.zone_top_products) && cached.zone_top_products.length
+                        ? cached.zone_top_products
+                        : fallbackData.zone_top_products,
+                    sucursal_login_by_zone: Array.isArray(cached?.sucursal_login_by_zone) && cached.sucursal_login_by_zone.length
+                        ? cached.sucursal_login_by_zone
+                        : fallbackData.sucursal_login_by_zone,
+                    top_products: Array.isArray(cached?.top_products) && cached.top_products.length
+                        ? cached.top_products
+                        : fallbackData.top_products,
+                    low_products: Array.isArray(cached?.low_products) && cached.low_products.length
+                        ? cached.low_products
+                        : fallbackData.low_products,
+                    last_login: cached?.last_login || fallbackData.last_login,
+                };
+
+                labelsMetricsCache = mergedFallback;
                 labelsLastFetchMs = Date.now();
                 const lastLoginEl = document.getElementById('labelsLastLogin');
                 if (lastLoginEl) lastLoginEl.textContent = 'No disponible (modo live)';
-                renderLabelsProductList('labelsTopProducts', [{ producto: 'No disponible en modo live', cantidad: 0 }]);
-                renderLabelsProductList('labelsLowProducts', [{ producto: 'No disponible en modo live', cantidad: 0 }]);
-                updateLabelsZoneSelector(fallbackData);
+                renderLabelsProductList('labelsTopProducts', mergedFallback.top_products?.length ? mergedFallback.top_products : [{ producto: 'No disponible en modo live', cantidad: 0 }]);
+                renderLabelsProductList('labelsLowProducts', mergedFallback.low_products?.length ? mergedFallback.low_products : [{ producto: 'No disponible en modo live', cantidad: 0 }]);
+                updateLabelsZoneSelector(mergedFallback);
                 updateLabelsZoneView();
                 if (statusEl) {
-                    statusEl.textContent = `Modo fallback activo: métricas live por zonas (${new Date().toLocaleTimeString('es-DO')})`;
+                    statusEl.textContent = `Modo fallback activo: métricas live por zonas (con cache de respaldo) (${new Date().toLocaleTimeString('es-DO')})`;
                 }
             } catch (fallbackError) {
                 const lastLoginEl = document.getElementById('labelsLastLogin');
