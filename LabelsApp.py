@@ -4069,6 +4069,14 @@ presentacion_var.trace_add('write', lambda *args: actualizar_vista())
 # Agregar listener para cuando cambie la base (importante para Excello Premium)
 base_var.trace_add('write', actualizar_terminaciones)
 
+def es_producto_texturizado(producto):
+    """Detecta variantes conocidas de Texturizado."""
+    p = (producto or '').strip().lower()
+    return any(alias in p for alias in [
+        'texturizado', 'exc. texturizado', 'exc texturizado',
+        'exc. texdturizado', 'exc texdturizado'
+    ])
+
 # Sugerencia dinámica de Código Base (sin copiar al portapapeles)
 def actualizar_codigo_base_sugerido(*args):
     try:
@@ -4078,11 +4086,12 @@ def actualizar_codigo_base_sugerido(*args):
         presentacion = (presentacion_var.get() or '').strip()
 
         # Requisitos mínimos
-        if not base or not producto or not terminacion:
+        requiere_terminacion = not es_producto_texturizado(producto)
+        if not base or not producto or (requiere_terminacion and not terminacion):
             codigo_base_var.set("")
             return
 
-        resultado = obtener_codigo_base(base, producto, terminacion)
+        resultado = obtener_codigo_base(base, producto, terminacion or "")
         if not resultado or resultado in ("No encontrado", "No Aplica", "Error"):
             codigo_base_var.set("")
             return
@@ -5456,8 +5465,8 @@ def agregar_a_lista_espera(codigo, producto, terminacion, id_factura, prioridad,
 
         # Calcular código base completo (con sufijo presentación si aplica)
         codigo_base_calculado = ""
-        if base_a_usar and producto and terminacion:
-            codigo_base_calculado = obtener_codigo_base(base_a_usar, producto, terminacion)
+        if base_a_usar and producto and (terminacion_a_usar or es_producto_texturizado(producto)):
+            codigo_base_calculado = obtener_codigo_base(base_a_usar, producto, terminacion_a_usar or "")
             if presentacion_a_usar and codigo_base_calculado not in ["No encontrado", "No Aplica"]:
                 sufijo = obtener_sufijo_presentacion(presentacion_a_usar, producto, base or base_var.get())
                 if sufijo:
@@ -5696,8 +5705,8 @@ def agregar_lista_a_espera_bulk(items, id_factura, prioridad_global):
                 # Calcular código_base si la tabla lo soporta
                 codigo_base_calculado = ""
                 try:
-                    if 'codigo_base' in cols_disponibles and base_a_usar and producto and terminacion_a_usar:
-                        cb = obtener_codigo_base(base_a_usar, producto, terminacion_a_usar)
+                    if 'codigo_base' in cols_disponibles and base_a_usar and producto and (terminacion_a_usar or es_producto_texturizado(producto)):
+                        cb = obtener_codigo_base(base_a_usar, producto, terminacion_a_usar or "")
                         if cb not in ["No encontrado", "No Aplica", None, ""]:
                             suf = obtener_sufijo_presentacion(presentacion_a_usar, producto, base_a_usar)
                             codigo_base_calculado = f"{cb}{suf}" if suf else cb
@@ -7760,12 +7769,13 @@ def mostrar_codigo_base():
     terminacion = terminacion_var.get()
     presentacion = presentacion_var.get()
 
-    if not base or not producto or not terminacion:
+    requiere_terminacion = not es_producto_texturizado(producto)
+    if not base or not producto or (requiere_terminacion and not terminacion):
         aviso_var.set("Completa todos los campos")
         return
 
     # Obtener código base
-    resultado = obtener_codigo_base(base, producto, terminacion)
+    resultado = obtener_codigo_base(base, producto, terminacion or "")
     
     # Agregar sufijo de presentación si está seleccionada
     if presentacion and resultado != "No encontrado" and resultado != "No Aplica":
