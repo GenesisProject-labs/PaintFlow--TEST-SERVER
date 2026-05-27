@@ -1218,6 +1218,562 @@
             color: #111 !important;
         }
 
+        /* Admin view polish */
+        #appContainer .container {
+            max-width: 1360px;
+            margin: 24px auto;
+            padding: 0 18px 26px;
+        }
+
+        #appContainer .section,
+        #appContainer .dashboard-card {
+            background: #fff !important;
+            border: 1px solid #e3e6ea !important;
+            border-radius: 14px !important;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.06) !important;
+        }
+
+        #appContainer .section-header {
+            padding: 18px 22px;
+            border-bottom: 1px solid #eceff3 !important;
+            background: linear-gradient(180deg, #fbfbfb 0%, #f5f6f7 100%) !important;
+        }
+
+        #appContainer .btn-agregar {
+            background: #111 !important;
+            color: #fff !important;
+            border-radius: 10px !important;
+            border: 1px solid #111 !important;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            padding: 11px 20px !important;
+            box-shadow: 0 8px 18px rgba(17, 17, 17, 0.16);
+        }
+
+        #appContainer .btn-agregar:hover {
+            background: #1d1d1d !important;
+            border-color: #1d1d1d !important;
+            transform: translateY(-1px);
+        }
+
+        #appContainer .subtabs-container {
+            margin: 16px 22px 0;
+            padding: 8px;
+            border-radius: 12px;
+            background: #f8f9fb !important;
+            border: 1px solid #eceff3 !important;
+            box-shadow: none !important;
+        }
+
+        #appContainer table {
+            border: 1px solid #e5e8ec !important;
+            border-radius: 12px !important;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.04) !important;
+        }
+
+        #appContainer thead tr,
+        #appContainer thead tr[style] {
+            background: #f3f4f6 !important;
+        }
+
+        #appContainer th,
+        #appContainer td {
+            border-color: #e9edf2 !important;
+            padding-top: 10px !important;
+            padding-bottom: 10px !important;
+        }
+
+        #dashboard .labels-toolbar {
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #eceff3;
+        }
+
+        #dashboard .labels-toolbar h3 {
+            font-size: 1.06rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+
+        #dashboard .labels-mini-card {
+            border: 1px solid #e4e7ec !important;
+            border-radius: 12px !important;
+            background: linear-gradient(180deg, #ffffff 0%, #f8f9fb 100%) !important;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
+            padding: 14px;
+        }
+
+        #dashboard .labels-mini-title {
+            color: #444 !important;
+            font-weight: 600;
+            font-size: 0.79rem;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        #dashboard .labels-mini-value {
+            color: #111 !important;
+            font-size: 1.12rem;
+            margin-top: 6px;
+        }
+
+        #dashboard .labels-chart-wrap {
+            border: 1px solid #e5e8ec !important;
+            border-radius: 12px !important;
+            background: #fff !important;
+        }
+
+        #dashboard h4[style],
+        #dashboard ul[style],
+        #dashboard #labelsUsageCounts,
+        #dashboard #labelsAvgCompletion,
+        #dashboard #labelsCompletedOrders {
+            color: #111 !important;
+        }
+
+        @media (max-width: 900px) {
+            #appContainer .container {
+                margin-top: 14px;
+                padding: 0 10px 20px;
+            }
+
+            #appContainer .section-header {
+                padding: 14px;
+            }
+
+            #appContainer .subtabs-container {
+                margin: 12px 14px 0;
+            }
+        }
+
+        /* Full admin visual system */
+        #appContainer {
+            font-family: Manrope, sans-serif;
+            font-size: 15px;
+            line-height: 1.45;
+            letter-spacing: 0.005em;
+        }
+
+        #appContainer .title {
+            font-size: clamp(1.25rem, 2.4vw, 1.8rem);
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+
+        #appContainer .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+
+        #appContainer .header {
+            position: relative;
+            z-index: 90;
+            overflow: visible;
+        }
+
+        #appContainer .logo-section {
+            justify-self: auto;
+        }
+
+        #appContainer .user-menu {
+            justify-self: auto;
+            margin-left: auto;
+        }
+
+        #appContainer .user-menu-container {
+            position: relative;
+            z-index: 95;
+        }
+
+        #appContainer #userDropdown {
+            z-index: 9999 !important;
+        }
+
+        #appContainer .admin-nav-wrap {
+            max-width: 1360px;
+            margin: 10px auto 0;
+            padding: 0 18px;
+            display: flex;
+            justify-content: flex-end;
+            border-bottom: 1px solid #d9e0ea;
+            position: relative;
+            z-index: 2;
+        }
+
+        #appContainer .admin-nav-wrap .navbar-tabs {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            width: auto;
+            max-width: 100%;
+            min-width: 0;
+            padding: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        #appContainer .admin-nav-wrap .navbar-tabs .tab-btn {
+            background: linear-gradient(180deg, #f7f9fc 0%, #ecf1f8 100%) !important;
+            border: 1px solid #d9e0ea !important;
+            border-bottom: 1px solid #d9e0ea !important;
+            border-radius: 12px 12px 0 0 !important;
+            font-size: 0.82rem !important;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            padding: 10px 18px !important;
+            min-width: 0;
+            text-align: center;
+            box-shadow: none !important;
+            transform: none !important;
+            transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease !important;
+        }
+
+        #appContainer .admin-nav-wrap .navbar-tabs .tab-btn:hover {
+            background: #eef3fa !important;
+            border-color: #cfd9e7 !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        #appContainer .admin-nav-wrap .navbar-tabs .tab-btn.active {
+            background: #ffffff !important;
+            border-color: #d9e0ea !important;
+            border-bottom-color: #ffffff !important;
+            color: #111 !important;
+            box-shadow: none !important;
+            transform: none !important;
+            position: relative;
+            top: 1px;
+            box-shadow: inset 0 2px 0 #1a73e8 !important;
+        }
+
+        @media (max-width: 1100px) {
+            #appContainer .admin-nav-wrap {
+                justify-content: flex-start;
+                border-bottom: none;
+                padding: 0 10px;
+                margin-top: 8px;
+                margin-bottom: 8px;
+            }
+
+            #appContainer .admin-nav-wrap .navbar-tabs {
+                width: 100%;
+                overflow-x: auto;
+                overflow-y: hidden;
+                flex-wrap: nowrap;
+                gap: 6px;
+                scrollbar-width: none;
+            }
+
+            #appContainer .admin-nav-wrap .navbar-tabs::-webkit-scrollbar {
+                display: none;
+            }
+
+            #appContainer .admin-nav-wrap .navbar-tabs .tab-btn {
+                flex: 0 0 auto;
+                min-width: 118px;
+                padding: 9px 14px !important;
+            }
+
+            #appContainer .admin-nav-wrap .navbar-tabs .tab-btn.active {
+                top: 0;
+                border-bottom-color: #d9e0ea !important;
+            }
+
+            #appContainer .container {
+                padding: 0 10px 18px;
+            }
+        }
+
+        #appContainer .container {
+            margin-top: 0;
+            padding-top: 0;
+            border-top-left-radius: 0 !important;
+            border-top-right-radius: 0 !important;
+            position: relative;
+            z-index: 1;
+        }
+
+        #appContainer #usuarios .section,
+        #appContainer #sucursales .section,
+        #appContainer #dashboard .dashboard-card {
+            margin-top: 0 !important;
+        }
+
+        #appContainer .section-header h2,
+        #dashboard .labels-toolbar h3 {
+            font-family: Space Grotesk, sans-serif;
+            font-weight: 700;
+            letter-spacing: 0.015em;
+        }
+
+        #dashboard h4 {
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        #userDropdownBtn {
+            background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%) !important;
+            border: 1px solid #0d47a1 !important;
+            color: #fff !important;
+            box-shadow: 0 10px 22px rgba(26, 115, 232, 0.3) !important;
+        }
+
+        #userDropdownBtn:hover {
+            background: linear-gradient(135deg, #2a81f0 0%, #1458b5 100%) !important;
+            color: #fff !important;
+        }
+
+        #userDropdownBtn::after,
+        #userDropdownBtn #adminUserName,
+        #userDropdownBtn #userDisplayName {
+            color: #fff !important;
+        }
+
+        #appContainer .tab-btn,
+        #appContainer .subtab-btn {
+            font-size: 0.85rem !important;
+            padding: 9px 14px !important;
+        }
+
+        /* Table density: user-role tables and branch tables */
+        #usuarios .subtab-content table,
+        #sucursales .subtab-content table {
+            font-size: 0.86rem;
+        }
+
+        #usuarios .subtab-content th,
+        #sucursales .subtab-content th {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+            padding: 9px 10px !important;
+        }
+
+        #usuarios .subtab-content td,
+        #sucursales .subtab-content td {
+            padding: 8px 10px !important;
+            font-weight: 500;
+        }
+
+        #usuarios .subtab-content tbody tr:hover,
+        #sucursales .subtab-content tbody tr:hover {
+            background: #f8f9fb;
+        }
+
+        /* Unified modal design for all admin modals */
+        .modal {
+            background: rgba(9, 12, 17, 0.56) !important;
+            backdrop-filter: blur(6px);
+        }
+
+        .modal-content {
+            border-radius: 16px !important;
+            border: 1px solid #e5e8ec !important;
+            box-shadow: 0 22px 52px rgba(0, 0, 0, 0.2) !important;
+            padding: 24px !important;
+            max-width: 560px;
+        }
+
+        .modal-content h2,
+        #modalPerfil h2,
+        #modalPassword h2 {
+            font-family: Space Grotesk, sans-serif;
+            font-size: 1.2rem !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.015em;
+        }
+
+        .modal .form-group {
+            margin-bottom: 12px;
+        }
+
+        .modal .form-group label {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #333 !important;
+            font-weight: 700;
+            margin-bottom: 7px;
+        }
+
+        .modal input,
+        .modal select,
+        .modal textarea {
+            border-radius: 10px !important;
+            border: 1px solid #d9dde3 !important;
+            background: #fafbfc !important;
+            font-size: 0.9rem;
+            color: #111 !important;
+            min-height: 40px;
+        }
+
+        .modal input:focus,
+        .modal select:focus,
+        .modal textarea:focus {
+            border-color: #111 !important;
+            box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.08) !important;
+            background: #fff !important;
+        }
+
+        .modal-buttons {
+            margin-top: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .modal button,
+        .modal .btn-primary,
+        .modal .btn-secondary,
+        .modal .btn-warning {
+            border-radius: 10px !important;
+            border: 1px solid transparent;
+            font-weight: 700;
+            font-size: 0.84rem;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            padding: 10px 14px !important;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .modal button:hover,
+        .modal .btn-primary:hover,
+        .modal .btn-secondary:hover,
+        .modal .btn-warning:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+        }
+
+        #modalSucursal button[onclick="guardarSucursal()"],
+        #modalEmpleado button[onclick="guardarEmpleado()"],
+        #modalUsuario .btn-primary {
+            background: #111 !important;
+            color: #fff !important;
+            border-color: #111 !important;
+        }
+
+        #modalSucursal button[onclick="cerrarModalSucursal()"],
+        #modalEmpleado button[onclick="cerrarModalEmpleado()"],
+        #modalUsuario .btn-secondary {
+            background: #f2f4f7 !important;
+            color: #111 !important;
+            border-color: #d9dde3 !important;
+        }
+
+        #modalPerfil,
+        #modalPassword {
+            background: rgba(9, 12, 17, 0.62) !important;
+            backdrop-filter: blur(7px) !important;
+        }
+
+        #modalPerfil .profile-modal-content,
+        #modalPassword .password-modal-content {
+            border-radius: 16px !important;
+            border: 1px solid #e5e8ec !important;
+            box-shadow: 0 24px 58px rgba(0, 0, 0, 0.24) !important;
+            padding: 24px !important;
+            background: #fff !important;
+        }
+
+        #modalPerfil .profile-card,
+        #modalPassword .password-header {
+            border-radius: 12px 12px 0 0 !important;
+            margin: -24px -24px 18px -24px !important;
+            padding: 18px !important;
+            background: linear-gradient(180deg, #1f2937 0%, #111827 100%) !important;
+        }
+
+        #modalPerfil .btn-close-modal,
+        #modalPerfil button[onclick="abrirModalPassword()"],
+        #modalPassword button[onclick="guardarPassword()"],
+        #modalPassword button[onclick="cerrarModalPassword()"] {
+            border-radius: 10px !important;
+            padding: 10px 14px !important;
+            text-transform: uppercase;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+        }
+
+        @media (max-width: 760px) {
+            .modal-content,
+            #modalPerfil .profile-modal-content,
+            #modalPassword .password-modal-content {
+                width: calc(100% - 20px) !important;
+                max-width: none !important;
+                padding: 16px !important;
+                border-radius: 14px !important;
+            }
+
+            .modal-buttons {
+                flex-direction: column;
+            }
+
+            .modal .btn-primary,
+            .modal .btn-secondary,
+            .modal .btn-warning,
+            .modal button {
+                width: 100%;
+            }
+
+            #appContainer .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            #appContainer .user-menu {
+                margin-left: 0;
+            }
+
+            #appContainer .admin-nav-wrap {
+                margin-top: 8px;
+                margin-bottom: 10px;
+                padding: 0 10px;
+                justify-content: flex-start;
+                border-bottom: none;
+            }
+
+            #appContainer .admin-nav-wrap .navbar-tabs {
+                width: 100%;
+                min-width: 0;
+                gap: 6px;
+                padding: 0;
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                align-items: stretch;
+                overflow: hidden;
+            }
+
+            #appContainer .admin-nav-wrap .navbar-tabs .tab-btn {
+                min-width: 0;
+                width: 100%;
+                flex: 0 0 auto;
+                padding: 8px 6px !important;
+                font-size: 0.72rem !important;
+                letter-spacing: 0.015em;
+                white-space: nowrap;
+            }
+
+            #appContainer .admin-nav-wrap .navbar-tabs .tab-btn.active {
+                top: 0;
+                border-bottom-color: #d9e0ea !important;
+            }
+
+            #userDropdown {
+                right: 0;
+                left: auto;
+                max-width: calc(100vw - 18px);
+            }
+        }
+
 
     </style>
 </head>
@@ -1262,10 +1818,6 @@
                     <h1 class="title">PaintFlow</h1>
                 </div>
                 
-                <div class="navbar-tabs" id="navbarTabs">
-                    <!-- Los botones se generan dinámicamente según el rol -->
-                </div>
-                
                 <div class="user-menu">
                     <div class="user-menu-container">
                         <button class="logout-btn" id="userDropdownBtn" onclick="toggleUserDropdown()">
@@ -1276,6 +1828,12 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div class="admin-nav-wrap">
+            <div class="navbar-tabs" id="navbarTabs">
+                <!-- Los botones se generan dinámicamente según el rol -->
             </div>
         </div>
 
@@ -2968,6 +3526,13 @@ function updateZonaChart() {
 }
 
 async function switchTab(evt, name) {
+    const clickedBtn = evt && evt.target && evt.target.closest ? evt.target.closest('.tab-btn') : null;
+    const topNavButtons = document.querySelectorAll('#navbarTabs .tab-btn');
+
+    // Marcar la pestaña activa inmediatamente para evitar retraso visual.
+    topNavButtons.forEach(b => b.classList.remove("active"));
+    if (clickedBtn) clickedBtn.classList.add("active");
+
     // Detener actualización automática de logins si nos vamos del dashboard
     if (loginActivityRefreshInterval && name !== 'dashboard') {
         clearInterval(loginActivityRefreshInterval);
@@ -2979,9 +3544,6 @@ async function switchTab(evt, name) {
     document.getElementById("usuarios").style.setProperty("display", "none", "important");
 
     
-    // Remove active button class from ALL buttons
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    
     // Show selected tab
     if (name === "dashboard") {
         document.getElementById("dashboard").style.setProperty("display", "block", "important");
@@ -2989,29 +3551,28 @@ async function switchTab(evt, name) {
     } else if (name === "sucursales") {
         const sucursalesTab = document.getElementById("sucursales");
         sucursalesTab.style.setProperty("display", "block", "important");
-        await loadSucursales();
-        await loadUsuarios();
+        loadSucursales();
+        loadUsuarios();
     } else if (name === "usuarios") {
         const usuariosTab = document.getElementById("usuarios");
         usuariosTab.style.setProperty("display", "block", "important");
-        await loadUsuarios();
-        
-        // Asegurar que el rol Administrador esté seleccionado por defecto
-        document.querySelectorAll('div[id^="rol-"]').forEach(t => t.classList.remove("active"));
-        document.querySelectorAll(".subtab-btn").forEach(b => b.classList.remove("active"));
-        
-        const adminRolDiv = document.getElementById("rol-Administrador");
-        const adminButton = document.querySelector('button[onclick*="Administrador"]');
-        
-        if (adminRolDiv) adminRolDiv.classList.add("active");
-        if (adminButton) adminButton.classList.add("active");
+        forceUsuariosAdminRole();
+        loadUsuarios().then(() => {
+            // Reforzar el estado luego de render para que siempre quede en Administrador.
+            forceUsuariosAdminRole();
+        });
     }
-    
-    // Mark ONLY this button as active - remove from all first
-    if (evt && evt.target) {
-        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-        evt.target.classList.add("active");
-    }
+}
+
+function forceUsuariosAdminRole() {
+    document.querySelectorAll('#usuarios div[id^="rol-"]').forEach(t => t.classList.remove("active"));
+    document.querySelectorAll('#usuarios .subtabs-container .subtab-btn').forEach(b => b.classList.remove("active"));
+
+    const adminRolDiv = document.getElementById("rol-Administrador");
+    const adminButton = document.querySelector('#usuarios .subtabs-container .subtab-btn[onclick*="Administrador"]');
+
+    if (adminRolDiv) adminRolDiv.classList.add("active");
+    if (adminButton) adminButton.classList.add("active");
 }
 
 function switchZona(evt, zona) {
@@ -3478,6 +4039,15 @@ async function loadData() {
         }
         
         console.log('Data loading complete');
+
+        // Precargar tablas para evitar que dependan del primer cambio de pestaña.
+        await Promise.all([
+            loadSucursales(),
+            loadUsuarios()
+        ]);
+
+        // Garantizar estado consistente de la vista Usuarios desde el inicio.
+        forceUsuariosAdminRole();
         
         // Actualizar gráficos después de cargar los datos
         updateDashboardCharts();
@@ -4060,6 +4630,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 // Barra de navegación completa para administradores
                 if (navbarTabs) {
                     navbarTabs.innerHTML = `
+                        <button class="tab-btn active" onclick="switchTab(event, 'dashboard')">DASHBOARD</button>
                         <button class="tab-btn" onclick="switchTab(event, 'sucursales')">SUCURSALES</button>
                         <button class="tab-btn" onclick="switchTab(event, 'usuarios')">USUARIOS</button>
                     `;
