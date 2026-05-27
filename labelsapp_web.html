@@ -570,6 +570,105 @@
             font-weight: 600;
         }
 
+        .labelsapp-live-table th:nth-child(n+2),
+        .labelsapp-live-table td:nth-child(n+2) {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .labelsapp-live-table th:nth-child(1),
+        .labelsapp-live-table td:nth-child(1) {
+            text-align: left;
+        }
+
+        .labelsapp-history-table th:nth-child(7),
+        .labelsapp-history-table td:nth-child(7) {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .labelsapp-history-table th:nth-child(n+2),
+        .labelsapp-history-table td:nth-child(n+2) {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .labelsapp-history-table th:nth-child(1),
+        .labelsapp-history-table td:nth-child(1) {
+            text-align: left;
+        }
+
+        .labelsapp-live-table,
+        .labelsapp-history-table {
+            table-layout: fixed;
+        }
+
+        .labelsapp-live-table .priority-cell,
+        .labelsapp-live-table td.priority-cell {
+            text-align: center !important;
+        }
+
+        .labelsapp-live-table .actions-cell,
+        .labelsapp-live-table td.actions-cell,
+        .labelsapp-history-table .actions-cell,
+        .labelsapp-history-table td.actions-cell {
+            text-align: center !important;
+            vertical-align: middle !important;
+            white-space: nowrap;
+        }
+
+        .labelsapp-live-table td.priority-cell,
+        .labelsapp-live-table td.actions-cell,
+        .labelsapp-history-table td.actions-cell {
+            display: table-cell;
+            text-align: center !important;
+        }
+
+        .labelsapp-live-table td.actions-cell,
+        .labelsapp-history-table td.actions-cell {
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+
+        .labelsapp-live-table td.priority-cell,
+        .labelsapp-live-table td.actions-cell,
+        .labelsapp-history-table td.actions-cell {
+            padding-left: 6px;
+            padding-right: 6px;
+        }
+
+        .table-priority-select {
+            width: 120px;
+            max-width: 120px;
+            min-height: 38px;
+            padding: 8px 10px;
+            margin: 0 auto;
+            display: block;
+        }
+
+        .table-action-group {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: nowrap;
+            width: auto;
+        }
+
+        .labelsapp-live-table td.actions-cell,
+        .labelsapp-history-table td.actions-cell {
+            text-align: center !important;
+        }
+
+        .labelsapp-live-table td.actions-cell .table-action-group,
+        .labelsapp-history-table td.actions-cell .table-action-group {
+            margin: 0 auto;
+        }
+
+        .table-action-group .btn {
+            min-width: 96px;
+        }
+
         .footer-bar {
             display: flex;
             justify-content: space-between;
@@ -851,7 +950,17 @@
                         <div id="liveStatus" class="live-status">Sincronizando...</div>
                     </div>
                     <div class="queue-wrap live-wrap">
-                        <table>
+                        <table class="labelsapp-live-table">
+                            <colgroup>
+                                <col>
+                                <col style="width: 90px;">
+                                <col style="width: 140px;">
+                                <col style="width: 120px;">
+                                <col style="width: 120px;">
+                                <col style="width: 170px;">
+                                <col style="width: 130px;">
+                                <col style="width: 220px;">
+                            </colgroup>
                             <thead>
                                 <tr>
                                     <th>Factura</th>
@@ -859,9 +968,9 @@
                                     <th>Operador</th>
                                     <th>En Proceso</th>
                                     <th>Finalizados</th>
-                                    <th>Prioridad</th>
+                                    <th class="priority-cell">Prioridad</th>
                                     <th>Estado</th>
-                                    <th></th>
+                                    <th class="actions-cell">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="liveQueueBody"></tbody>
@@ -897,7 +1006,16 @@
                     <div id="historySummary" class="summary">0 envíos hoy</div>
                 </div>
                 <div class="queue-wrap live-wrap">
-                    <table>
+                    <table class="labelsapp-history-table">
+                        <colgroup>
+                            <col>
+                            <col style="width: 90px;">
+                            <col style="width: 120px;">
+                            <col style="width: 130px;">
+                            <col style="width: 140px;">
+                            <col style="width: 190px;">
+                            <col style="width: 220px;">
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th>Factura</th>
@@ -906,7 +1024,7 @@
                                 <th>Sucursal</th>
                                 <th>Operador</th>
                                 <th>Enviado</th>
-                                <th></th>
+                                <th class="actions-cell">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="historyBody"></tbody>
@@ -2458,17 +2576,19 @@
                     <td>${escapeHtml(item.operador || "—")}</td>
                     <td>${Number(item.en_proceso || 0)}</td>
                     <td>${Number(item.finalizados || 0)}</td>
-                    <td>
-                        <select onchange="updateLivePriority('${escapeHtml(item.factura || "")}', this.value)">
+                    <td class="priority-cell">
+                        <select class="table-priority-select" onchange="updateLivePriority('${escapeHtml(item.factura || "")}', this.value)">
                             <option ${item.prioridad === "Alta" ? "selected" : ""}>Alta</option>
                             <option ${item.prioridad === "Media" ? "selected" : ""}>Media</option>
                             <option ${item.prioridad === "Baja" ? "selected" : ""}>Baja</option>
                         </select>
                     </td>
                     <td>${escapeHtml(item.estado || "—")}</td>
-                    <td>
-                        <button class="btn btn-link" onclick="editFacturaFromLive('${escapeHtml(item.factura || "")}')">Editar</button>
-                        <button class="btn btn-danger" onclick="cancelFacturaFromLive('${escapeHtml(item.factura || "")}')">Cancelar</button>
+                    <td class="actions-cell">
+                        <div class="table-action-group">
+                            <button class="btn btn-link" onclick="editFacturaFromLive('${escapeHtml(item.factura || "")}')">Editar</button>
+                            <button class="btn btn-danger" onclick="cancelFacturaFromLive('${escapeHtml(item.factura || "")}')">Cancelar</button>
+                        </div>
                     </td>
                 </tr>
             `).join("");
@@ -2498,9 +2618,11 @@
                     <td>${escapeHtml(entry.sucursal || "-")}</td>
                     <td>${escapeHtml(entry.operador || "-")}</td>
                     <td>${escapeHtml(new Date(entry.fecha_envio || entry.sentAt || Date.now()).toLocaleString())}</td>
-                    <td>
-                        <button class="btn btn-link" onclick="loadHistoryEntry('${entry.id}')">Cargar</button>
-                        <button class="btn btn-primary" onclick="resendHistoryEntry('${entry.id}')">Reenviar</button>
+                    <td class="actions-cell">
+                        <div class="table-action-group">
+                            <button class="btn btn-link" onclick="loadHistoryEntry('${entry.id}')">Cargar</button>
+                            <button class="btn btn-primary" onclick="resendHistoryEntry('${entry.id}')">Reenviar</button>
+                        </div>
                     </td>
                 </tr>
             `).join("");
