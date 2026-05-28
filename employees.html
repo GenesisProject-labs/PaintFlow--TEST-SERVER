@@ -37,6 +37,13 @@
             gap: 15px;
         }
 
+        .title-wrap {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 2px;
+        }
+
         .logo {
             width: 50px;
             height: 50px;
@@ -44,9 +51,21 @@
         }
 
         .title {
-            font-size: 1.8em;
+            font-family: Space Grotesk, sans-serif;
+            font-size: clamp(1.6rem, 2.7vw, 2.1rem);
             font-weight: 700;
+            letter-spacing: 0.02em;
             margin: 0;
+            line-height: 1.05;
+        }
+
+        .title-subtitle {
+            margin: 0;
+            font-size: 0.76rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: #4f6a86;
         }
         
         .user-menu-container {
@@ -222,25 +241,6 @@
             display: flex;
             gap: 12px;
             align-items: center;
-        }
-        
-        .btn-formulas {
-            background: linear-gradient(135deg, #9e9e9e 0%, #757575 100%);
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 700;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.25);
-            font-size: 1em;
-        }
-        
-        .btn-formulas:hover {
-            background: linear-gradient(135deg, #757575 0%, #616161 100%);
-            box-shadow: 0 6px 20px rgba(255, 152, 0, 0.35);
-            transform: translateY(-2px);
         }
         
         .btn-agregar:hover { 
@@ -1084,7 +1084,6 @@
         .btn,
         .btn-primary,
         .btn-secondary,
-        .btn-formulas,
         .user-dropdown-btn,
         .subtab-btn {
             border-radius: 12px;
@@ -1094,7 +1093,6 @@
         .btn:hover,
         .btn-primary:hover,
         .btn-secondary:hover,
-        .btn-formulas:hover,
         .user-dropdown-btn:hover,
         .subtab-btn:hover {
             transform: translateY(-2px);
@@ -1184,7 +1182,6 @@
         .btn-primary,
         .btn-secondary,
         .btn-success,
-        .btn-formulas,
         .modal-content,
         .modal-content * {
             color: #111 !important;
@@ -1208,6 +1205,124 @@
             color: #111 !important;
         }
 
+        .main-tabs-container {
+            display: flex;
+            gap: 10px;
+            border-bottom: 1px solid #dfe6ef;
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .main-tab-btn {
+            padding: 10px 16px;
+            border: 1px solid transparent;
+            border-bottom: 2px solid transparent;
+            border-radius: 10px;
+            background: #fff;
+            color: #111;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .main-tab-btn:hover {
+            background: #f6f9fe;
+            border-color: #dfe6ef;
+        }
+
+        .main-tab-btn.active {
+            background: #fff;
+            border-color: #dfe6ef;
+            border-bottom-color: #111;
+            color: #111;
+        }
+
+        .main-panel {
+            display: none;
+        }
+
+        .main-panel.active {
+            display: block;
+        }
+
+        .dashboard-inline-panel {
+            border: 1px solid #dce8f8;
+            border-radius: 12px;
+            background: #ffffff;
+            padding: 16px;
+            margin-top: 8px;
+        }
+
+        .labels-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .labels-grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .labels-grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .labels-mini-card {
+            border: 1px solid #e4e7ec;
+            border-radius: 12px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8f9fb 100%);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
+            padding: 14px;
+        }
+
+        .labels-mini-title {
+            color: #444;
+            font-weight: 600;
+            font-size: 0.79rem;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .labels-mini-value {
+            color: #111;
+            font-size: 1.12rem;
+            margin-top: 6px;
+            font-weight: 700;
+        }
+
+        .labels-chart-wrap {
+            border: 1px solid #e5e8ec;
+            border-radius: 12px;
+            background: #fff;
+            padding: 10px;
+            min-height: 320px;
+        }
+
+        .labels-status {
+            font-size: 0.85rem;
+            color: #5e7287;
+            min-height: 18px;
+        }
+
+        @media (max-width: 980px) {
+            .labels-grid-4 {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .labels-grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .dropdown-menu button {
             color: #111 !important;
         }
@@ -1219,7 +1334,10 @@
         <div class="header-content">
             <div class="logo-section">
                 <img src="/logo.png" alt="PaintFlow Logo" class="logo">
-                <h1 class="title">EMPLEADOS</h1>
+                <div class="title-wrap">
+                    <h1 class="title">Empleados</h1>
+                    <p class="title-subtitle">Panel De Gestion</p>
+                </div>
             </div>
             <div class="user-menu">
                 <div class="user-menu-container">
@@ -1238,17 +1356,137 @@
     <div class="container">
         <div class="content-card">
             <div class="controls">
-                <div class="search-section">
-                    <div class="search-group">
-                        <input type="text" class="search-input" placeholder="Nombre o código del empleado..." id="searchInput" oninput="filterEmployees()">
-                        <button class="btn btn-secondary" onclick="clearSearch()">Limpiar</button>
-                    </div>
-                    <button class="btn btn-primary" onclick="abrirDashboardAnalista()">Dashboard Analista</button>
-                    <button class="btn btn-success" onclick="abrirModalEmpleado()">Agregar Empleado</button>
+                <div class="main-tabs-container" id="mainTabsContainer">
+                    <button type="button" class="main-tab-btn active" id="mainTabDashboard" onclick="openMainTab('dashboard')">Dashboard</button>
+                    <button type="button" class="main-tab-btn" id="mainTabEmpleados" onclick="openMainTab('empleados')">Empleados</button>
                 </div>
-                <div class="subtabs-container" id="subtabsContainer"></div>
+
+                <div id="mainPanelDashboard" class="main-panel active">
+                    <div class="dashboard-inline-panel">
+                        <div class="labels-toolbar">
+                            <h3 style="margin: 0;">Métricas Generales PaintFlow por Zonas</h3>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 0.85rem; color: #4f6f90; font-weight: 600;">Vista:</span>
+                                <select id="labelsZonaSelector" onchange="updateAnalystZoneView()">
+                                    <option value="ALL">Todas las Zonas</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="labels-grid-4">
+                            <div class="labels-mini-card">
+                                <div class="labels-mini-title">Último Login</div>
+                                <div id="labelsLastLogin" class="labels-mini-value">-</div>
+                            </div>
+                            <div class="labels-mini-card">
+                                <div class="labels-mini-title">Facturas Enviadas</div>
+                                <div id="labelsFacturasTotal" class="labels-mini-value">0</div>
+                            </div>
+                            <div class="labels-mini-card">
+                                <div class="labels-mini-title">Items Enviados</div>
+                                <div id="labelsItemsTotal" class="labels-mini-value">0</div>
+                            </div>
+                            <div class="labels-mini-card">
+                                <div class="labels-mini-title">Zonas / Sucursales con Uso</div>
+                                <div id="labelsTopZona" class="labels-mini-value">-</div>
+                                <div id="labelsUsageCounts" style="font-size: 0.84rem; color: #5e7287; margin-top: 2px;">-</div>
+                                <div id="labelsAvgCompletion" style="font-size: 0.84rem; color: #325172; margin-top: 6px; font-weight: 700;">Promedio finalización: -</div>
+                                <div id="labelsCompletedOrders" style="font-size: 0.82rem; color: #5e7287; margin-top: 2px;">Órdenes finalizadas: -</div>
+                            </div>
+                        </div>
+
+                        <div class="labels-grid-2" style="margin-bottom: 14px;">
+                            <div class="labels-chart-wrap">
+                                <canvas id="labelsZonaUsageChart"></canvas>
+                            </div>
+                            <div class="labels-chart-wrap">
+                                <canvas id="labelsTopSucursalesChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="labels-grid-2" style="margin-bottom: 14px;">
+                            <div class="labels-chart-wrap">
+                                <canvas id="labelsCompletionByZoneChart"></canvas>
+                            </div>
+                            <div>
+                                <h4 style="margin: 0 0 8px; font-size: 0.9rem; color: #325172;">Productos Más Trabajados por Zona</h4>
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: #f5f5f5;">
+                                            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Zona</th>
+                                            <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Producto</th>
+                                            <th style="padding: 8px; text-align: right; border: 1px solid #ddd;">Cantidad</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="labelsZoneTopProductsBody">
+                                        <tr><td colspan="3" style="text-align: center; padding: 10px; border: 1px solid #ddd;">Cargando...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="labels-grid-2">
+                            <div>
+                                <h4 style="margin: 0 0 8px; font-size: 0.9rem; color: #325172;">Productos Más Usados</h4>
+                                <ul id="labelsTopProducts" style="margin: 0; padding-left: 18px; color: #2f4358;"></ul>
+                            </div>
+                            <div>
+                                <h4 style="margin: 0 0 8px; font-size: 0.9rem; color: #325172;">Productos Menos Usados</h4>
+                                <ul id="labelsLowProducts" style="margin: 0; padding-left: 18px; color: #2f4358;"></ul>
+                            </div>
+                        </div>
+
+                        <div id="labelsMetricStatus" class="labels-status" style="margin-top: 10px;"></div>
+
+                        <div style="margin-top: 16px;">
+                            <h4 style="margin: 0 0 8px; font-size: 0.9rem; color: #325172;">Uso por Sucursal · Filtrado por zona</h4>
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: #f5f5f5;">
+                                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Sucursal</th>
+                                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Zona</th>
+                                        <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Facturas</th>
+                                        <th style="padding: 10px; text-align: right; border: 1px solid #ddd;">Items</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="labelsSucursalUsageBody">
+                                    <tr><td colspan="4" style="text-align: center; padding: 10px; border: 1px solid #ddd;">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div style="margin-top: 16px;">
+                            <h4 style="margin: 0 0 8px; font-size: 0.9rem; color: #325172;">Todas las Sucursales por Zona y Último Login</h4>
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: #f5f5f5;">
+                                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Zona</th>
+                                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Sucursal</th>
+                                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Último Login</th>
+                                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Usuario</th>
+                                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Producto Más Trabajado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="labelsSucursalLoginByZoneBody">
+                                    <tr><td colspan="5" style="text-align: center; padding: 10px; border: 1px solid #ddd;">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="mainPanelEmpleados" class="main-panel">
+                    <div class="search-section">
+                        <div class="search-group">
+                            <input type="text" class="search-input" placeholder="Nombre o código del empleado..." id="searchInput" oninput="filterEmployees()">
+                            <button class="btn btn-secondary" onclick="clearSearch()">Limpiar</button>
+                        </div>
+                        <button class="btn btn-success" onclick="abrirModalEmpleado()">Agregar Empleado</button>
+                    </div>
+                    <div class="subtabs-container" id="subtabsContainer"></div>
+                    <div id="tablasContainer"></div>
+                </div>
             </div>
-            <div id="tablasContainer"></div>
         </div>
     </div>
     
@@ -1300,88 +1538,6 @@
         </div>
     </div>
 
-    <div id="modalDashboardAnalista" class="modal">
-        <div class="modal-content dashboard-modal-content">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:10px;">
-                <h2 style="margin:0;">Dashboard de Analista</h2>
-                <button class="btn-cancel" onclick="cerrarDashboardAnalista()">Cerrar</button>
-            </div>
-
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap: wrap;">
-                <label for="analystZonaSelector" style="font-weight:600; color:#26496b;">Filtrar por zona:</label>
-                <select id="analystZonaSelector" class="search-input" style="width: 280px;" onchange="updateAnalystZoneView()">
-                    <option value="ALL">Todas las Zonas</option>
-                </select>
-            </div>
-
-            <div class="dashboard-grid-4">
-                <div class="dashboard-card">
-                    <div class="dashboard-card-label">Sucursales Activas</div>
-                    <div id="analystTotalSucursales" class="dashboard-card-value">0</div>
-                </div>
-                <div class="dashboard-card">
-                    <div class="dashboard-card-label">Empleados Activos</div>
-                    <div id="analystTotalEmpleadosActivos" class="dashboard-card-value">0</div>
-                </div>
-                <div class="dashboard-card">
-                    <div class="dashboard-card-label">Promedio Finalización</div>
-                    <div id="analystAvgCompletion" class="dashboard-card-value">0 min</div>
-                </div>
-                <div class="dashboard-card">
-                    <div class="dashboard-card-label">Órdenes Finalizadas</div>
-                    <div id="analystCompletedOrders" class="dashboard-card-value">0</div>
-                </div>
-            </div>
-
-            <div class="dashboard-grid-2">
-                <div class="dashboard-chart-wrap">
-                    <canvas id="analystZoneUsageChart"></canvas>
-                </div>
-                <div class="dashboard-chart-wrap">
-                    <canvas id="analystCompletionChart"></canvas>
-                </div>
-            </div>
-
-            <div class="dashboard-grid-2">
-                <div>
-                    <h4 style="margin: 0 0 8px; font-size: 0.95rem; color: #325172;">Productos Más Trabajados por Zona</h4>
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead>
-                            <tr style="background: #f5f5f5;">
-                                <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Zona</th>
-                                <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Producto</th>
-                                <th style="padding: 8px; text-align: right; border: 1px solid #ddd;">Cantidad</th>
-                            </tr>
-                        </thead>
-                        <tbody id="analystZoneTopProductsBody">
-                            <tr><td colspan="3" style="text-align: center; padding: 10px; border: 1px solid #ddd;">Cargando...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div>
-                    <h4 style="margin: 0 0 8px; font-size: 0.95rem; color: #325172;">Sucursales por Zona y Último Login</h4>
-                    <div style="max-height: 320px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px;">
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <thead>
-                                <tr style="background: #f5f5f5; position: sticky; top: 0;">
-                                    <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Zona</th>
-                                    <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Sucursal</th>
-                                    <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Último Login</th>
-                                    <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Usuario</th>
-                                </tr>
-                            </thead>
-                            <tbody id="analystSucursalLoginBody">
-                                <tr><td colspan="4" style="text-align: center; padding: 10px; border: 1px solid #ddd;">Cargando...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <div id="analystDashboardStatus" style="font-size: 0.85rem; color: #5e7287; min-height: 18px;"></div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -1393,6 +1549,7 @@
         let activeSucursal = 'Alameda'; // Para guardar la pestaña activa
         let analystMetricsCache = null;
         let analystZoneUsageChart = null;
+        let analystTopSucursalesChart = null;
         let analystCompletionChart = null;
         let analystCurrentZona = 'ALL';
         let analystMetricsInFlight = null;
@@ -1663,7 +1820,7 @@
         }
 
         function updateAnalystZoneSelector(data) {
-            const selector = document.getElementById('analystZonaSelector');
+            const selector = document.getElementById('labelsZonaSelector');
             if (!selector) return;
 
             const rows = getAnalystZonaUsageRows(data);
@@ -1698,7 +1855,7 @@
         }
 
         function renderAnalystZoneTopProductsTable(data, selectedZona) {
-            const topBody = document.getElementById('analystZoneTopProductsBody');
+            const topBody = document.getElementById('labelsZoneTopProductsBody');
             if (!topBody) return;
 
             let rows = (data.zone_top_products || []).map(z => ({
@@ -1730,7 +1887,7 @@
         }
 
         function renderAnalystSucursalLoginByZoneTable(data, selectedZona) {
-            const loginBody = document.getElementById('analystSucursalLoginBody');
+            const loginBody = document.getElementById('labelsSucursalLoginByZoneBody');
             if (!loginBody) return;
 
             let groups = (data.sucursal_login_by_zone || []).map(g => ({
@@ -1750,14 +1907,48 @@
                         zona: group.zona,
                         sucursal: s.sucursal || 'N/A',
                         login: formatDateTimeSafe(s.ultimo_login),
-                        user: s.ultimo_login_username || '-'
+                        user: s.ultimo_login_username || '-',
+                        topProducto: s.top_producto || '-'
                     });
                 });
             });
 
             loginBody.innerHTML = flat.length
-                ? flat.map(r => `<tr><td style="padding:8px;border:1px solid #ddd;">${zoneKeyToLabel(r.zona)}</td><td style="padding:8px;border:1px solid #ddd;">${r.sucursal}</td><td style="padding:8px;border:1px solid #ddd;">${r.login}</td><td style="padding:8px;border:1px solid #ddd;">${r.user}</td></tr>`).join('')
-                : '<tr><td colspan="4" style="text-align:center; padding:10px; border:1px solid #ddd;">Sin datos</td></tr>';
+                ? flat.map(r => `<tr><td style="padding:8px;border:1px solid #ddd;">${zoneKeyToLabel(r.zona)}</td><td style="padding:8px;border:1px solid #ddd;">${r.sucursal}</td><td style="padding:8px;border:1px solid #ddd;">${r.login}</td><td style="padding:8px;border:1px solid #ddd;">${r.user}</td><td style="padding:8px;border:1px solid #ddd;">${r.topProducto}</td></tr>`).join('')
+                : '<tr><td colspan="5" style="text-align:center; padding:10px; border:1px solid #ddd;">Sin datos</td></tr>';
+        }
+
+        function renderLabelsProductList(elementId, rows) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            const items = Array.isArray(rows) ? rows.slice(0, 8) : [];
+            if (!items.length) {
+                el.innerHTML = '<li>Sin datos</li>';
+                return;
+            }
+            el.innerHTML = items
+                .map(p => `<li>${p.producto || 'N/A'} <strong>(${Number(p.cantidad || 0)})</strong></li>`)
+                .join('');
+        }
+
+        function renderLabelsUsageTable(rows) {
+            const body = document.getElementById('labelsSucursalUsageBody');
+            if (!body) return;
+
+            const data = Array.isArray(rows) ? rows : [];
+            if (!data.length) {
+                body.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:10px; border:1px solid #ddd;">Sin datos</td></tr>';
+                return;
+            }
+
+            body.innerHTML = data.map(r => `
+                <tr>
+                    <td style="padding:10px; border:1px solid #ddd;">${r.sucursal || 'N/A'}</td>
+                    <td style="padding:10px; border:1px solid #ddd;">${zoneKeyToLabel(r.zona || 'Sin_Zona')}</td>
+                    <td style="padding:10px; border:1px solid #ddd; text-align:right;">${Number(r.facturas || 0)}</td>
+                    <td style="padding:10px; border:1px solid #ddd; text-align:right;">${Number(r.items || 0)}</td>
+                </tr>
+            `).join('');
         }
 
         function renderAnalystCharts(data, selectedZona) {
@@ -1768,7 +1959,7 @@
                 ? allZoneRows
                 : allZoneRows.filter(z => z.zona === selectedZona);
 
-            const usageCanvas = document.getElementById('analystZoneUsageChart');
+            const usageCanvas = document.getElementById('labelsZonaUsageChart');
             if (usageCanvas) {
                 if (analystZoneUsageChart) analystZoneUsageChart.destroy();
                 analystZoneUsageChart = new Chart(usageCanvas, {
@@ -1784,7 +1975,25 @@
                 });
             }
 
-            const completionCanvas = document.getElementById('analystCompletionChart');
+            const filteredRows = getFilteredSucursalUsage(data, selectedZona);
+            const topSucRows = [...filteredRows].sort((a, b) => Number(b.facturas || 0) - Number(a.facturas || 0)).slice(0, 10);
+            const sucCanvas = document.getElementById('labelsTopSucursalesChart');
+            if (sucCanvas) {
+                if (analystTopSucursalesChart) analystTopSucursalesChart.destroy();
+                analystTopSucursalesChart = new Chart(sucCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: topSucRows.map(r => r.sucursal || 'N/A'),
+                        datasets: [
+                            { label: 'Facturas', data: topSucRows.map(r => Number(r.facturas || 0)), backgroundColor: '#2563eb' },
+                            { label: 'Items', data: topSucRows.map(r => Number(r.items || 0)), backgroundColor: '#0ea5a4' }
+                        ]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Top Sucursales por Uso' } } }
+                });
+            }
+
+            const completionCanvas = document.getElementById('labelsCompletionByZoneChart');
             if (completionCanvas) {
                 if (analystCompletionChart) analystCompletionChart.destroy();
                 analystCompletionChart = new Chart(completionCanvas, {
@@ -1812,15 +2021,18 @@
         function updateAnalystZoneView() {
             if (!analystMetricsCache) return;
 
-            const selector = document.getElementById('analystZonaSelector');
+            const selector = document.getElementById('labelsZonaSelector');
             const selectedZona = selector ? selector.value : 'ALL';
             analystCurrentZona = selectedZona;
 
-            const totalSuc = document.getElementById('analystTotalSucursales');
-            const totalEmpA = document.getElementById('analystTotalEmpleadosActivos');
-            const avgComp = document.getElementById('analystAvgCompletion');
-            const totalComp = document.getElementById('analystCompletedOrders');
-            const status = document.getElementById('analystDashboardStatus');
+            const lastLoginEl = document.getElementById('labelsLastLogin');
+            const facturasTotalEl = document.getElementById('labelsFacturasTotal');
+            const itemsTotalEl = document.getElementById('labelsItemsTotal');
+            const topZonaEl = document.getElementById('labelsTopZona');
+            const usageCountsEl = document.getElementById('labelsUsageCounts');
+            const avgCompEl = document.getElementById('labelsAvgCompletion');
+            const completedEl = document.getElementById('labelsCompletedOrders');
+            const status = document.getElementById('labelsMetricStatus');
 
             const filteredRows = getFilteredSucursalUsage(analystMetricsCache, selectedZona);
             const zonasRows = getAnalystZonaUsageRows(analystMetricsCache);
@@ -1828,26 +2040,26 @@
                 ? zonasRows
                 : zonasRows.filter(z => z.zona === selectedZona);
 
-            const sucCount = selectedZona === 'ALL'
-                ? (allSucursales || []).filter(s => s.activo !== false && isValidAnalystSucursal(s.nombre || s.sucursal_nombre || s.name, s.zona || s.zona_nombre || s.region)).length
-                : filteredRows.length;
-
-            const activeEmpCount = (allEmpleados || []).filter(e => {
-                const isActive = e.activo === true || e.activo === 1;
-                if (!isActive) return false;
-                if (selectedZona === 'ALL') return true;
-                return getZoneFromSucursalName(e.sucursal_nombre || e.sucursal || '', e.zona || e.zona_nombre || e.region) === selectedZona;
-            }).length;
-
             const totalCompleted = selectedZoneRows.reduce((acc, z) => acc + Number(z.ordenes_finalizadas || 0), 0);
             const weightedAvgComp = totalCompleted
                 ? selectedZoneRows.reduce((acc, z) => acc + (Number(z.avg_completion_minutes || 0) * Number(z.ordenes_finalizadas || 0)), 0) / totalCompleted
                 : Number(analystMetricsCache.avg_completion_minutes_overall || 0);
 
-            if (totalSuc) totalSuc.textContent = String(Number(sucCount || 0));
-            if (totalEmpA) totalEmpA.textContent = String(Number(activeEmpCount || 0));
-            if (avgComp) avgComp.textContent = `${Number(weightedAvgComp || 0).toFixed(2)} min`;
-            if (totalComp) totalComp.textContent = String(Number(totalCompleted || 0));
+            const totalFacturas = filteredRows.reduce((acc, r) => acc + Number(r.facturas || 0), 0);
+            const totalItems = filteredRows.reduce((acc, r) => acc + Number(r.items || 0), 0);
+            const topZonaRow = selectedZoneRows[0] || null;
+
+            if (lastLoginEl) lastLoginEl.textContent = formatDateTimeSafe(analystMetricsCache.last_login);
+            if (facturasTotalEl) facturasTotalEl.textContent = String(Number(totalFacturas || 0));
+            if (itemsTotalEl) itemsTotalEl.textContent = String(Number(totalItems || 0));
+            if (topZonaEl) topZonaEl.textContent = topZonaRow ? zoneKeyToLabel(topZonaRow.zona) : '-';
+            if (usageCountsEl) usageCountsEl.textContent = `${selectedZoneRows.length} zona(s) · ${filteredRows.length} sucursal(es)`;
+            if (avgCompEl) avgCompEl.textContent = `Promedio finalización: ${Number(weightedAvgComp || 0).toFixed(2)} min`;
+            if (completedEl) completedEl.textContent = `Órdenes finalizadas: ${Number(totalCompleted || 0)}`;
+
+            renderLabelsProductList('labelsTopProducts', analystMetricsCache.top_products || []);
+            renderLabelsProductList('labelsLowProducts', analystMetricsCache.low_products || []);
+            renderLabelsUsageTable(filteredRows);
 
             renderAnalystZoneTopProductsTable(analystMetricsCache, selectedZona);
             renderAnalystSucursalLoginByZoneTable(analystMetricsCache, selectedZona);
@@ -1859,20 +2071,25 @@
         }
 
         function renderAnalystDashboard(data) {
-            const totalSuc = document.getElementById('analystTotalSucursales');
-            const totalEmpA = document.getElementById('analystTotalEmpleadosActivos');
-            const avgComp = document.getElementById('analystAvgCompletion');
-            const totalComp = document.getElementById('analystCompletedOrders');
-            const status = document.getElementById('analystDashboardStatus');
+            const status = document.getElementById('labelsMetricStatus');
 
-            if (totalSuc) totalSuc.textContent = '0';
-            if (totalEmpA) totalEmpA.textContent = '0';
-            if (avgComp) avgComp.textContent = '0.00 min';
-            if (totalComp) totalComp.textContent = '0';
+            const defaults = {
+                labelsLastLogin: '-',
+                labelsFacturasTotal: '0',
+                labelsItemsTotal: '0',
+                labelsTopZona: '-',
+                labelsUsageCounts: '-',
+                labelsAvgCompletion: 'Promedio finalización: -',
+                labelsCompletedOrders: 'Órdenes finalizadas: -'
+            };
+            Object.entries(defaults).forEach(([id, value]) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = value;
+            });
 
             updateAnalystZoneSelector(data);
             if (analystCurrentZona) {
-                const selector = document.getElementById('analystZonaSelector');
+                const selector = document.getElementById('labelsZonaSelector');
                 if (selector) selector.value = analystCurrentZona;
             }
             updateAnalystZoneView();
@@ -1881,13 +2098,13 @@
         }
 
         function isAnalystDashboardOpen() {
-            const modal = document.getElementById('modalDashboardAnalista');
-            return !!(modal && modal.classList.contains('active'));
+            const panel = document.getElementById('mainPanelDashboard');
+            return !!(panel && panel.classList.contains('active'));
         }
 
         async function loadAnalystDashboardData(options = {}) {
             const { silent = false, force = false } = options;
-            const status = document.getElementById('analystDashboardStatus');
+            const status = document.getElementById('labelsMetricStatus');
 
             if (analystMetricsInFlight) {
                 return analystMetricsInFlight;
@@ -2087,16 +2304,41 @@
         }
 
         function abrirDashboardAnalista() {
-            const modal = document.getElementById('modalDashboardAnalista');
-            if (!modal) return;
-            modal.classList.add('active');
+            setMainTab('dashboard');
+            const panelDashboard = document.getElementById('mainPanelDashboard');
+            const panelEmpleados = document.getElementById('mainPanelEmpleados');
+            if (panelDashboard) panelDashboard.classList.add('active');
+            if (panelEmpleados) panelEmpleados.classList.remove('active');
             loadAnalystDashboardData();
         }
 
         function cerrarDashboardAnalista() {
-            const modal = document.getElementById('modalDashboardAnalista');
-            if (!modal) return;
-            modal.classList.remove('active');
+            setMainTab('empleados');
+            const panelDashboard = document.getElementById('mainPanelDashboard');
+            const panelEmpleados = document.getElementById('mainPanelEmpleados');
+            if (panelDashboard) panelDashboard.classList.remove('active');
+            if (panelEmpleados) panelEmpleados.classList.add('active');
+        }
+
+        function setMainTab(tabName) {
+            const tabs = {
+                dashboard: document.getElementById('mainTabDashboard'),
+                empleados: document.getElementById('mainTabEmpleados')
+            };
+            Object.entries(tabs).forEach(([key, btn]) => {
+                if (!btn) return;
+                btn.classList.toggle('active', key === tabName);
+            });
+        }
+
+        function openMainTab(tabName) {
+            if (tabName === 'dashboard') {
+                abrirDashboardAnalista();
+                return;
+            }
+
+            setMainTab('empleados');
+            cerrarDashboardAnalista();
         }
         
         function switchSucursal(event, sucursal) {
@@ -2401,6 +2643,109 @@
             }, timeoutMs);
         }
 
+        function ensureAppConfirmStyle() {
+            if (document.getElementById('appConfirmStyle')) return;
+            const style = document.createElement('style');
+            style.id = 'appConfirmStyle';
+            style.textContent = `
+                .app-confirm-backdrop {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(7, 15, 27, 0.45);
+                    backdrop-filter: blur(2px);
+                    z-index: 100000;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 16px;
+                }
+                .app-confirm-dialog {
+                    width: min(440px, 100%);
+                    background: #fff;
+                    border: 1px solid #dfe6ef;
+                    border-radius: 14px;
+                    box-shadow: 0 22px 50px rgba(10, 38, 74, 0.28);
+                    padding: 16px;
+                }
+                .app-confirm-title {
+                    font-family: Space Grotesk, sans-serif;
+                    font-size: 1rem;
+                    font-weight: 700;
+                    color: #17395d;
+                    margin: 0 0 8px;
+                }
+                .app-confirm-message {
+                    color: #2b4662;
+                    margin: 0;
+                    line-height: 1.45;
+                }
+                .app-confirm-actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 8px;
+                    margin-top: 16px;
+                }
+                .app-confirm-btn {
+                    border: 1px solid #dfe6ef;
+                    background: #fff;
+                    color: #17395d;
+                    border-radius: 10px;
+                    padding: 8px 12px;
+                    font-weight: 700;
+                    cursor: pointer;
+                }
+                .app-confirm-btn.primary {
+                    background: #1f5fbf;
+                    border-color: #1f5fbf;
+                    color: #fff;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        function showAppConfirm(message, options = {}) {
+            ensureAppConfirmStyle();
+            const title = options.title || 'Confirmación';
+            const confirmText = options.confirmText || 'Aceptar';
+            const cancelText = options.cancelText || 'Cancelar';
+
+            return new Promise((resolve) => {
+                const backdrop = document.createElement('div');
+                backdrop.className = 'app-confirm-backdrop';
+
+                const dialog = document.createElement('div');
+                dialog.className = 'app-confirm-dialog';
+                dialog.innerHTML = `
+                    <h3 class="app-confirm-title">${title}</h3>
+                    <p class="app-confirm-message">${String(message || '')}</p>
+                    <div class="app-confirm-actions">
+                        <button type="button" class="app-confirm-btn" data-role="cancel">${cancelText}</button>
+                        <button type="button" class="app-confirm-btn primary" data-role="confirm">${confirmText}</button>
+                    </div>
+                `;
+
+                const close = (value) => {
+                    if (backdrop.isConnected) backdrop.remove();
+                    document.removeEventListener('keydown', onKeyDown);
+                    resolve(value);
+                };
+
+                const onKeyDown = (e) => {
+                    if (e.key === 'Escape') close(false);
+                };
+
+                dialog.querySelector('[data-role="cancel"]').addEventListener('click', () => close(false));
+                dialog.querySelector('[data-role="confirm"]').addEventListener('click', () => close(true));
+                backdrop.addEventListener('click', (e) => {
+                    if (e.target === backdrop) close(false);
+                });
+
+                backdrop.appendChild(dialog);
+                document.body.appendChild(backdrop);
+                document.addEventListener('keydown', onKeyDown);
+            });
+        }
+
         if (!window.__paintflowAlertPatched) {
             window.__paintflowAlertPatched = true;
             window.__nativeAlert = window.alert.bind(window);
@@ -2411,19 +2756,6 @@
                     window.__nativeAlert(String(message || ''));
                 }
             };
-        }
-        
-        function goToFormulas() {
-            // Verificar rol antes de navegar
-            const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
-            const userRole = userData.rol;
-            
-            if (userRole !== 'analista') {
-                alert('Acceso restringido: Solo los analistas pueden acceder a fórmulas');
-                return;
-            }
-            
-            window.location.href = '/formulas?role=' + encodeURIComponent(userRole);
         }
         
         function abrirModalPerfil() {
@@ -2534,17 +2866,12 @@
         document.addEventListener('click', function(e) {
             const modalPerfil = document.getElementById('modalPerfil');
             const modalPassword = document.getElementById('modalPassword');
-            const modalDashboardAnalista = document.getElementById('modalDashboardAnalista');
             const modalEmpleado = document.getElementById('modalEmpleado');
 
             if (modalEmpleado && e.target === modalEmpleado) {
                 cerrarModalEmpleado();
             }
 
-            if (modalDashboardAnalista && e.target === modalDashboardAnalista) {
-                cerrarDashboardAnalista();
-            }
-            
             if (modalPerfil && e.target === modalPerfil) {
                 cerrarModalPerfil();
             }
@@ -2558,7 +2885,6 @@
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 const modalEmpleado = document.getElementById('modalEmpleado');
-                const modalDashboardAnalista = document.getElementById('modalDashboardAnalista');
                 const modalPerfil = document.getElementById('modalPerfil');
                 const modalPassword = document.getElementById('modalPassword');
 
@@ -2567,7 +2893,7 @@
                     return;
                 }
 
-                if (modalDashboardAnalista && modalDashboardAnalista.classList.contains('active')) {
+                if (isAnalystDashboardOpen()) {
                     cerrarDashboardAnalista();
                     return;
                 }
@@ -2586,12 +2912,16 @@
             localStorage.removeItem('sessionActive');
         }
         
-        function handleLogout() {
-            if (confirm('¿Deseas cerrar sesión?')) {
-                clearSession();
-                // Redirigir al login sin parámetros especiales
-                window.location.href = '/';
-            }
+        async function handleLogout() {
+            const ok = await showAppConfirm('¿Deseas cerrar sesión?', {
+                title: 'Cerrar sesión',
+                confirmText: 'Sí, salir',
+                cancelText: 'Cancelar'
+            });
+            if (!ok) return;
+
+            clearSession();
+            window.location.href = '/';
         }
         
         // Cerrar dropdown al hacer clic fuera
@@ -2616,7 +2946,7 @@
                 let dropdownContent = '';
                 
                 if (userRole === 'administrador') {
-                    // Administrador NO tiene acceso a fórmulas
+                    // Administrador con navegación de dashboard y empleados
                     dropdownContent = `
                         <button onclick="window.location.href='/'" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Dashboard</button>
                         <button onclick="window.location.href='/employees'" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Gestión Empleados</button>
@@ -2624,10 +2954,10 @@
                         <button onclick="handleLogout()" style="color: #111; background: none; padding: 12px 16px; border-top: 1px solid #eee; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Cerrar Sesión</button>
                     `;
                 } else if (userRole === 'analista') {
-                    // Analista solo tiene empleados y fórmulas
+                    // Analista solo maneja dashboard y empleados en esta vista
                     dropdownContent = `
+                        <button onclick="window.location.href='/'" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Dashboard</button>
                         <button onclick="window.location.href='/employees'" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Gestión Empleados</button>
-                        <button onclick="goToFormulas()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Gestión Fórmulas</button>
                         <button onclick="abrirModalPerfil()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Perfil</button>
                         <button onclick="handleLogout()" style="color: #111; background: none; padding: 12px 16px; border-top: 1px solid #eee; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Cerrar Sesión</button>
                     `;
@@ -2769,9 +3099,20 @@
             }
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
-            loadData();
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadData();
             actualizarNombreUsuario();
+
+            try {
+                const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                const userRole = (userData.rol || '').toLowerCase();
+
+                if (userRole === 'analista') {
+                    abrirDashboardAnalista();
+                } else {
+                    cerrarDashboardAnalista();
+                }
+            } catch (_) {}
             
             // Agregar funcionalidad de logout forzado (Ctrl+Click en logo)
             const logo = document.querySelector('img[alt*="Logo"], img[src*="logo"]');
