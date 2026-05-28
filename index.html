@@ -1974,7 +1974,7 @@
                     <div id="labelsMetricStatus" class="labels-status" style="margin-top: 10px;"></div>
 
                     <div style="margin-top: 16px;">
-                        <h4 style="margin: 0 0 8px; font-size: 0.9rem; color: #325172;">Uso por Sucursal (según filtro de zona)</h4>
+                        <h4 style="margin: 0 0 8px; font-size: 0.9rem; color: #325172;">Uso por Sucursal · Filtrado por zona</h4>
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="background: #f5f5f5;">
@@ -2549,6 +2549,109 @@ function showAppNotice(message, type = 'info') {
     }, timeoutMs);
 }
 
+function ensureAppConfirmStyle() {
+    if (document.getElementById('appConfirmStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'appConfirmStyle';
+    style.textContent = `
+        .app-confirm-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(7, 15, 27, 0.45);
+            backdrop-filter: blur(2px);
+            z-index: 100000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .app-confirm-dialog {
+            width: min(440px, 100%);
+            background: #fff;
+            border: 1px solid #dfe6ef;
+            border-radius: 14px;
+            box-shadow: 0 22px 50px rgba(10, 38, 74, 0.28);
+            padding: 16px;
+        }
+        .app-confirm-title {
+            font-family: Space Grotesk, sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #17395d;
+            margin: 0 0 8px;
+        }
+        .app-confirm-message {
+            color: #2b4662;
+            margin: 0;
+            line-height: 1.45;
+        }
+        .app-confirm-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .app-confirm-btn {
+            border: 1px solid #dfe6ef;
+            background: #fff;
+            color: #17395d;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .app-confirm-btn.primary {
+            background: #1f5fbf;
+            border-color: #1f5fbf;
+            color: #fff;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function showAppConfirm(message, options = {}) {
+    ensureAppConfirmStyle();
+    const title = options.title || 'Confirmación';
+    const confirmText = options.confirmText || 'Aceptar';
+    const cancelText = options.cancelText || 'Cancelar';
+
+    return new Promise((resolve) => {
+        const backdrop = document.createElement('div');
+        backdrop.className = 'app-confirm-backdrop';
+
+        const dialog = document.createElement('div');
+        dialog.className = 'app-confirm-dialog';
+        dialog.innerHTML = `
+            <h3 class="app-confirm-title">${title}</h3>
+            <p class="app-confirm-message">${String(message || '')}</p>
+            <div class="app-confirm-actions">
+                <button type="button" class="app-confirm-btn" data-role="cancel">${cancelText}</button>
+                <button type="button" class="app-confirm-btn primary" data-role="confirm">${confirmText}</button>
+            </div>
+        `;
+
+        const close = (value) => {
+            if (backdrop.isConnected) backdrop.remove();
+            document.removeEventListener('keydown', onKeyDown);
+            resolve(value);
+        };
+
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape') close(false);
+        };
+
+        dialog.querySelector('[data-role="cancel"]').addEventListener('click', () => close(false));
+        dialog.querySelector('[data-role="confirm"]').addEventListener('click', () => close(true));
+        backdrop.addEventListener('click', (e) => {
+            if (e.target === backdrop) close(false);
+        });
+
+        backdrop.appendChild(dialog);
+        document.body.appendChild(backdrop);
+        document.addEventListener('keydown', onKeyDown);
+    });
+}
+
 if (!window.__paintflowAlertPatched) {
     window.__paintflowAlertPatched = true;
     window.__nativeAlert = window.alert.bind(window);
@@ -2704,7 +2807,14 @@ document.addEventListener("click", function(event) {
             }
         });
 
-function handleLogout() {
+async function handleLogout() {
+    const ok = await showAppConfirm('¿Deseas cerrar sesión?', {
+        title: 'Cerrar sesión',
+        confirmText: 'Sí, salir',
+        cancelText: 'Cancelar'
+    });
+    if (!ok) return;
+
     clearSession();
     document.getElementById("loginContainer").classList.remove("hidden");
     document.getElementById("appContainer").classList.remove("active");
