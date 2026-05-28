@@ -1577,6 +1577,11 @@
         })();
 
         function resolveAnalystZona(name, zonaHint = '') {
+            const hintedZone = toSubtabZoneKey(zonaHint);
+            if (ANALYST_ZONE_KEYS.includes(hintedZone)) {
+                return hintedZone;
+            }
+
             const target = normalizeTextBasic(name);
             if (!target) return 'Sin_Zona';
             if (ANALYST_SUCURSAL_TO_ZONE.has(target)) {
@@ -1586,9 +1591,14 @@
         }
 
         function isValidAnalystSucursal(name, zonaHint = '') {
-            const raw = String(name || '');
-            const normalized = normalizeTextBasic(raw);
-            if ((normalized === 'bani' || normalized === 'bavaro') && /[íá]/i.test(raw)) return false;
+            const target = String(name || '').trim();
+            if (!target) return false;
+
+            const hintedZone = toSubtabZoneKey(zonaHint);
+            if (ANALYST_ZONE_KEYS.includes(hintedZone)) {
+                return true;
+            }
+
             return resolveAnalystZona(name, zonaHint) !== 'Sin_Zona';
         }
         
@@ -2130,7 +2140,7 @@
 
             analystMetricsInFlight = (async () => {
             try {
-                const res = await fetchWithTimeout(API + '/api/v1/labelsapp/usage-metrics?product_limit=5', 3500);
+                const res = await fetchWithTimeout(API + '/api/v1/labelsapp/usage-metrics?product_limit=5', 10000);
                 if (!res.ok) throw new Error('No se pudo cargar dashboard de analista');
                 const data = await res.json();
                 analystMetricsCache = data;
@@ -2187,7 +2197,7 @@
 
         function getCachedAnalystMetrics() {
             try {
-                const raw = localStorage.getItem('analyst_metrics_cache_v1');
+                const raw = localStorage.getItem('analyst_metrics_cache_v2');
                 if (!raw) return null;
                 const parsed = JSON.parse(raw);
                 if (!parsed || !parsed.data || !parsed.ts) return null;
@@ -2201,7 +2211,7 @@
 
         function setCachedAnalystMetrics(data) {
             try {
-                localStorage.setItem('analyst_metrics_cache_v1', JSON.stringify({ ts: Date.now(), data }));
+                localStorage.setItem('analyst_metrics_cache_v2', JSON.stringify({ ts: Date.now(), data }));
             } catch (_) {}
         }
 
