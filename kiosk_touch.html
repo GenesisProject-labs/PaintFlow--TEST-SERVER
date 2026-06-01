@@ -964,6 +964,42 @@
             return String(productName || "").trim();
         }
 
+        function isSherwinCodeQuery(query) {
+            const normalized = normalizeText(query || "");
+            return /^sw\s*\d{3,5}$/.test(normalized) || /^\d{3,5}$/.test(normalized);
+        }
+
+        function normalizeSherwinSearchItem(item) {
+            const code = String((item && (item.colorNumber || item.code)) || "").trim();
+            if (!code) return null;
+            return {
+                codigo: code.toUpperCase().startsWith("SW") ? code.toUpperCase() : `SW ${code}`,
+                nombre: String((item && item.name) || `SW ${code}`).trim(),
+                base: "",
+                ubicacion: String((item && item.storeStripLocator) || "").trim(),
+                personalizado: false,
+                sherwin: true,
+                hex: String((item && item.hex) || "").trim(),
+            };
+        }
+
+        async function searchSherwinColors(query) {
+            const normalizedQuery = String(query || "").trim();
+            if (!normalizedQuery) return [];
+            try {
+                const params = new URLSearchParams();
+                params.set("query", normalizedQuery);
+                params.set("timeout_seconds", "10");
+                const res = await fetch(`${API}/api/v1/sherwin/search?${params.toString()}`);
+                if (!res.ok) return [];
+                const data = await res.json();
+                const results = Array.isArray(data.results) ? data.results : [];
+                return results.map(normalizeSherwinSearchItem).filter(Boolean);
+            } catch (_) {
+                return [];
+            }
+        }
+
         function extractSwCode(codigo) {
             const raw = String(codigo || "").toUpperCase();
             const m = raw.match(/(?:SW\s*)?(\d{3,5})/);
@@ -1566,8 +1602,24 @@
         async function loadColorList() {
             const query = (document.getElementById("kioskQuery").value || "").trim();
 
+            const applySherwinFallback = async () => {
+                const sherwinResults = await searchSherwinColors(query);
+                if (sherwinResults.length) {
+                    state.colors = sherwinResults;
+                    renderColors();
+                    await ensureSherwinColors(state.colors.slice(0, MAX_VISIBLE_COLORS));
+                    renderColors();
+                    setStatus("Colores cargados desde Sherwin", "ok");
+                    return true;
+                }
+                return false;
+            };
+
             if (state.allColors.length) {
                 applyLocalColorFilter(query);
+                if (query && !state.colors.length && isSherwinCodeQuery(query)) {
+                    await applySherwinFallback();
+                }
                 return;
             }
 
@@ -1581,10 +1633,16 @@
                 const data = await res.json();
                 state.allColors = Array.isArray(data.productos) ? data.productos : [];
                 applyLocalColorFilter(query);
+                if (query && !state.colors.length) {
+                    await applySherwinFallback();
+                }
                 setStatus("", "ok");
             } catch (err) {
-                renderColors();
-                setStatus(err.message || "Error cargando colores", "err");
+                const usedFallback = await applySherwinFallback();
+                if (!usedFallback) {
+                    renderColors();
+                    setStatus(err.message || "Error cargando colores", "err");
+                }
             }
         }
 
