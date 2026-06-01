@@ -870,6 +870,7 @@
             colors: [],
             allColors: [],
             colorByCode: {},
+            sherwinSearchCache: {},
             cart: [],
             catalog: [],
             selectedColorIndex: -1,
@@ -972,20 +973,26 @@
         function normalizeSherwinSearchItem(item) {
             const code = String((item && (item.colorNumber || item.code)) || "").trim();
             if (!code) return null;
+            const normalizedCode = code.toUpperCase().startsWith("SW") ? code.toUpperCase() : `SW ${code}`;
+            const hex = normalizeHex((item && item.hex) || "");
             return {
-                codigo: code.toUpperCase().startsWith("SW") ? code.toUpperCase() : `SW ${code}`,
+                codigo: normalizedCode,
                 nombre: String((item && item.name) || `SW ${code}`).trim(),
                 base: "",
                 ubicacion: String((item && item.storeStripLocator) || "").trim(),
                 personalizado: false,
                 sherwin: true,
-                hex: String((item && item.hex) || "").trim(),
+                hex,
             };
         }
 
         async function searchSherwinColors(query) {
             const normalizedQuery = String(query || "").trim();
             if (!normalizedQuery) return [];
+            const cacheKey = normalizeText(normalizedQuery);
+            if (cacheKey && Array.isArray(state.sherwinSearchCache[cacheKey])) {
+                return state.sherwinSearchCache[cacheKey].map(item => ({ ...item }));
+            }
             try {
                 const params = new URLSearchParams();
                 params.set("query", normalizedQuery);
@@ -994,7 +1001,16 @@
                 if (!res.ok) return [];
                 const data = await res.json();
                 const results = Array.isArray(data.results) ? data.results : [];
-                return results.map(normalizeSherwinSearchItem).filter(Boolean);
+                const normalized = results.map(normalizeSherwinSearchItem).filter(Boolean);
+                for (const item of normalized) {
+                    const code = extractSwCode(item.codigo);
+                    if (!code) continue;
+                    state.colorByCode[code] = { name: item.nombre || `SW ${code}`, hex: normalizeHex(item.hex || "") };
+                }
+                if (cacheKey) {
+                    state.sherwinSearchCache[cacheKey] = normalized.map(item => ({ ...item }));
+                }
+                return normalized;
             } catch (_) {
                 return [];
             }
@@ -1194,6 +1210,23 @@
 
         function swatchFor(colorItem) {
             const code = extractSwCode(colorItem.codigo);
+            const directHex = normalizeHex(colorItem.hex || "");
+            if (directHex) {
+                const toneClass = isDarkColor(directHex) ? "on-dark" : "on-light";
+                return `
+                    <div class="swatch-wrap">
+                        <div class="swatch" style="background:${escapeHtml(directHex)};"></div>
+                        <div class="swatch-overlay ${toneClass}">
+                            <div class="swatch-top">
+                                <div class="swatch-label">${code ? `SW ${escapeHtml(code)}` : "Color"}</div>
+                                <div class="swatch-name">${escapeHtml(colorItem.nombre || "Sin nombre")}</div>
+                                <div class="swatch-note">${escapeHtml(colorItem.ubicacion || colorItem.base || directHex)}</div>
+                            </div>
+                            <div class="swatch-footer"></div>
+                        </div>
+                    </div>
+                `;
+            }
             if (!code) {
                 return `
                     <div class="swatch-wrap">
@@ -1607,8 +1640,6 @@
                 if (sherwinResults.length) {
                     state.colors = sherwinResults;
                     renderColors();
-                    await ensureSherwinColors(state.colors.slice(0, MAX_VISIBLE_COLORS));
-                    renderColors();
                     setStatus("Colores cargados desde Sherwin", "ok");
                     return true;
                 }
@@ -1617,7 +1648,7 @@
 
             if (state.allColors.length) {
                 applyLocalColorFilter(query);
-                if (query && !state.colors.length && isSherwinCodeQuery(query)) {
+                if (query && !state.colors.length) {
                     await applySherwinFallback();
                 }
                 return;
