@@ -37,16 +37,10 @@
 
         .header {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             align-items: center;
             gap: 12px;
             margin-bottom: 16px;
-        }
-
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
 
         .brand-logo-link {
@@ -68,17 +62,6 @@
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
-        }
-
-        .header-actions .btn.exit {
-            background: #fff;
-            color: #b42318;
-            border-color: #f3c5c0;
-            font-weight: 800;
-        }
-
-        .header-actions .btn.exit:hover {
-            background: #fff5f3;
         }
 
         .pill {
@@ -737,9 +720,6 @@
             <a class="brand-logo-link" href="#" onclick="goHomeFromLogo(event)" aria-label="Ir al inicio">
                 <img class="brand-logo" src="/static/logo.png" alt="PaintFlow" />
             </a>
-            <div class="header-actions">
-                <button class="btn subtle exit" type="button" onclick="logoutFromClient()">Salir</button>
-            </div>
         </header>
 
         <div class="cart-widget" id="cartWidget">
@@ -1508,23 +1488,6 @@
 
         function goHomeFromLogo(event) {
             if (event) event.preventDefault();
-
-            const queryInput = document.getElementById("kioskQuery");
-            if (queryInput) queryInput.value = "";
-
-            state.selectedColorIndex = -1;
-            state.selectedCatalogIndex = 0;
-            renderSelectedColorStrip();
-
-            closeProductChooser();
-            closeCheckoutModal();
-            closeCartDrawer();
-            setFlowStep("color");
-            loadColorList();
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        }
-
-        function logoutFromClient() {
             if (!confirm("¿Cerrar sesión y salir del modo cliente?")) return;
             try {
                 localStorage.removeItem("currentUser");
