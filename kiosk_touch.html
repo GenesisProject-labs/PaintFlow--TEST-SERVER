@@ -37,7 +37,7 @@
 
         .header {
             display: flex;
-            justify-content: flex-start;
+            justify-content: space-between;
             align-items: center;
             gap: 12px;
             margin-bottom: 16px;
@@ -68,6 +68,17 @@
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
+        }
+
+        .header-actions .btn.exit {
+            background: #fff;
+            color: #b42318;
+            border-color: #f3c5c0;
+            font-weight: 800;
+        }
+
+        .header-actions .btn.exit:hover {
+            background: #fff5f3;
         }
 
         .pill {
@@ -726,6 +737,9 @@
             <a class="brand-logo-link" href="#" onclick="goHomeFromLogo(event)" aria-label="Ir al inicio">
                 <img class="brand-logo" src="/static/logo.png" alt="PaintFlow" />
             </a>
+            <div class="header-actions">
+                <button class="btn subtle exit" type="button" onclick="logoutFromClient()">Salir</button>
+            </div>
         </header>
 
         <div class="cart-widget" id="cartWidget">
@@ -1445,6 +1459,14 @@
             setFlowStep("color");
             loadColorList();
             window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+
+        function logoutFromClient() {
+            if (!confirm("¿Cerrar sesión y salir del modo cliente?")) return;
+            try {
+                localStorage.removeItem("currentUser");
+            } catch (_) {}
+            window.location.href = "/";
         }
 
         function refreshChooserOptions(productName) {
