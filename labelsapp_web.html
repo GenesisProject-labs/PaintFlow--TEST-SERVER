@@ -79,6 +79,17 @@
             align-items: center;
         }
 
+        .topbar-exit-btn {
+            background: #fff;
+            color: var(--danger);
+            border: 1px solid #fecaca;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.12);
+        }
+
+        .topbar-exit-btn:hover {
+            box-shadow: 0 6px 16px rgba(220, 38, 38, 0.18);
+        }
+
         .user-menu-container {
             position: relative;
         }
@@ -785,6 +796,7 @@
             <span>PaintFlow</span>
         </div>
         <div class="actions">
+            <button class="btn topbar-exit-btn" type="button" onclick="handleLogout()">Salir</button>
             <div class="user-menu-container">
                 <button class="user-dropdown-btn" id="userDropdownBtn" type="button" onclick="toggleUserDropdown()">
                     <span class="user-avatar" id="userAvatar">👤</span>
