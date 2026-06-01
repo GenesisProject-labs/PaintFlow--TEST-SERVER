@@ -1176,9 +1176,9 @@
             "h&c heavy-shield": ["Gloss"],
             "h&c silicone-acrylic": ["Mate"],
             "promar® 200 voc": ["Satin", "Mate"],
-            "macropoxy 646": ["Semigloss"],
+            "macropoxy 646": ["Gloss"],
             "tile clad": ["Gloss", "Brillo"],
-            "sher-loxane 800": ["Gloss", "Brillo"],
+            "sher-loxane 800": ["Gloss"],
             "acrolon 7300": ["Gloss", "Brillo"],
             "dura-plate 235 pw": ["Gloss", "Brillo"],
             "macropoxy 4600": ["Semigloss"],
@@ -1188,7 +1188,11 @@
             "hi-solids pt": ["Gloss", "Brillo"],
             "hi-solids 250": ["Gloss", "Brillo"],
             "armorseal rexthane": ["Gloss", "Brillo"],
-            "water-base catalyzed": ["Gloss", "Brillo"]
+            "industrial enamel": ["Gloss"],
+            "urethane alkyd": ["Gloss", "Eggshell"],
+            "water-base catalyzed": ["Gloss", "Brillo"],
+            "water-base pre-catalyzed": ["Gloss"],
+            "kem kromik 150": ["Gloss"]
         };
 
         const PRODUCT_RULES = {
@@ -1269,6 +1273,9 @@
             "industrial enamel": {
                 presentaciones: ["Galon"]
             },
+            "kem kromik 150": {
+                presentaciones: ["Galon"]
+            },
             "kem aqua": {
                 presentaciones: ["Cuarto", "Galon", "Cubeta"]
             },
@@ -1323,6 +1330,9 @@
             },
             "water-base catalyzed": {
                 presentaciones: ["Galon"]
+            },
+            "water-base pre catalyzed": {
+                presentaciones: ["Galon"]
             }
         };
 
@@ -1369,20 +1379,51 @@
             "Sherplate 600",
             "Macropoxy 4600",
             "Industrial Enamel",
+            "KEM KROMIK 150",
             "SUPERPAINT A&P",
             "Urethane Alkyd",
+            "Water-Base Pre Catalyzed",
             "Water-Base Catalyzed"
         ];
 
         const PRODUCT_NAME_ALIASES = {
-            "exc. texturizado": "texturizado",
             "exc texturizado": "texturizado",
-            "exc. texdturizado": "texturizado",
-            "exc texdturizado": "texturizado"
+            "exc texdturizado": "texturizado",
+            "excello texturizado": "texturizado",
+            "excello texturizada": "texturizado",
+            "excello r texturizada ayp": "texturizado",
+            "excello r texturizada": "texturizado",
+
+            "excello r pastel ayp": "excello pastel",
+            "excello r pastel": "excello pastel",
+            "excello pastel ayp": "excello pastel",
+
+            "excello premiun": "excello premium",
+            "excello premium ayp": "excello premium",
+
+            "excello voc": "excello cov",
+            "excello cero voc": "excello cov",
+
+            "excello r esmalte multiuso ayp": "esmalte multiuso",
+            "excello r esmalte multiuso": "esmalte multiuso",
+
+            "excello water blocking primer ayp scaled": "water blocking",
+            "excello water blocking primer ayp": "water blocking",
+            "water blocking primer": "water blocking",
+
+            "superpaint sanitizing ayp": "superpaint sanitizing",
+            "super paint sanitizing": "superpaint sanitizing",
+            "sanitizing": "superpaint sanitizing"
         };
 
         const PRODUCT_DISPLAY_BY_CANON = {
-            "texturizado": "Texturizado"
+            "excello premium": "Excello Premium",
+            "excello cov": "Excello COV",
+            "esmalte multiuso": "Esmalte Multiuso",
+            "excello pastel": "Excello Pastel",
+            "texturizado": "Texturizado",
+            "water blocking": "Water Blocking",
+            "superpaint sanitizing": "Superpaint Sanitizing"
         };
 
         const PRODUCT_FORCED_CODE_BY_CANON = {
@@ -1441,8 +1482,30 @@
             return canonicalProductName(name);
         }
 
+        function normalizeAliasKey(name) {
+            return (name || "")
+                .toString()
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]+/g, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+        }
+
         function canonicalProductName(name) {
-            const normalized = normalize(name).replace(/\s+/g, " ");
+            const normalized = normalizeAliasKey(name)
+                .replace(/\bexc\b/g, "excello")
+                .replace(/\btexturizada\b/g, "texturizado")
+                .replace(/\bpremiun\b/g, "premium")
+                .replace(/\bcero\b/g, "")
+                .replace(/\bvoc\b/g, "cov")
+                .replace(/\bexcello\s+r\b/g, "excello")
+                .replace(/\br\b/g, "")
+                .replace(/\bayp\b/g, "")
+                .replace(/\bscaled\b/g, "")
+                .replace(/\s+/g, " ")
+                .trim();
             return PRODUCT_NAME_ALIASES[normalized] || normalized;
         }
 
@@ -1503,7 +1566,10 @@
             editingFacturaId = null;
             queue.length = 0;
             for (const item of (entry.productos || entry.items || [])) {
-                queue.push({ ...item });
+                queue.push({
+                    ...item,
+                    producto: displayProductName(item?.producto || "")
+                });
             }
             document.getElementById("idFactura").value = entry.factura || "";
             document.getElementById("prioridad").value = entry.prioridad || "Media";
@@ -1747,7 +1813,13 @@
                 return null;
             }
             try {
-                return JSON.parse(raw);
+                const user = JSON.parse(raw);
+                const role = String((user && user.rol) || "").trim().toLowerCase();
+                if (role === "cliente") {
+                    window.location.href = "/cliente";
+                    return null;
+                }
+                return user;
             } catch {
                 window.location.href = "/";
                 return null;
@@ -1871,10 +1943,15 @@
             const baseNorm = normalize(base);
 
             let valid = [];
-            for (const [key, terminaciones] of Object.entries(TERMINACIONES_POR_PRODUCTO)) {
-                if (productNorm.includes(key)) {
-                    valid = terminaciones.slice();
-                    break;
+            const exact = TERMINACIONES_POR_PRODUCTO[productNorm];
+            if (Array.isArray(exact) && exact.length) {
+                valid = exact.slice();
+            } else {
+                const candidates = Object.keys(TERMINACIONES_POR_PRODUCTO)
+                    .filter(key => productNorm.includes(key))
+                    .sort((a, b) => b.length - a.length);
+                if (candidates.length) {
+                    valid = TERMINACIONES_POR_PRODUCTO[candidates[0]].slice();
                 }
             }
 
@@ -2000,8 +2077,7 @@
 
                 for (const p of (data.productos || [])) {
                     const originalName = (p.nombre || "").toString();
-                    const canonicalName = canonicalProductName(originalName);
-                    const displayName = PRODUCT_DISPLAY_BY_CANON[canonicalName] || originalName;
+                    const displayName = displayProductName(originalName);
 
                     const code = (p.codigo || "").toString().trim();
 
@@ -2014,6 +2090,7 @@
                     };
 
                     productByCode.set(code, normalizedProduct);
+                    productNames.add(displayName);
 
                     const dedupeKey = `${normalize(code)}|${normalize(displayName)}`;
                     if (dedupeCodeAndName.has(dedupeKey)) continue;
@@ -2262,13 +2339,20 @@
                     const code = (p.codigo || "").toString();
                     if (!code) continue;
 
-                    productByCode.set(code, p);
+                    const displayName = displayProductName(p.nombre || "");
+                    const normalizedProduct = {
+                        ...p,
+                        codigo: code,
+                        nombre: displayName
+                    };
+
+                    productByCode.set(code, normalizedProduct);
                     if (!codeIndex.some(x => x.code === code)) {
                         codeIndex.push({
                             code,
                             codeNorm: normalize(code),
-                            name: (p.nombre || "").toString(),
-                            nameNorm: normalize(p.nombre || ""),
+                            name: displayName,
+                            nameNorm: normalize(displayName),
                         });
                     }
                 }
@@ -2405,10 +2489,28 @@
         async function refreshCodigoBase() {
             const base = document.getElementById("base").value.trim();
             const producto = document.getElementById("producto").value.trim();
-            const terminacion = document.getElementById("terminacion").value;
-            const presentacion = document.getElementById("presentacion").value;
+            const termEl = document.getElementById("terminacion");
+            const presEl = document.getElementById("presentacion");
+            let terminacion = termEl.value;
+            let presentacion = presEl.value;
             const codigoBaseEl = document.getElementById("codigoBase");
             const currentSeq = ++codigoBaseRequestSeq;
+
+            if (!terminacion) {
+                const validTerms = getValidTerminaciones(producto, base);
+                if (validTerms.length === 1) {
+                    termEl.value = validTerms[0];
+                    terminacion = validTerms[0];
+                }
+            }
+
+            if (!presentacion) {
+                const validPres = getValidPresentaciones(producto);
+                if (validPres.length === 1) {
+                    presEl.value = validPres[0];
+                    presentacion = validPres[0];
+                }
+            }
 
             const forcedByProduct = forcedCodeForProductName(producto);
             if (forcedByProduct) {
@@ -2464,7 +2566,7 @@
         function addToQueue() {
             const codigo = document.getElementById("codigo").value.trim();
             const descripcion = document.getElementById("descripcion").value.trim();
-            const producto = document.getElementById("producto").value.trim();
+            const producto = displayProductName(document.getElementById("producto").value.trim());
             const terminacion = document.getElementById("terminacion").value;
             const presentacion = document.getElementById("presentacion").value;
             const base = document.getElementById("base").value.trim();
@@ -2903,7 +3005,7 @@
                     queue.push({
                         codigo: item.codigo || "",
                         descripcion: item.descripcion || "",
-                        producto: item.producto || "",
+                        producto: displayProductName(item.producto || ""),
                         terminacion: item.terminacion || "",
                         presentacion: item.presentacion || "",
                         cantidad: item.cantidad || 1,
@@ -3235,6 +3337,12 @@
                 refreshCodigoBase();
             }
         });
+        document.getElementById("base").addEventListener("input", () => {
+            refreshCodigoBase();
+        });
+        document.getElementById("base").addEventListener("change", () => {
+            refreshCodigoBase();
+        });
         document.getElementById("cantidad").addEventListener("input", () => {
             const cantidad = Math.max(1, Number(document.getElementById("cantidad").value || 1));
             if (cantidad > 0) {
@@ -3272,7 +3380,8 @@
         });
 
         (function init() {
-            ensureSession();
+            const user = ensureSession();
+            if (!user) return;
             cerrarModalPerfil();
             cerrarModalLogout();
             closeUserDropdown();

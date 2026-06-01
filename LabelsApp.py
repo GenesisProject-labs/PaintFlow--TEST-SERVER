@@ -1041,9 +1041,9 @@ class SistemaLoginIntegrado:
                         return {"error": "Contraseña incorrecta"}
 
                     # Verificar que el rol sea apropiado para LabelsApp
-                    roles_permitidos = ['facturador', 'cajero', 'administrador']
+                    roles_permitidos = ['facturador', 'cajero', 'cliente', 'administrador']
                     if usuario[4] not in roles_permitidos:
-                        return {"error": f"Rol '{usuario[4]}' no tiene acceso a PaintFlow. Se requiere rol de cajero, facturador o administrador."}
+                        return {"error": f"Rol '{usuario[4]}' no tiene acceso a PaintFlow. Se requiere rol de cajero, cliente, facturador o administrador."}
 
                     # Actualizar ultimo_acceso
                     try:
@@ -3853,6 +3853,9 @@ FORMULAS_Y_PRESENTACIONES_POR_PRODUCTO = {
     'tile clad': {'formulas': ['CCE'], 'presentaciones': ['Galón', 'Cubeta']},
     'water blocking': {'formulas': ['CCE'], 'presentaciones': ['Galón', 'Cubeta']},
     'water-base catalyzed': {'formulas': ['CCE'], 'presentaciones': ['Galón']},
+    'water-base pre catalyzed': {'formulas': ['CCE'], 'presentaciones': ['Galón']},
+    'industrial enamel': {'formulas': ['CCE'], 'presentaciones': ['Galón']},
+    'kem kromik 150': {'formulas': ['CCE'], 'presentaciones': ['Galón']},
     'laca': {'formulas': ['BAC'], 'presentaciones': ['Galón']},
     'esmalte kem': {'formulas': ['BAC'], 'presentaciones': ['Cuarto', 'Galón']},
     'monocapa': {'formulas': ['BAC'], 'presentaciones': ['Galón', 'Cubeta']},
@@ -3916,7 +3919,11 @@ TERMINACIONES_POR_PRODUCTO = {
     'hi-solids pt': ['Gloss', 'Brillo'],
     'hi-solids 250': ['Gloss', 'Brillo'],
     'armorseal rexthane': ['Gloss', 'Brillo'],
+    'industrial enamel': ['Gloss'],
+    'urethane alkyd': ['Gloss', 'Eggshell'],
     'water-base catalyzed': ['Gloss', 'Brillo'],
+    'water-base pre catalyzed': ['Gloss'],
+    'kem kromik 150': ['Gloss'],
 
     
     
@@ -3940,10 +3947,13 @@ def actualizar_terminaciones(*args):
     
     # Buscar terminaciones válidas para el producto
     terminaciones_validas = []
-    for key, terminaciones in TERMINACIONES_POR_PRODUCTO.items():
-        if key in producto:
-            terminaciones_validas = terminaciones
-            break
+    if producto in TERMINACIONES_POR_PRODUCTO:
+        terminaciones_validas = TERMINACIONES_POR_PRODUCTO[producto]
+    else:
+        candidatos = [key for key in TERMINACIONES_POR_PRODUCTO.keys() if key in producto]
+        if candidatos:
+            key_match = sorted(candidatos, key=len, reverse=True)[0]
+            terminaciones_validas = TERMINACIONES_POR_PRODUCTO.get(key_match, [])
     
     # Si no se encuentra el producto, usar todas las terminaciones
     if not terminaciones_validas:
@@ -4268,7 +4278,7 @@ descripcion_entry.grid(row=1, column=1, sticky="ew", padx=8, pady=5)
 
 # Guarda las referencias de los combobox
 producto_combobox = ttk.Combobox(form_scrollable, textvariable=producto_var,
-    values=['Excello Premium', 'Laca', 'Esmalte Kem', 'Excello VOC', 'Master Paint', 'Tinte al Thinner', 'Super Paint', 'Esmalte Multiuso', 'Excello Pastel', 'Texturizado', 'Water Blocking', 'Kem Aqua', 'Emerald', 'Monocapa', 'Uretano', 'Airpuretec', 'Kem Pro', 'Sanitizing', 'Industrial', 'h&c silicone-acrylic', 'h&c heavy-shield', 'promar® 200 voc', 'promar® 400 voc', 'pro industrial dtm', 'armoseal 1000hs', 'armoseal t-p', 'scuff tuff-wb', 'Macropoxy 646', 'Tile Clad', 'Sher-loxane 800', 'Acrolon 7300', 'Dura-plate 235', 'Dura-plate 235 PW', 'Acrolon 218', 'Armorseal HS-PT', 'Hi-Solids PT', 'Hi-Solids 250', 'Armorseal Rexthane', 'Sherplate 600', 'Macropoxy 4600', 'Urethane Alkyd', 'Water-Base Catalyzed'],
+    values=['Excello Premium', 'Laca', 'Esmalte Kem', 'Excello VOC', 'Master Paint', 'Tinte al Thinner', 'Super Paint', 'Esmalte Multiuso', 'Excello Pastel', 'Texturizado', 'Water Blocking', 'Kem Aqua', 'Emerald', 'Monocapa', 'Uretano', 'Airpuretec', 'Kem Pro', 'Sanitizing', 'Industrial', 'h&c silicone-acrylic', 'h&c heavy-shield', 'promar® 200 voc', 'promar® 400 voc', 'pro industrial dtm', 'armoseal 1000hs', 'armoseal t-p', 'scuff tuff-wb', 'Macropoxy 646', 'Tile Clad', 'Sher-loxane 800', 'Acrolon 7300', 'Dura-plate 235', 'Dura-plate 235 PW', 'Acrolon 218', 'Armorseal HS-PT', 'Hi-Solids PT', 'Hi-Solids 250', 'Armorseal Rexthane', 'Sherplate 600', 'Macropoxy 4600', 'Urethane Alkyd', 'Industrial Enamel', 'Water-Base Pre Catalyzed', 'KEM KROMIK 150', 'Water-Base Catalyzed'],
     state='readonly')
 producto_combobox.grid(row=2, column=1, sticky="ew", padx=8, pady=5)
 
@@ -6604,7 +6614,7 @@ def abrir_gestor_lista_factura():
             e_codigo.grid(row=0, column=1, sticky="we", pady=4)
 
             ttk.Label(frm, text="Producto:").grid(row=1, column=0, sticky="w", pady=4, padx=(0,8))
-            producto_vals = ['Excello Premium', 'Laca', 'Esmalte Kem', 'Excello VOC', 'Master Paint', 'Tinte al Thinner', 'Super Paint', 'Esmalte Multiuso', 'Excello Pastel', 'Texturizado', 'Water Blocking', 'Kem Aqua', 'Emerald', 'Monocapa', 'Uretano', 'Airpuretec', 'Kem Pro', 'Sanitizing', 'Industrial', 'h&c silicone-acrylic', 'h&c heavy-shield', 'promar® 200 voc', 'promar® 400 voc', 'pro industrial dtm', 'armoseal 1000hs', 'armoseal t-p', 'scuff tuff-wb', 'Macropoxy 646', 'Tile Clad', 'Sher-loxane 800', 'Acrolon 7300', 'Dura-plate 235', 'Dura-plate 235 PW', 'Acrolon 218', 'Armorseal HS-PT', 'Hi-Solids PT', 'Hi-Solids 250', 'Armorseal Rexthane', 'Sherplate 600', 'Macropoxy 4600', 'Urethane Alkyd', 'Water-Base Catalyzed']
+            producto_vals = ['Excello Premium', 'Laca', 'Esmalte Kem', 'Excello VOC', 'Master Paint', 'Tinte al Thinner', 'Super Paint', 'Esmalte Multiuso', 'Excello Pastel', 'Texturizado', 'Water Blocking', 'Kem Aqua', 'Emerald', 'Monocapa', 'Uretano', 'Airpuretec', 'Kem Pro', 'Sanitizing', 'Industrial', 'h&c silicone-acrylic', 'h&c heavy-shield', 'promar® 200 voc', 'promar® 400 voc', 'pro industrial dtm', 'armoseal 1000hs', 'armoseal t-p', 'scuff tuff-wb', 'Macropoxy 646', 'Tile Clad', 'Sher-loxane 800', 'Acrolon 7300', 'Dura-plate 235', 'Dura-plate 235 PW', 'Acrolon 218', 'Armorseal HS-PT', 'Hi-Solids PT', 'Hi-Solids 250', 'Armorseal Rexthane', 'Sherplate 600', 'Macropoxy 4600', 'Urethane Alkyd', 'Industrial Enamel', 'Water-Base Pre Catalyzed', 'KEM KROMIK 150', 'Water-Base Catalyzed']
             cb_producto = ttk.Combobox(frm, textvariable=var_producto, values=producto_vals, state='readonly')
             cb_producto.grid(row=1, column=1, sticky="we", pady=4)
 
@@ -6632,10 +6642,13 @@ def abrir_gestor_lista_factura():
                     producto = (var_producto.get() or '').lower()
                     base_local = (datos.get('base') or '').lower()
                     terminaciones_validas = []
-                    for key, terminaciones in TERMINACIONES_POR_PRODUCTO.items():
-                        if key in producto:
-                            terminaciones_validas = terminaciones
-                            break
+                    if producto in TERMINACIONES_POR_PRODUCTO:
+                        terminaciones_validas = TERMINACIONES_POR_PRODUCTO[producto]
+                    else:
+                        candidatos = [key for key in TERMINACIONES_POR_PRODUCTO.keys() if key in producto]
+                        if candidatos:
+                            key_match = sorted(candidatos, key=len, reverse=True)[0]
+                            terminaciones_validas = TERMINACIONES_POR_PRODUCTO.get(key_match, [])
                     if not terminaciones_validas:
                         terminaciones_validas = ['Mate', 'Satin', 'Semigloss', 'Semimate', 'Gloss', 'Brillo', 
                                                 "N/A", "ESPECIAL", "CLARO", "INTERMEDIO", "MADERA", "PERLADO", "METALICO", "SEMISATIN"]
@@ -6656,7 +6669,7 @@ def abrir_gestor_lista_factura():
                 try:
                     producto = (var_producto.get() or '').lower()
                     presentaciones_disponibles = ['Cuarto', 'Medio Galón', 'Galón', 'Cubeta']
-                    if any(palabra in producto for palabra in ['laca', 'industrial', 'monocapa', 'uretano']):
+                    if any(palabra in producto for palabra in ['laca', 'industrial', 'monocapa', 'uretano']) and 'industrial enamel' not in producto:
                         presentaciones_disponibles = ['1/8', 'Cuarto', 'Medio Galón', 'Galón']
                     if 'esmalte kem' in producto:
                         presentaciones_disponibles = ['1/8', 'Cuarto', 'Medio Galón', 'Galón']
@@ -6672,7 +6685,7 @@ def abrir_gestor_lista_factura():
                     elif 'dura-plate 235 pw' in p:
                         presentaciones_disponibles = ['Galón', '4 Galones']
                     elif any(k in p for k in [
-                        'acrolon 218','armorseal rexthane','armorseal hs-pt','hi-solids pt','hi-solids 250','sherplate 600','macropoxy 4600','water-base catalyzed'
+                        'acrolon 218','armorseal rexthane','armorseal hs-pt','hi-solids pt','hi-solids 250','sherplate 600','macropoxy 4600','water-base catalyzed','water-base pre catalyzed','industrial enamel','kem kromik 150'
                     ]):
                         presentaciones_disponibles = ['Galón']
                     cb_presentacion['values'] = presentaciones_disponibles
@@ -6976,6 +6989,8 @@ def obtener_codigo_base(base, producto, terminacion):
         es_scufftuff= any(p in producto for p in ["scuff tuff-wb"]) 
         es_UrethaneAlkyd= any(p in producto for p in ["urethane alkyd"])
         es_industrialenamels= any(p in producto for p in ["industrial enamel"])
+        es_WATER_BASE_PRECATALYZED = any(p in producto for p in ["water-base pre catalyzed", "water base pre catalyzed"])
+        es_KEM_KROMIK_150 = any(p in producto for p in ["kem kromik 150"])
         es_macropoxy646= any(p in producto for p in ["macropoxy 646"]) 
         es_sherplate600= any(p in producto for p in ["sherplate 600"])
         es_macropoxy4600= any(p in producto for p in ["macropoxy 4600"]) 
@@ -6997,6 +7012,25 @@ def obtener_codigo_base(base, producto, terminacion):
 
 
         base_color = base_var.get().lower()
+
+        # Overrides de negocio: priorizar estos códigos sobre reglas antiguas en BD.
+        if es_industrialenamels and terminacion in ("brillo", "gloss"):
+            if base_color == "extra white":
+                return "B54W101-"
+            if base_color == "ultra deep":
+                return "B54T104-"
+
+        if es_WATER_BASE_PRECATALYZED and terminacion in ("brillo", "gloss"):
+            if base_color == "extra white":
+                return "K45W01151-"
+            if base_color == "ultra deep":
+                return "K45T02154-"
+
+        if es_KEM_KROMIK_150 and terminacion in ("brillo", "gloss"):
+            if base_color == "extra white":
+                return "N41W651-"
+            if base_color == "ultra deep":
+                return "N41T654-"
 
         # ============================================================================
         # ESTRATEGIA 1: Consultar tabla ReglasCodigo (nueva)
@@ -7035,6 +7069,8 @@ def obtener_codigo_base(base, producto, terminacion):
                 'es_scufftuff': es_scufftuff,
                 'es_UrethaneAlkyd': es_UrethaneAlkyd,
                 'es_industrialenamels': es_industrialenamels,
+                'es_WATER_BASE_PRECATALYZED': es_WATER_BASE_PRECATALYZED,
+                'es_KEM_KROMIK_150': es_KEM_KROMIK_150,
                 'es_hcheavyshield': es_hcheavyshield,
                 'es_ProMarEgShel': es_ProMarEgShel,
                 'es_ProMarEgShel400': es_ProMarEgShel400,
@@ -7409,29 +7445,54 @@ def obtener_codigo_base(base, producto, terminacion):
 
         if es_UrethaneAlkyd:
 
-             if terminacion == "brillo":
+            if terminacion in ("brillo", "gloss", "eggshell"):
 
                 if base_color == "extra white":
-                 return "B54W00151-"
+                    return "B54W00151-"
 
-                
                 elif base_color == "ultra deep":
-                 return "B54T00154-" 
-                                                             
-             else:
+                    return "B54T00154-"
+
+            else:
                 return "No Aplica"
 
         if es_industrialenamels:
 
-             if terminacion == "brillo":
+            if terminacion == "brillo" or terminacion == "gloss":
 
                 if base_color == "extra white":
-                 return "B54W101-"
-                
+                    return "B54W101-"
+
                 elif base_color == "ultra deep":
-                 return "B54T101-"
-                                                       
-             else:
+                    return "B54T104-"
+
+            else:
+                return "No Aplica"
+
+        if es_WATER_BASE_PRECATALYZED:
+
+            if terminacion == "brillo" or terminacion == "gloss":
+
+                if base_color == "extra white":
+                    return "K45W01151-"
+
+                elif base_color == "ultra deep":
+                    return "K45T02154-"
+
+            else:
+                return "No Aplica"
+
+        if es_KEM_KROMIK_150:
+
+            if terminacion == "brillo" or terminacion == "gloss":
+
+                if base_color == "extra white":
+                    return "N41W651-"
+
+                elif base_color == "ultra deep":
+                    return "N41T654-"
+
+            else:
                 return "No Aplica"
 
 

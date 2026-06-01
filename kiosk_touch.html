@@ -1,0 +1,1721 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PaintFlow Cliente</title>
+    <style>
+        :root {
+            --bg-1: #f3f7fd;
+            --bg-2: #e1efff;
+            --panel: #ffffff;
+            --ink: #11243c;
+            --muted: #5a7392;
+            --accent: #0b74f8;
+            --accent-soft: #d9e9ff;
+            --ok: #10b981;
+            --warn: #ef4444;
+            --border: #d4e4f7;
+            --shadow: 0 14px 34px rgba(17, 36, 60, 0.14);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at 20% 0%, var(--bg-2), var(--bg-1));
+            color: var(--ink);
+            min-height: 100vh;
+        }
+
+        .shell {
+            max-width: 1640px;
+            margin: 0 auto;
+            padding: 14px 18px 18px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-logo-link {
+            display: inline-flex;
+            align-items: center;
+            margin-left: -8px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .brand-logo {
+            display: block;
+            height: 58px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .session {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .pill {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 0.82rem;
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .panel {
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            padding: 16px;
+        }
+
+        .grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: 1fr;
+            align-items: start;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .field label {
+            font-size: 0.78rem;
+            color: var(--muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        input,
+        select,
+        button {
+            font: inherit;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            min-height: 42px;
+            padding: 0 12px;
+        }
+
+        input:focus,
+        select:focus {
+            outline: 2px solid rgba(11, 116, 248, 0.22);
+            border-color: var(--accent);
+        }
+
+        .btn {
+            background: var(--accent);
+            color: #fff;
+            border-color: transparent;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .btn:hover { filter: brightness(0.95); }
+
+        .btn.alt {
+            background: #fff;
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .btn.subtle {
+            background: #f5f9ff;
+            color: var(--ink);
+            border-color: var(--border);
+            font-weight: 700;
+        }
+
+        .status {
+            margin-top: 12px;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            background: #f8fbff;
+        }
+
+        .status.ok {
+            border-color: #8be0c3;
+            color: #076b4b;
+            background: #ecfdf5;
+        }
+
+        .status.err {
+            border-color: #fecaca;
+            color: #991b1b;
+            background: #fef2f2;
+        }
+
+        .stage-title {
+            margin: 0 0 10px;
+            font-size: 1.08rem;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            max-height: 74vh;
+            overflow: auto;
+            padding-right: 4px;
+        }
+
+        @media (max-width: 1240px) {
+            .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
+        .card {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 14px;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 8px 18px rgba(17, 36, 60, 0.06);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(17, 36, 60, 0.1);
+            border-color: #bfd7f5;
+        }
+
+        .color-card {
+            padding: 0;
+            overflow: hidden;
+            background: linear-gradient(180deg, #ffffff 0%, #faf7f0 100%);
+        }
+
+        .code {
+            font-size: 0.74rem;
+            color: #0e4f9d;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: #e8f2ff;
+            border: 1px solid #cde0f8;
+            border-radius: 999px;
+            padding: 0.26rem 0.56rem;
+            width: fit-content;
+        }
+
+        .name {
+            font-size: 1.02rem;
+            font-weight: 700;
+            color: var(--ink);
+            min-height: 2.5em;
+            line-height: 1.25;
+        }
+
+        .meta {
+            font-size: 0.82rem;
+            color: var(--muted);
+            min-height: 2.9em;
+            line-height: 1.35;
+        }
+
+        .swatch-wrap {
+            position: relative;
+            min-height: 240px;
+            overflow: hidden;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+        }
+
+        .swatch {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 0;
+            border: 0;
+            background: #e7e7e7;
+        }
+
+        .swatch-overlay {
+            position: relative;
+            z-index: 2;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 12px 12px 14px;
+            background: transparent;
+        }
+
+        .swatch-top {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .swatch-label {
+            font-size: 0.74rem;
+            font-weight: 800;
+            color: #0e4f9d;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid rgba(14, 79, 157, 0.16);
+            border-radius: 999px;
+            padding: 0.22rem 0.55rem;
+            width: fit-content;
+        }
+
+        .swatch-name {
+            font-size: 1.16rem;
+            line-height: 1.15;
+            font-weight: 800;
+            color: #111827;
+        }
+
+        .swatch-note {
+            font-size: 0.9rem;
+            color: #4f4f4f;
+            min-height: 1.2em;
+        }
+
+        .swatch-footer {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-top: 10px;
+            background: transparent;
+        }
+
+        .swatch-overlay.on-dark .swatch-name,
+        .swatch-overlay.on-dark .swatch-note {
+            color: #f3f7ff;
+            text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+        }
+
+        .swatch-overlay.on-dark .swatch-label {
+            background: rgba(255, 255, 255, 0.18);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: #f8fbff;
+        }
+
+        .color-select {
+            width: calc(100% - 24px);
+            margin: 0 12px 12px;
+        }
+
+        .catalog-image {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            object-fit: cover;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+
+        .product-coverflow {
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .coverflow-track {
+            display: grid;
+            grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.7fr) minmax(120px, 0.8fr);
+            gap: 12px;
+            align-items: center;
+            min-height: 480px;
+            animation: productShiftIn 280ms ease;
+        }
+
+        .cover-card {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: #ffffff;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: transform 220ms ease, opacity 220ms ease, box-shadow 220ms ease;
+        }
+
+        .cover-card .catalog-image {
+            border: 0;
+            border-radius: 0;
+        }
+
+        .cover-card.side {
+            opacity: 0.74;
+            transform: scale(0.88);
+            cursor: pointer;
+        }
+
+        .cover-card.side .name {
+            font-size: 0.95rem;
+            min-height: auto;
+            padding: 0 10px 12px;
+            text-align: center;
+        }
+
+        .cover-card.side .catalog-image {
+            aspect-ratio: 1 / 1;
+            object-fit: contain;
+            background: #f7f7f7;
+        }
+
+        .cover-card.center {
+            transform: scale(1);
+            box-shadow: 0 14px 26px rgba(16, 38, 62, 0.16);
+            z-index: 2;
+        }
+
+        .center-body {
+            padding: 10px 12px 14px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .product-position {
+            font-size: 0.82rem;
+            color: var(--muted);
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .product-facts {
+            display: grid;
+            gap: 6px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #f7fbff;
+            padding: 10px 12px;
+            color: #1b3555;
+            font-size: 0.86rem;
+        }
+
+        .product-facts strong {
+            color: #0f4f99;
+        }
+
+        .nav-arrow {
+            min-width: 44px;
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid #b9cff0;
+            background: #ffffff;
+            color: #0d4e97;
+            font-size: 1rem;
+            font-weight: 900;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 8px 18px rgba(15, 47, 89, 0.12);
+            padding: 0 12px;
+        }
+
+        .nav-arrow:hover {
+            filter: brightness(0.96);
+        }
+
+        @keyframes productShiftIn {
+            from {
+                opacity: 0.65;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .selected-strip {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--accent-soft);
+            color: var(--ink);
+            font-weight: 700;
+        }
+
+        .hidden { display: none !important; }
+
+        .cart-widget {
+            position: fixed;
+            top: 14px;
+            right: 14px;
+            z-index: 70;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .cart-fab {
+            min-height: 46px;
+            min-width: 56px;
+            border-radius: 999px;
+            border: 1px solid #bcd4f4;
+            background: #ffffff;
+            color: #0b3f7d;
+            font-weight: 900;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 0 14px;
+            box-shadow: 0 10px 22px rgba(18, 46, 86, 0.22);
+            cursor: pointer;
+        }
+
+        .cart-fab .icon {
+            font-size: 1.1rem;
+            line-height: 1;
+        }
+
+        .cart-fab .count {
+            background: #0b74f8;
+            color: #fff;
+            min-width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 6px;
+            font-size: 0.78rem;
+            font-weight: 800;
+        }
+
+        .cart-preview {
+            width: min(340px, 82vw);
+            border: 1px solid var(--border);
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 14px 28px rgba(18, 46, 86, 0.24);
+            padding: 10px;
+            display: none;
+        }
+
+        .cart-widget:hover .cart-preview { display: block; }
+
+        .cart-preview-title {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: #15385c;
+            margin-bottom: 8px;
+        }
+
+        .cart-preview-list {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            max-height: 220px;
+            overflow: auto;
+        }
+
+        .cart-preview-item {
+            border: 1px solid #dde9f7;
+            border-radius: 8px;
+            padding: 7px;
+            font-size: 0.8rem;
+            color: #29496f;
+            background: #fbfdff;
+        }
+
+        .cart-preview-empty {
+            font-size: 0.84rem;
+            color: #5f7897;
+            padding: 6px;
+        }
+
+        .cart-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .cart-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 56vh;
+            overflow: auto;
+        }
+
+        .cart-item {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px;
+            background: #fff;
+        }
+
+        .cart-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-top: 6px;
+        }
+
+        .qty {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .qty button {
+            min-height: 28px;
+            width: 28px;
+            padding: 0;
+        }
+
+        .cart-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(8, 20, 36, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            z-index: 50;
+        }
+
+        .overlay.active { display: flex; }
+
+        .overlay.cart-drawer-overlay {
+            justify-content: flex-end;
+            padding: 0;
+        }
+
+        .cart-drawer {
+            width: min(420px, 96vw);
+            height: 100vh;
+            background: #fff;
+            border-left: 1px solid #d8e6f5;
+            box-shadow: -10px 0 24px rgba(18, 46, 86, 0.2);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cart-drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .modal {
+            width: min(520px, 100%);
+            background: #fff;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 16px;
+        }
+
+        .modal h3 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .modal small {
+            display: block;
+            margin-top: 4px;
+            color: var(--muted);
+        }
+
+        .chooser-summary {
+            grid-column: 1 / -1;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #f7fbff;
+            padding: 10px 12px;
+            display: grid;
+            gap: 4px;
+            color: #1f3e63;
+            font-size: 0.9rem;
+        }
+
+        .chooser-summary strong {
+            color: #0f4f99;
+        }
+
+        .modal-grid {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .modal-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        @media (max-width: 980px) {
+            .brand-logo { height: 46px; }
+            .grid { grid-template-columns: 1fr; }
+            .controls { grid-template-columns: 1fr; }
+            .cards { grid-template-columns: 1fr; }
+            .cards { max-height: 58vh; }
+            .coverflow-track {
+                grid-template-columns: 1fr;
+                min-height: 0;
+            }
+            .cover-card.side { display: none; }
+            .cover-card.center { transform: none; }
+            .nav-arrow { width: 100%; border-radius: 10px; height: 40px; }
+            .cart-actions { grid-template-columns: 1fr; }
+            .modal-grid { grid-template-columns: 1fr; }
+            .cart-widget { right: 10px; top: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="shell">
+        <header class="header">
+            <a class="brand-logo-link" href="#" onclick="goHomeFromLogo(event)" aria-label="Ir al inicio">
+                <img class="brand-logo" src="/static/logo.png" alt="PaintFlow" />
+            </a>
+        </header>
+
+        <div class="cart-widget" id="cartWidget">
+            <button class="cart-fab" type="button" onclick="openCartDrawer()" aria-label="Abrir carrito">
+                <span class="icon">🛒</span>
+                <span class="count" id="cartTotalItems">0</span>
+            </button>
+            <div class="cart-preview" id="cartPreview">
+                <div class="cart-preview-title">Resumen del carrito</div>
+                <div id="cartPreviewList" class="cart-preview-list"></div>
+            </div>
+        </div>
+
+        <section class="grid">
+            <section class="panel">
+                <div id="colorSearchControls" class="controls">
+                    <div class="field">
+                        <label for="kioskQuery">Buscar color</label>
+                        <input id="kioskQuery" type="text" placeholder="Ej: 7009, blanco, etc." />
+                    </div>
+                </div>
+
+                <div id="status" class="status">Listo</div>
+
+                <div id="colorStep">
+                    <h2 class="stage-title">Paso 1: Elige un color</h2>
+                    <div id="colorStage" class="cards"></div>
+                </div>
+
+                <div id="productStep" class="hidden">
+                    <h2 class="stage-title">Paso 2: Elige el producto</h2>
+                    <div id="selectedColorStrip" class="selected-strip"></div>
+                    <div id="productStage" class="cards"></div>
+                </div>
+            </section>
+
+        </section>
+    </main>
+
+    <div id="cartDrawerOverlay" class="overlay cart-drawer-overlay" onclick="closeCartDrawer(event)">
+        <aside class="cart-drawer">
+            <div class="cart-drawer-header">
+                <h2 class="stage-title" style="margin:0;">Carrito</h2>
+                <span class="pill">Items: <strong id="cartDrawerTotal">0</strong></span>
+            </div>
+            <div id="cart" class="cart-list"></div>
+            <div class="cart-actions">
+                <button class="btn subtle" type="button" onclick="clearCart()">Limpiar</button>
+                <button class="btn" type="button" onclick="sendCart()">Enviar pedido</button>
+            </div>
+        </aside>
+    </div>
+
+    <div id="chooserOverlay" class="overlay" onclick="closeProductChooser(event)">
+        <div class="modal">
+            <h3 id="chooserTitle">Producto</h3>
+            <small id="chooserSub"></small>
+
+            <div class="modal-grid">
+                <div id="chooserSummary" class="chooser-summary">
+                    <div><strong>Producto:</strong> -</div>
+                    <div><strong>Color:</strong> -</div>
+                    <div><strong>Cobertura:</strong> -</div>
+                    <div><strong>Tipo:</strong> -</div>
+                </div>
+                <div class="field">
+                    <label for="chooserTerminacion">Terminacion</label>
+                    <select id="chooserTerminacion"></select>
+                </div>
+                <div class="field">
+                    <label for="chooserPresentacion">Presentacion</label>
+                    <select id="chooserPresentacion"></select>
+                </div>
+                <div class="field">
+                    <label for="chooserCantidad">Cantidad</label>
+                    <input id="chooserCantidad" type="number" min="1" value="1" />
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn subtle" type="button" onclick="closeProductChooser()">Cancelar</button>
+                <button class="btn" type="button" onclick="confirmProductChooser()">Agregar al carrito</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="checkoutOverlay" class="overlay" onclick="closeCheckoutModal(event)">
+        <div class="modal">
+            <h3>Procesar carrito</h3>
+            <small>Completa estos datos antes de enviar el pedido.</small>
+
+            <div class="modal-grid">
+                <div class="field">
+                    <label for="checkoutSucursal">Sucursal</label>
+                    <input id="checkoutSucursal" type="text" value="principal" />
+                </div>
+                <div class="field">
+                    <label for="checkoutCliente">Cliente (opcional)</label>
+                    <input id="checkoutCliente" type="text" placeholder="Nombre o ID cliente" />
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn subtle" type="button" onclick="closeCheckoutModal()">Cancelar</button>
+                <button class="btn" type="button" onclick="confirmCheckoutSend()">Confirmar y enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+            ? `http://${window.location.hostname}:8002`
+            : "https://paintflow.onrender.com";
+
+        const PRODUCT_FALLBACK = [
+            { name: "Excello COV", image: "/productos/Excello%20COV.png", description: "Excello Cero VOC es una pintura acrilica para interiores libre de compuestos organicos volatiles (COV), ideal para espacios cerrados por su bajo olor y mayor seguridad. Ofrece un rendimiento de hasta 30 m2 por galon, se aplica facilmente sin diluir y es compatible con brocha, rodillo o pistola sin aire. Su formula proporciona una aplicacion uniforme y practica, incluso para usuarios sin experiencia.", coverage: "Hasta 30 m2 por galon", type: "Pintura acrilica interior cero VOC" },
+            { name: "Excello Premium", image: "/productos/Excello%20Premiun.png", description: "Excello Premium es una pintura acrilica de alta calidad, bajo olor y excelente rendimiento, apta para superficies como concreto, madera, aluminio, vinilo, metal y yeso. Su formula incorpora agentes que ayudan a prevenir la formacion de hongos y bacterias. Ademas, gracias al sistema ColorSnap, ofrece una amplia variedad de colores personalizados y esta disponible en acabados mate, satinado y semibrillante.", coverage: "Alto rendimiento", type: "Pintura acrilica premium multi-superficie" },
+            { name: "Esmalte Multiuso", image: "/productos/excello-r-esmalte-multiuso-ayp.jpg", description: "Esmalte Excello Multiuso es una pintura elaborada con resinas sinteticas y pigmentos de alta calidad, ideal para el mantenimiento y proteccion de superficies en el hogar y la industria. Puede aplicarse sobre metal, concreto, madera y otras superficies, y esta disponible en una amplia gama de colores de la linea Excello, con acabados semibrillante, satinado y mat.", coverage: "Alta cobertura segun superficie", type: "Esmalte sintetico multiuso" },
+            { name: "Excello Pastel", image: "/productos/excello-r-pastel-ayp.jpg", description: "Excello Pastel es una pintura acrilica de calidad superior, bajo olor y alto rendimiento, ideal para superficies de concreto, madera, aluminio, vinilo, metal y yeso. Su formula ayuda a prevenir la formacion de hongos y bacterias, mientras que el sistema ColorSnap permite elegir entre una amplia variedad de tonos pastel. Esta disponible principalmente en acabado mate, y el color blanco tambien se ofrece en acabados satinado y semibrillante.", coverage: "Alto rendimiento", type: "Pintura acrilica tonos pastel" },
+            { name: "Texturizado", image: "/productos/excello-r-texturizada-ayp.jpg", description: "Excello Pintura Texturizada es un recubrimiento blanco para interior y exterior, formulado para concreto y madera. Se recomienda por su durabilidad, lavabilidad y resistencia al ambiente, dejando un acabado texturizado uniforme ideal para patios, fachadas y muros de edificios. Viene lista para usarse, sin necesidad de dilucion.", coverage: "5-8 m2 por galon (aprox.)", type: "Pintura texturizada arquitectonica" },
+            { name: "Water Blocking Primer", image: "/productos/excello-water-blocking-primer-ayp-scaled.jpg", description: "Excello Water Blocking Primer-Finish es un primer especializado para bloquear la penetracion de humedad sobre superficies descubiertas. Se aplica sin diluir, puede trabajarse con brocha, rodillo o pistola sin aire, y para mejores resultados en sustratos porosos se recomienda aplicar dos capas y repasar con rodillo.", coverage: "Depende de la porosidad del sustrato", type: "Primer bloqueador de humedad" },
+            { name: "Superpaint Sanitizing", image: "/productos/superpaint-sanitizing-ayp.jpg", description: "SuperPaint Interior Latex Satin with Sanitizing Technology es una pintura interior satinada registrada por EPA que ayuda a reducir bacterias en superficies pintadas. Esta formulada para alto desempeno en interiores, ofrece buen nivel de acabado satinado y secado rapido, y esta disponible en una amplia gama de colores.", coverage: "350-400 ft2 por galon (32-37 m2 aprox.)", type: "Pintura latex interior sanitizante satinada" }
+        ];
+
+        const RULES = {
+            "excello premium": { terminaciones: ["Mate", "Satin", "Semigloss", "Semisatin"], presentaciones: ["Cuarto", "Galon", "Cubeta"] },
+            "excello premiun": { terminaciones: ["Mate", "Satin", "Semigloss", "Semisatin"], presentaciones: ["Cuarto", "Galon", "Cubeta"] },
+            "excello cov": { terminaciones: ["Mate", "Satin"], presentaciones: ["Galon", "Cubeta"] },
+            "esmalte multiuso": { terminaciones: ["Mate", "Satin", "Gloss"], presentaciones: ["Cuarto", "Galon"] },
+            "pastel": { terminaciones: ["Mate"], presentaciones: ["Cuarto", "Galon", "Cubeta"] },
+            "texturizada": { terminaciones: ["Mate"], presentaciones: ["Cubeta"] },
+            "texturizado": { terminaciones: ["Mate"], presentaciones: ["Cubeta"] },
+            "water blocking": { terminaciones: ["Mate"], presentaciones: ["Galon", "Cubeta"] },
+            "sanitizing": { terminaciones: ["Satin"], presentaciones: ["Galon"] },
+            "superpaint": { terminaciones: ["Satin"], presentaciones: ["Galon"] }
+        };
+
+        const state = {
+            colors: [],
+            allColors: [],
+            colorByCode: {},
+            cart: [],
+            catalog: [],
+            selectedColorIndex: -1,
+            selectedCatalogIndex: 0,
+            currentUser: null,
+            sucursalNameById: {},
+            chooserDefaults: {
+                terminacion: "Mate",
+                presentacion: "Galon",
+                prioridad: "Media",
+                cantidad: 1
+            }
+        };
+
+        function escapeHtml(text) {
+            return String(text || "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function normalizeText(text) {
+            return String(text || "")
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]+/g, " ")
+                .trim();
+        }
+
+        function getFallbackDescriptionFor(productName) {
+            const norm = normalizeText(productName);
+            if (!norm) return "";
+
+            const aliasNorm = norm
+                .replace(/\bpremiun\b/g, "premium")
+                .replace(/\bcero\b/g, "")
+                .replace(/\bvoc\b/g, "cov")
+                .replace(/\bexcello\s+r\b/g, "excello")
+                .replace(/\br\b/g, "")
+                .replace(/\btexturizada\b/g, "texturizado")
+                .replace(/\bayp\b/g, "")
+                .replace(/\bscaled\b/g, "")
+                .replace(/\s+/g, " ")
+                .trim();
+
+            const exact = PRODUCT_FALLBACK.find(item => normalizeText(item.name).replace(/\bpremiun\b/g, "premium") === aliasNorm);
+            if (exact && exact.description) return exact.description;
+
+            const partial = PRODUCT_FALLBACK.find(item => {
+                const itemNorm = normalizeText(item.name).replace(/\bpremiun\b/g, "premium");
+                return aliasNorm.includes(itemNorm) || itemNorm.includes(aliasNorm);
+            });
+            return partial && partial.description ? partial.description : "";
+        }
+
+        function getFallbackMetaFor(productName) {
+            const norm = normalizeText(productName);
+            if (!norm) return null;
+
+            const aliasNorm = norm
+                .replace(/\bpremiun\b/g, "premium")
+                .replace(/\bcero\b/g, "")
+                .replace(/\bvoc\b/g, "cov")
+                .replace(/\bexcello\s+r\b/g, "excello")
+                .replace(/\br\b/g, "")
+                .replace(/\btexturizada\b/g, "texturizado")
+                .replace(/\bayp\b/g, "")
+                .replace(/\bscaled\b/g, "")
+                .replace(/\s+/g, " ")
+                .trim();
+
+            const match = PRODUCT_FALLBACK.find(item => {
+                const itemNorm = normalizeText(item.name).replace(/\bpremiun\b/g, "premium");
+                return itemNorm === aliasNorm || aliasNorm.includes(itemNorm) || itemNorm.includes(aliasNorm);
+            });
+            return match || null;
+        }
+
+        function getDisplayProductName(productName) {
+            const fallbackMeta = getFallbackMetaFor(productName);
+            if (fallbackMeta && fallbackMeta.name) return String(fallbackMeta.name).trim();
+            return String(productName || "").trim();
+        }
+
+        function extractSwCode(codigo) {
+            const raw = String(codigo || "").toUpperCase();
+            const m = raw.match(/(?:SW\s*)?(\d{3,5})/);
+            return m ? m[1] : "";
+        }
+
+        function normalizeHex(hex) {
+            const h = String(hex || "").trim();
+            if (!h) return "";
+            return h.startsWith("#") ? h : `#${h}`;
+        }
+
+        function isDarkColor(hex) {
+            const raw = String(hex || "").trim().replace(/^#/, "");
+            if (!raw) return false;
+            let normalized = raw;
+            if (raw.length === 3) {
+                normalized = raw.split("").map((c) => c + c).join("");
+            }
+            if (normalized.length !== 6) return false;
+            const r = parseInt(normalized.slice(0, 2), 16);
+            const g = parseInt(normalized.slice(2, 4), 16);
+            const b = parseInt(normalized.slice(4, 6), 16);
+            if ([r, g, b].some((n) => Number.isNaN(n))) return false;
+            const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+            return yiq < 145;
+        }
+
+        function resolveRule(productName) {
+            const norm = normalizeText(productName);
+            const key = Object.keys(RULES).filter(k => norm.includes(k)).sort((a, b) => b.length - a.length)[0];
+            return key ? RULES[key] : null;
+        }
+
+        function getTerminaciones(productName) {
+            const rule = resolveRule(productName);
+            return rule ? rule.terminaciones.slice() : ["Mate", "Satin", "Gloss"];
+        }
+
+        function getPresentaciones(productName) {
+            const rule = resolveRule(productName);
+            return rule ? rule.presentaciones.slice() : ["Galon", "Cubeta"];
+        }
+
+        function setStatus(text, type = "info") {
+            const el = document.getElementById("status");
+            if (!el) return;
+            const message = String(text || "").trim();
+            if (!message || type === "ok") {
+                el.className = "status hidden";
+                el.textContent = "";
+                return;
+            }
+            el.className = `status ${type}`;
+            el.textContent = message;
+        }
+
+        function getCurrentUser() {
+            try {
+                const user = JSON.parse(localStorage.getItem("currentUser") || "null");
+                return user && typeof user === "object" ? user : null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function normalizeRole(value) {
+            return String(value || "").trim().toLowerCase();
+        }
+
+        function canAccessClienteView(user) {
+            const role = normalizeRole(user && user.rol);
+            const username = normalizeRole(user && user.username);
+            return role === "cliente" || (username === "cliente" && role !== "administrador");
+        }
+
+        function redirectByRole(user) {
+            const role = normalizeRole(user && user.rol);
+            if (role === "analista") {
+                window.location.href = "/employees";
+                return;
+            }
+            if (role === "facturador" || role === "cajero") {
+                window.location.href = "/labelsapp-web";
+                return;
+            }
+            window.location.href = "/";
+        }
+
+        function getSucursal() {
+            return (document.getElementById("checkoutSucursal").value || "").trim();
+        }
+
+        async function loadSucursalesMap() {
+            try {
+                const res = await fetch(`${API}/api/v1/sucursales?limit=500`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const rows = Array.isArray(data.sucursales) ? data.sucursales : [];
+                const map = {};
+                rows.forEach(r => {
+                    if (r && Number.isFinite(Number(r.id))) {
+                        map[String(r.id)] = String(r.nombre || "").trim();
+                    }
+                });
+                state.sucursalNameById = map;
+            } catch (_) {}
+        }
+
+        function refreshSessionPills() {
+            const userPill = document.getElementById("kioskSessionUser");
+            const sucPill = document.getElementById("kioskSessionSucursal");
+            const user = state.currentUser;
+            if (!user) {
+                if (userPill) userPill.textContent = "Invitado";
+                if (sucPill) sucPill.textContent = "Sucursal manual";
+                return;
+            }
+            const role = String(user.rol || "").toLowerCase();
+            const name = user.nombre_completo || user.username || "Usuario";
+            if (userPill) userPill.textContent = `${name} (${role || "sin rol"})`;
+            if (sucPill) sucPill.textContent = `Sucursal: ${getSucursal() || "Sin sucursal"}`;
+        }
+
+        async function initSessionContext() {
+            state.currentUser = getCurrentUser();
+            if (!state.currentUser) {
+                window.location.href = "/";
+                return false;
+            }
+            if (!canAccessClienteView(state.currentUser)) {
+                redirectByRole(state.currentUser);
+                return false;
+            }
+
+            await loadSucursalesMap();
+            const sucInput = document.getElementById("checkoutSucursal");
+            if (!sucInput) return;
+
+            if (state.currentUser) {
+                const role = String(state.currentUser.rol || "").toLowerCase();
+                const username = String(state.currentUser.username || "").toLowerCase();
+                const suc = state.sucursalNameById[String(state.currentUser.sucursal_id || "")] || "principal";
+                sucInput.value = suc;
+                if (role === "cliente" || username === "cliente") {
+                    sucInput.readOnly = true;
+                    sucInput.style.background = "#eef6ff";
+                    sucInput.style.fontWeight = "700";
+                }
+            } else if (!sucInput.value) {
+                sucInput.value = "principal";
+            }
+            refreshSessionPills();
+            return true;
+        }
+
+        async function ensureSherwinColors(colors) {
+            const codes = [];
+            const seen = new Set();
+            for (const c of (colors || [])) {
+                const code = extractSwCode(c.codigo);
+                if (!code || seen.has(code) || state.colorByCode[code]) continue;
+                seen.add(code);
+                codes.push(code);
+            }
+            const batch = codes.slice(0, 32);
+            if (!batch.length) return;
+
+            try {
+                const params = new URLSearchParams();
+                params.set("codes", batch.join(","));
+                params.set("lng", "en-US");
+                params.set("corev", "7.16.0");
+                const res = await fetch(`${API}/api/v1/sherwin/swatches?${params.toString()}`);
+                if (!res.ok) throw new Error("swatches failed");
+                const payload = await res.json();
+                const items = Array.isArray(payload.items) ? payload.items : [];
+                for (const item of items) {
+                    const key = extractSwCode(item.code);
+                    if (!key) continue;
+                    state.colorByCode[key] = {
+                        name: item.name || `SW ${key}`,
+                        hex: normalizeHex(item.hex || "")
+                    };
+                }
+            } catch (_) {
+                for (const code of batch) {
+                    if (!state.colorByCode[code]) state.colorByCode[code] = { name: `SW ${code}`, hex: "" };
+                }
+            }
+        }
+
+        function swatchFor(colorItem) {
+            const code = extractSwCode(colorItem.codigo);
+            if (!code) {
+                return `
+                    <div class="swatch-wrap">
+                        <div class="swatch"></div>
+                        <div class="swatch-overlay">
+                            <div class="swatch-top">
+                                <div class="swatch-label">Sin codigo SW</div>
+                                <div class="swatch-name">${escapeHtml(colorItem.nombre || "Sin nombre")}</div>
+                                <div class="swatch-note">${escapeHtml(colorItem.ubicacion || colorItem.base || "")}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            const info = state.colorByCode[code];
+            if (!info || !info.hex) {
+                return `
+                    <div class="swatch-wrap">
+                        <div class="swatch"></div>
+                        <div class="swatch-overlay on-light">
+                            <div class="swatch-top">
+                                <div class="swatch-label">SW ${escapeHtml(code)}</div>
+                                <div class="swatch-name">${escapeHtml(colorItem.nombre || "Sin nombre")}</div>
+                                <div class="swatch-note">${escapeHtml(colorItem.ubicacion || colorItem.base || "")}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            const toneClass = isDarkColor(info.hex) ? "on-dark" : "on-light";
+            return `
+                <div class="swatch-wrap">
+                    <div class="swatch" style="background:${escapeHtml(info.hex)};"></div>
+                    <div class="swatch-overlay ${toneClass}">
+                        <div class="swatch-top">
+                            <div class="swatch-label">SW ${escapeHtml(code)}</div>
+                            <div class="swatch-name">${escapeHtml(colorItem.nombre || "Sin nombre")}</div>
+                            <div class="swatch-note">${escapeHtml(colorItem.ubicacion || colorItem.base || info.hex)}</div>
+                        </div>
+                        <div class="swatch-footer"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function setFlowStep(step) {
+            const colorStep = document.getElementById("colorStep");
+            const productStep = document.getElementById("productStep");
+            const controls = document.getElementById("colorSearchControls");
+            const isColor = step === "color";
+
+            colorStep.classList.toggle("hidden", !isColor);
+            controls.classList.toggle("hidden", !isColor);
+            productStep.classList.toggle("hidden", isColor);
+        }
+
+        function renderColors() {
+            const root = document.getElementById("colorStage");
+            if (!root) return;
+            if (!state.colors.length) {
+                root.innerHTML = "<div class=\"card\">No se encontraron colores</div>";
+                return;
+            }
+
+            root.innerHTML = state.colors.map((item, idx) => `
+                <article class="card color-card">
+                    ${swatchFor(item)}
+                    <button class="btn alt color-select" type="button" onclick="selectColor(${idx})">Seleccionar</button>
+                </article>
+            `).join("");
+        }
+
+        function applyLocalColorFilter(query) {
+            const q = normalizeText(query || "");
+            const source = Array.isArray(state.allColors) ? state.allColors : [];
+            if (!source.length) {
+                state.colors = [];
+                renderColors();
+                return;
+            }
+
+            if (!q) {
+                state.colors = source.slice();
+            } else {
+                state.colors = source.filter((item) => {
+                    const codigo = normalizeText(item && item.codigo);
+                    const nombre = normalizeText(item && item.nombre);
+                    const base = normalizeText(item && item.base);
+                    const ubicacion = normalizeText(item && item.ubicacion);
+                    return codigo.includes(q) || nombre.includes(q) || base.includes(q) || ubicacion.includes(q);
+                });
+            }
+
+            renderColors();
+            ensureSherwinColors(state.colors).then(() => renderColors());
+        }
+
+        function renderSelectedColorStrip() {
+            const root = document.getElementById("selectedColorStrip");
+            if (!root) return;
+            const selected = state.colors[state.selectedColorIndex];
+            if (!selected) {
+                root.innerHTML = "";
+                return;
+            }
+
+            root.innerHTML = `
+                <div>Color seleccionado: ${escapeHtml(selected.codigo || "")} - ${escapeHtml(selected.nombre || "")}</div>
+                <button class="btn subtle" type="button" onclick="backToColorStep()">Cambiar color</button>
+            `;
+        }
+
+        function renderCatalog() {
+            const root = document.getElementById("productStage");
+            if (!root) return;
+            if (!state.catalog.length) {
+                root.innerHTML = "<div class=\"card\">No se encontraron productos con imagen.</div>";
+                return;
+            }
+
+            if (state.selectedCatalogIndex < 0 || state.selectedCatalogIndex >= state.catalog.length) {
+                state.selectedCatalogIndex = 0;
+            }
+
+            const total = state.catalog.length;
+            const idx = state.selectedCatalogIndex;
+            const prevIdx = (idx - 1 + total) % total;
+            const nextIdx = (idx + 1) % total;
+            const current = state.catalog[idx] || {};
+            const prev = state.catalog[prevIdx] || current;
+            const next = state.catalog[nextIdx] || current;
+
+            const imageFor = (item) => {
+                const raw = String((item && item.image) || "");
+                return raw.startsWith("http") ? raw : (API + raw);
+            };
+
+            root.className = "product-coverflow";
+            root.innerHTML = `
+                <div class="coverflow-track">
+                    <article class="cover-card side" role="button" tabindex="0" onclick="prevCatalogProduct()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();prevCatalogProduct();}">
+                        <img class="catalog-image" src="${escapeHtml(imageFor(prev))}" alt="${escapeHtml(prev.name || "Producto anterior")}" />
+                        <div class="name">${escapeHtml(prev.name || "Anterior")}</div>
+                    </article>
+
+                    <article class="cover-card center">
+                        <img class="catalog-image" src="${escapeHtml(imageFor(current))}" alt="${escapeHtml(current.name || "Producto")}" />
+                        <div class="center-body">
+                            <div class="product-position">Producto ${idx + 1} de ${total}</div>
+                            <div class="name">${escapeHtml(current.name || "Producto")}</div>
+                            <div class="meta">${escapeHtml(current.description || "Producto disponible")}</div>
+                            <div class="product-facts">
+                                <div><strong>Capacidad de cobertura:</strong> ${escapeHtml(current.coverage || "No especificada")}</div>
+                                <div><strong>Tipo:</strong> ${escapeHtml(current.type || "No especificado")}</div>
+                            </div>
+                            <button class="btn alt" type="button" onclick="openChooser(${idx})">Seleccionar</button>
+                        </div>
+                    </article>
+
+                    <article class="cover-card side" role="button" tabindex="0" onclick="nextCatalogProduct()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();nextCatalogProduct();}">
+                        <img class="catalog-image" src="${escapeHtml(imageFor(next))}" alt="${escapeHtml(next.name || "Producto siguiente")}" />
+                        <div class="name">${escapeHtml(next.name || "Siguiente")}</div>
+                    </article>
+                </div>
+            `;
+        }
+
+        function prevCatalogProduct() {
+            if (!state.catalog.length) return;
+            state.selectedCatalogIndex = (state.selectedCatalogIndex - 1 + state.catalog.length) % state.catalog.length;
+            renderCatalog();
+        }
+
+        function nextCatalogProduct() {
+            if (!state.catalog.length) return;
+            state.selectedCatalogIndex = (state.selectedCatalogIndex + 1) % state.catalog.length;
+            renderCatalog();
+        }
+
+        function selectColor(index) {
+            state.selectedColorIndex = index;
+            state.selectedCatalogIndex = 0;
+            renderSelectedColorStrip();
+            renderCatalog();
+            setFlowStep("product");
+            setStatus("Color elegido. Ahora selecciona el producto.", "ok");
+        }
+
+        function backToColorStep() {
+            setFlowStep("color");
+            setStatus("Selecciona un color para continuar.", "info");
+        }
+
+        function goHomeFromLogo(event) {
+            if (event) event.preventDefault();
+
+            const queryInput = document.getElementById("kioskQuery");
+            if (queryInput) queryInput.value = "";
+
+            state.selectedColorIndex = -1;
+            state.selectedCatalogIndex = 0;
+            renderSelectedColorStrip();
+
+            closeProductChooser();
+            closeCheckoutModal();
+            closeCartDrawer();
+            setFlowStep("color");
+            loadColorList();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+
+        function refreshChooserOptions(productName) {
+            const term = document.getElementById("chooserTerminacion");
+            const pres = document.getElementById("chooserPresentacion");
+            const terms = getTerminaciones(productName);
+            const preses = getPresentaciones(productName);
+
+            term.innerHTML = terms.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+            pres.innerHTML = preses.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+
+            term.value = terms.includes(state.chooserDefaults.terminacion) ? state.chooserDefaults.terminacion : terms[0];
+            pres.value = preses.includes(state.chooserDefaults.presentacion) ? state.chooserDefaults.presentacion : preses[0];
+        }
+
+        function openChooser(index) {
+            const color = state.colors[state.selectedColorIndex];
+            const product = state.catalog[index];
+            if (!color || !product) return;
+
+            state.selectedCatalogIndex = index;
+            document.getElementById("chooserTitle").textContent = product.name || "Producto";
+            document.getElementById("chooserSub").textContent = `Color: ${color.codigo || ""} - ${color.nombre || ""}`;
+            document.getElementById("chooserSummary").innerHTML = `
+                <div><strong>Producto:</strong> ${escapeHtml(product.name || "Producto")}</div>
+                <div><strong>Color:</strong> ${escapeHtml(`${color.codigo || ""} - ${color.nombre || ""}`)}</div>
+                <div><strong>Cobertura:</strong> ${escapeHtml(product.coverage || "No especificada")}</div>
+                <div><strong>Tipo:</strong> ${escapeHtml(product.type || "No especificado")}</div>
+            `;
+            document.getElementById("chooserCantidad").value = String(state.chooserDefaults.cantidad || 1);
+            refreshChooserOptions(product.name || "");
+            document.getElementById("chooserOverlay").classList.add("active");
+        }
+
+        function closeProductChooser(event) {
+            if (event && event.target && event.target.id !== "chooserOverlay") return;
+            document.getElementById("chooserOverlay").classList.remove("active");
+        }
+
+        function openCheckoutModal() {
+            document.getElementById("checkoutOverlay").classList.add("active");
+        }
+
+        function closeCheckoutModal(event) {
+            if (event && event.target && event.target.id !== "checkoutOverlay") return;
+            document.getElementById("checkoutOverlay").classList.remove("active");
+        }
+
+        function openCartDrawer() {
+            document.getElementById("cartDrawerOverlay").classList.add("active");
+        }
+
+        function closeCartDrawer(event) {
+            if (event && event.target && event.target.id !== "cartDrawerOverlay") return;
+            document.getElementById("cartDrawerOverlay").classList.remove("active");
+        }
+
+        function confirmProductChooser() {
+            const color = state.colors[state.selectedColorIndex];
+            const product = state.catalog[state.selectedCatalogIndex];
+            if (!color || !product) {
+                closeProductChooser();
+                return;
+            }
+
+            const terminacion = (document.getElementById("chooserTerminacion").value || "Mate").trim();
+            const presentacion = (document.getElementById("chooserPresentacion").value || "Galon").trim();
+            const prioridad = "Media";
+            const cantidad = Math.max(1, Number(document.getElementById("chooserCantidad").value || 1));
+
+            state.chooserDefaults = { terminacion, presentacion, prioridad, cantidad };
+
+            const existing = state.cart.find(it =>
+                it.codigo === color.codigo &&
+                it.producto === (product.name || "Producto") &&
+                it.terminacion === terminacion &&
+                it.presentacion === presentacion &&
+                it.prioridad === prioridad
+            );
+
+            if (existing) {
+                existing.cantidad += cantidad;
+            } else {
+                state.cart.push({
+                    codigo: color.codigo,
+                    descripcion: color.nombre || color.codigo || "",
+                    producto: product.name || "Producto",
+                    terminacion,
+                    presentacion,
+                    prioridad,
+                    cantidad,
+                    base: color.base || "",
+                    ubicacion: color.ubicacion || ""
+                });
+            }
+
+            renderCart();
+            closeProductChooser();
+            setFlowStep("color");
+            const queryInput = document.getElementById("kioskQuery");
+            if (queryInput) queryInput.value = "";
+            loadColorList();
+            setStatus("Producto agregado al carrito.", "ok");
+        }
+
+        function cartTotalItems() {
+            return state.cart.reduce((acc, it) => acc + Number(it.cantidad || 0), 0);
+        }
+
+        function renderCartPreview() {
+            const root = document.getElementById("cartPreviewList");
+            if (!root) return;
+
+            if (!state.cart.length) {
+                root.innerHTML = '<div class="cart-preview-empty">No hay productos en el carrito.</div>';
+                return;
+            }
+
+            const items = state.cart.slice(0, 4);
+            root.innerHTML = items.map((item) => `
+                <div class="cart-preview-item">
+                    <div><strong>${escapeHtml(item.producto || "Producto")}</strong></div>
+                    <div>${escapeHtml(item.codigo || "-")} | x${Number(item.cantidad || 1)} ${escapeHtml(String(item.presentacion || "").toLowerCase() || "unidad")}</div>
+                </div>
+            `).join("");
+
+            if (state.cart.length > 4) {
+                root.innerHTML += `<div class="cart-preview-empty">+${state.cart.length - 4} productos mas...</div>`;
+            }
+        }
+
+        function updateCartTotal() {
+            const total = String(cartTotalItems());
+            const el = document.getElementById("cartTotalItems");
+            const drawerEl = document.getElementById("cartDrawerTotal");
+            if (el) el.textContent = total;
+            if (drawerEl) drawerEl.textContent = total;
+            renderCartPreview();
+        }
+
+        function renderCart() {
+            const root = document.getElementById("cart");
+            if (!root) return;
+            if (!state.cart.length) {
+                root.innerHTML = "<div class=\"cart-item\">No hay productos en el carrito</div>";
+                updateCartTotal();
+                return;
+            }
+
+            root.innerHTML = state.cart.map((item, idx) => `
+                <div class="cart-item">
+                    <div><strong>${escapeHtml(item.producto)}</strong> <span class="code">${escapeHtml(item.codigo)}</span></div>
+                    <div class="cart-row"><span>Color: ${escapeHtml(item.descripcion || "-")}</span></div>
+                    <div class="cart-row"><span>Term: ${escapeHtml(item.terminacion)} | Pres: ${escapeHtml(item.presentacion)} | Prio: ${escapeHtml(item.prioridad || "Media")}</span></div>
+                    <div class="cart-row"><span>Base: ${escapeHtml(item.base || "-")} | Ubicacion: ${escapeHtml(item.ubicacion || "-")}</span></div>
+                    <div class="cart-row">
+                        <span class="qty">
+                            <button type="button" onclick="updateQty(${idx}, -1)">-</button>
+                            <span>${Number(item.cantidad || 1)}</span>
+                            <button type="button" onclick="updateQty(${idx}, 1)">+</button>
+                        </span>
+                        <button class="btn subtle" type="button" onclick="removeItem(${idx})">Quitar</button>
+                    </div>
+                </div>
+            `).join("");
+
+            updateCartTotal();
+        }
+
+        function updateQty(index, delta) {
+            const item = state.cart[index];
+            if (!item) return;
+            item.cantidad = Math.max(1, Number(item.cantidad || 1) + delta);
+            renderCart();
+        }
+
+        function removeItem(index) {
+            state.cart.splice(index, 1);
+            renderCart();
+        }
+
+        function clearCart() {
+            state.cart.length = 0;
+            renderCart();
+            setStatus("Carrito limpio", "info");
+        }
+
+        async function loadColorList() {
+            const query = (document.getElementById("kioskQuery").value || "").trim();
+
+            if (state.allColors.length) {
+                applyLocalColorFilter(query);
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set("limit", "0");
+
+            setStatus("Cargando colores...", "info");
+            try {
+                const res = await fetch(`${API}/api/v1/labelsapp/products?${params.toString()}`);
+                if (!res.ok) throw new Error("No se pudieron cargar colores");
+                const data = await res.json();
+                state.allColors = Array.isArray(data.productos) ? data.productos : [];
+                applyLocalColorFilter(query);
+                setStatus("", "ok");
+            } catch (err) {
+                renderColors();
+                setStatus(err.message || "Error cargando colores", "err");
+            }
+        }
+
+        async function loadCatalog() {
+            try {
+                const res = await fetch(`${API}/api/v1/productos/catalog`);
+                if (!res.ok) throw new Error("catalog failed");
+                const payload = await res.json();
+                const productos = Array.isArray(payload.productos) ? payload.productos : [];
+                const merged = productos.map(item => {
+                    const apiDescription = String((item && item.description) || "").trim();
+                    const fallbackDescription = getFallbackDescriptionFor(item && item.name);
+                    const fallbackMeta = getFallbackMetaFor(item && item.name) || {};
+                    return {
+                        ...item,
+                        name: getDisplayProductName(item && item.name),
+                        description: fallbackDescription || apiDescription || "Producto disponible",
+                        coverage: String((item && item.coverage) || "").trim() || fallbackMeta.coverage || "No especificada",
+                        type: String((item && item.type) || "").trim() || fallbackMeta.type || "No especificado"
+                    };
+                });
+                state.catalog = merged.length ? merged : PRODUCT_FALLBACK;
+            } catch (_) {
+                state.catalog = PRODUCT_FALLBACK;
+            }
+            state.selectedCatalogIndex = 0;
+            renderCatalog();
+        }
+
+        function buildPayload() {
+            const sucursal = getSucursal();
+            const role = String((state.currentUser && state.currentUser.rol) || "").toLowerCase();
+            const usernameKey = String((state.currentUser && state.currentUser.username) || "").toLowerCase();
+            const cliente = (document.getElementById("checkoutCliente").value || "").trim();
+            const idFactura = `KIOSK-${Date.now()}`;
+            const prioridadGlobal = String((state.cart[0] && state.cart[0].prioridad) || "Media");
+
+            return {
+                id_factura: idFactura,
+                id_cliente: cliente || null,
+                prioridad: prioridadGlobal,
+                sucursal: (role === "cliente" || usernameKey === "cliente") ? null : (sucursal || "principal"),
+                username: state.currentUser ? (state.currentUser.username || null) : null,
+                usuario_id: state.currentUser ? Number(state.currentUser.id || 0) || null : null,
+                operador: "kiosk_touch",
+                items: state.cart.map(i => ({
+                    codigo: i.codigo,
+                    descripcion: i.descripcion || i.codigo || "",
+                    producto: i.producto || "Producto",
+                    terminacion: i.terminacion || "Mate",
+                    presentacion: i.presentacion || "Galon",
+                    prioridad: i.prioridad || prioridadGlobal,
+                    cantidad: Number(i.cantidad || 1),
+                    base: i.base || "",
+                    ubicacion: i.ubicacion || ""
+                }))
+            };
+        }
+
+        async function sendCart() {
+            if (!state.cart.length) {
+                setStatus("Agrega productos antes de enviar", "err");
+                return;
+            }
+
+            closeCartDrawer();
+            openCheckoutModal();
+        }
+
+        async function confirmCheckoutSend() {
+            closeCheckoutModal();
+            const payload = buildPayload();
+            setStatus("Enviando pedido...", "info");
+            try {
+                const res = await fetch(`${API}/api/v1/labelsapp/send`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(body.detail || "No se pudo enviar el pedido");
+                clearCart();
+                setStatus(`Pedido enviado: ${body.id_factura || payload.id_factura}`, "ok");
+            } catch (err) {
+                setStatus(err.message || "Error enviando pedido", "err");
+            }
+        }
+
+        let debounceTimer = null;
+        let lastQuery = "";
+
+        document.getElementById("kioskQuery").addEventListener("keydown", (ev) => {
+            if (ev.key === "Enter") {
+                ev.preventDefault();
+                if (debounceTimer) clearTimeout(debounceTimer);
+                debounceTimer = null;
+                const value = String((ev.target && ev.target.value) || "").trim();
+                if (state.allColors.length) {
+                    applyLocalColorFilter(value);
+                } else {
+                    loadColorList();
+                }
+            }
+        });
+
+        document.getElementById("kioskQuery").addEventListener("input", (ev) => {
+            const value = String((ev.target && ev.target.value) || "").trim();
+            if (value === lastQuery) return;
+            lastQuery = value;
+
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+                debounceTimer = null;
+            }
+
+            if (!value) {
+                if (state.allColors.length) {
+                    applyLocalColorFilter("");
+                } else {
+                    loadColorList();
+                }
+                return;
+            }
+
+            debounceTimer = setTimeout(() => {
+                if (state.allColors.length) {
+                    applyLocalColorFilter(value);
+                } else {
+                    loadColorList();
+                }
+                debounceTimer = null;
+            }, 300);
+        });
+
+        document.getElementById("checkoutSucursal").addEventListener("input", refreshSessionPills);
+
+        document.addEventListener("keydown", (ev) => {
+            if (ev.key === "Escape") {
+                closeCartDrawer();
+            }
+        });
+
+        (async () => {
+            const canContinue = await initSessionContext();
+            if (!canContinue) return;
+            setFlowStep("color");
+            renderColors();
+            renderCart();
+            await Promise.all([loadCatalog(), loadColorList()]);
+        })();
+    </script>
+</body>
+</html>
