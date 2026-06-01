@@ -269,6 +269,7 @@ async def startup_event():
         db = DatabasePool.get_connection()
         try:
             _ensure_labelsapp_history_table(db)
+            _ensure_usuarios_cliente_role_constraint(db)
             db.commit()
         finally:
             DatabasePool.return_connection(db)
@@ -738,6 +739,48 @@ def _ensure_labelsapp_history_table(db) -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_labelsapp_historial_fecha ON labelsapp_historial(fecha_envio DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_labelsapp_historial_factura ON labelsapp_historial(id_factura)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_labelsapp_historial_sucursal ON labelsapp_historial(sucursal)")
+
+
+def _ensure_usuarios_cliente_role_constraint(db) -> None:
+    """Asegura que la restriccion de rol de usuarios permita 'cliente'."""
+    cur = db.cursor()
+    cur.execute(
+        """
+        SELECT conname, pg_get_constraintdef(oid)
+        FROM pg_constraint
+        WHERE conrelid = 'usuarios'::regclass
+          AND contype = 'c'
+          AND conname = 'usuarios_rol_check'
+        LIMIT 1
+        """
+    )
+    row = cur.fetchone()
+    if not row:
+        return
+
+    definition = str(row[1] or "")
+    if "cliente" in definition.lower():
+        return
+
+    # Reusar valores del CHECK actual y agregar cliente sin duplicados.
+    existing_roles = re.findall(r"'([^']+)'", definition)
+    if not existing_roles:
+        return
+
+    merged_roles = []
+    seen = set()
+    for role_value in existing_roles + ["cliente"]:
+        key = role_value.strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        merged_roles.append(role_value)
+
+    in_clause = ", ".join("'" + value.replace("'", "''") + "'" for value in merged_roles)
+    cur.execute("ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check")
+    cur.execute(
+        f"ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check CHECK (rol::text = ANY (ARRAY[{in_clause}]::text[]))"
+    )
 
 
 def _store_labelsapp_history(db, payload, sucursal_slug: str, operador_label: Optional[str], estado_envio: str = "Enviado") -> None:
@@ -2895,6 +2938,7 @@ async def create_usuario(nombre_completo: str, email: str, password: str = None,
             username = email.split('@')[0] if email else f"user_{sucursal_id}"
         
         cur = db.cursor()
+        _ensure_usuarios_cliente_role_constraint(db)
         
         # Hash usando SHA256 (consistente con BD)
         password_hash = hashlib.sha256(password.encode()).hexdigest()
@@ -2907,6 +2951,10 @@ async def create_usuario(nombre_completo: str, email: str, password: str = None,
         db.commit()
         return {"id": usuario_id, "nombre_completo": nombre_completo, "email": email, "rol": rol or "Empleado", "sucursal_id": sucursal_id, "username": username, "temporal_password": password, "estado": "activo"}
     except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
         logger.error(f"Error creating usuario: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 @app.put("/api/v1/usuarios/{usuario_id}")
@@ -2914,6 +2962,7 @@ async def update_usuario(usuario_id: int, nombre_completo: str = "", email: str 
     """Actualizar usuario con soporte para cambio de contrasena"""
     try:
         cur = db.cursor()
+        _ensure_usuarios_cliente_role_constraint(db)
         updates = []
         values = []
         
@@ -2950,6 +2999,10 @@ async def update_usuario(usuario_id: int, nombre_completo: str = "", email: str 
         
         return {"id": usuario_id, "message": "Usuario actualizado"}
     except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
         logger.error(f"Error updating usuario: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
