@@ -1030,7 +1030,7 @@
             <div id="labelsappClientsTab" class="labelsapp-subtab-content">
                 <div class="card-body queue-tab-shell">
                     <div class="summary">Pedidos enviados desde cliente/kiosko. Carga aquí lo que quieres pasar a Cola actual.</div>
-                    <div id="kioskInboxSummary" class="summary">Nuevos: 0 · En cola: 0</div>
+                    <div id="kioskInboxSummary" class="summary">0 pendiente(s) por transferir</div>
                 </div>
                 <div class="queue-wrap live-wrap">
                     <table>
@@ -1188,6 +1188,7 @@
         const liveQueue = [];
         const pendingQueue = [];
         const kioskInbox = [];
+        const KIOSK_TRANSFERRED_STORAGE_KEY = "labelsapp_kiosk_transferred";
         const customProducts = [];
         const heldLists = [];
         let historyEntries = [];
@@ -1207,6 +1208,7 @@
         let kioskInboxInitialized = false;
         let kioskNewCount = 0;
         let kioskSeenFacturas = new Set();
+        let transferredKioskEntries = loadTransferredKioskEntries();
         let kioskArrivalToastTimer = null;
         let labelsAppTab = "queue";
         let productTab = "capture";
@@ -1626,11 +1628,33 @@
             return historyEntries.find((entry) => String(entry.id) === String(id));
         }
 
+        function loadTransferredKioskEntries() {
+            try {
+                const raw = sessionStorage.getItem(KIOSK_TRANSFERRED_STORAGE_KEY);
+                const values = raw ? JSON.parse(raw) : [];
+                return new Set(Array.isArray(values) ? values : []);
+            } catch {
+                return new Set();
+            }
+        }
+
+        function persistTransferredKioskEntries() {
+            try {
+                sessionStorage.setItem(KIOSK_TRANSFERRED_STORAGE_KEY, JSON.stringify(Array.from(transferredKioskEntries)));
+            } catch {
+                // Ignore storage issues.
+            }
+        }
+
+        function getKioskEntryKey(entry) {
+            return String(entry?.id_factura || entry?.factura || entry?.id || "").trim().toUpperCase();
+        }
+
         function loadHistoryEntry(id, skipConfirm = false) {
             const entry = getHistoryEntryById(id);
-            if (!entry) return;
+            if (!entry) return false;
             if (!skipConfirm && queue.length && !confirm("La cola actual se va a reemplazar con este envío del historial. ¿Continuar?")) {
-                return;
+                return false;
             }
 
             editingFacturaId = null;
@@ -1646,6 +1670,28 @@
             renderQueue();
             switchLabelsAppTab(null, "queue");
             setStatus("Historial cargado en la cola", "ok");
+            return true;
+        }
+
+        function transferKioskEntry(id) {
+            const entry = getHistoryEntryById(id);
+            if (!entry) return;
+
+            const loaded = loadHistoryEntry(id);
+            if (!loaded) return;
+
+            const key = getKioskEntryKey(entry);
+            if (key) {
+                transferredKioskEntries.add(key);
+                persistTransferredKioskEntries();
+            }
+
+            const index = kioskInbox.findIndex((item) => getKioskEntryKey(item) === key);
+            if (index >= 0) kioskInbox.splice(index, 1);
+            kioskSeenFacturas.delete(key);
+            kioskNewCount = 0;
+            renderKioskInbox();
+            setStatus("Pedido transferido desde Clientes/Kiosko", "ok");
         }
 
         async function resendHistoryEntry(id) {
@@ -3160,7 +3206,7 @@
             const body = document.getElementById("kioskInboxBody");
             const summary = document.getElementById("kioskInboxSummary");
             if (summary) {
-                summary.textContent = `${kioskInbox.length} recibido(s) · ${queue.length} en cola actual` + (kioskNewCount > 0 ? ` · ${kioskNewCount} nuevo(s)` : "");
+                summary.textContent = `${kioskInbox.length} pendiente(s) por transferir` + (kioskNewCount > 0 ? ` · ${kioskNewCount} nuevo(s)` : "");
             }
             updateKioskInboxBadge();
             if (!body) return;
@@ -3177,7 +3223,7 @@
                     <td>${Number(entry.total_items || entry.inserted || (entry.productos || entry.items || []).length || 0)}</td>
                     <td>${escapeHtml(new Date(entry.fecha_envio || Date.now()).toLocaleString())}</td>
                     <td>
-                        <button class="btn btn-link" onclick="loadHistoryEntry('${entry.id}')">Transferir</button>
+                        <button class="btn btn-link" onclick="transferKioskEntry('${entry.id}')">Transferir</button>
                     </td>
                 </tr>
             `).join("");
@@ -3201,7 +3247,10 @@
                 const res = await fetch(`${API}/api/v1/labelsapp/history?${params.toString()}`);
                 if (!res.ok) throw new Error("No se pudo cargar buzón kiosko");
                 const data = await res.json();
-                const incoming = (Array.isArray(data.items) ? data.items : []).filter(isKioskHistoryEntry);
+                const incoming = (Array.isArray(data.items) ? data.items : []).filter((entry) => {
+                    if (!isKioskHistoryEntry(entry)) return false;
+                    return !transferredKioskEntries.has(getKioskEntryKey(entry));
+                });
 
                 const uniqueByFactura = new Map();
                 for (const entry of incoming) {
