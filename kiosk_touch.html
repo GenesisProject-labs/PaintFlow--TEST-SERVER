@@ -865,6 +865,8 @@
             allColors: [],
             colorByCode: {},
             sherwinSearchCache: {},
+            colorSearchPending: false,
+            latestColorSearchToken: 0,
             cart: [],
             catalog: [],
             selectedColorIndex: -1,
@@ -1239,7 +1241,7 @@
                 codes.push(code);
             }
             const batch = codes.slice(0, 32);
-            if (!batch.length) return;
+            if (!batch.length) return false;
 
             try {
                 const params = new URLSearchParams();
@@ -1250,18 +1252,25 @@
                 if (!res.ok) throw new Error("swatches failed");
                 const payload = await res.json();
                 const items = Array.isArray(payload.items) ? payload.items : [];
+                let changed = false;
                 for (const item of items) {
                     const key = extractSwCode(item.code);
                     if (!key) continue;
+                    const nextHex = normalizeHex(item.hex || "");
+                    const nextName = item.name || `SW ${key}`;
+                    const prev = state.colorByCode[key] || {};
+                    if (prev.hex !== nextHex || prev.name !== nextName) changed = true;
                     state.colorByCode[key] = {
-                        name: item.name || `SW ${key}`,
-                        hex: normalizeHex(item.hex || "")
+                        name: nextName,
+                        hex: nextHex
                     };
                 }
+                return changed;
             } catch (_) {
                 for (const code of batch) {
                     if (!state.colorByCode[code]) state.colorByCode[code] = { name: `SW ${code}`, hex: "" };
                 }
+                return true;
             }
         }
 
@@ -1343,6 +1352,10 @@
         function renderColors() {
             const root = document.getElementById("colorStage");
             if (!root) return;
+            if (state.colorSearchPending && !state.colors.length) {
+                root.innerHTML = "<div class=\"card\">Buscando colores...</div>";
+                return;
+            }
             if (!state.colors.length) {
                 root.innerHTML = "<div class=\"card\">No se encontraron colores</div>";
                 return;
@@ -1364,12 +1377,13 @@
             ` : "");
         }
 
-        function applyLocalColorFilter(query) {
+        function applyLocalColorFilter(query, options = {}) {
+            const { suppressEmptyState = false, requestToken = 0 } = options;
             const q = normalizeText(query || "");
             const source = Array.isArray(state.allColors) ? state.allColors : [];
             if (!source.length) {
                 state.colors = [];
-                renderColors();
+                if (!suppressEmptyState) renderColors();
                 return;
             }
 
@@ -1377,30 +1391,52 @@
                 state.colors = source.slice();
             } else {
                 state.colors = source.filter((item) => {
-                    const codigo = normalizeText(item && item.codigo);
-                    const nombre = normalizeText(item && item.nombre);
-                    const base = normalizeText(item && item.base);
-                    const ubicacion = normalizeText(item && item.ubicacion);
-                    return codigo.includes(q) || nombre.includes(q) || base.includes(q) || ubicacion.includes(q);
+                    const searchText = item && item.searchText
+                        ? item.searchText
+                        : [item && item.codigo, item && item.nombre, item && item.base, item && item.ubicacion].map(normalizeText).join(" ");
+                    return searchText.includes(q);
                 });
             }
 
             const visibleColors = state.colors.slice(0, MAX_VISIBLE_COLORS);
             renderColors();
-            ensureSherwinColors(visibleColors).then(() => renderColors());
+            ensureSherwinColors(visibleColors).then((changed) => {
+                if (!changed) return;
+                if (requestToken && requestToken !== state.latestColorSearchToken) return;
+                renderColors();
+            });
         }
 
         async function applyFilterWithSherwinFallback(query) {
-            applyLocalColorFilter(query);
             const trimmed = String(query || "").trim();
-            if (!trimmed || state.colors.length) return;
+            const requestToken = Date.now();
+            state.latestColorSearchToken = requestToken;
+            state.colorSearchPending = false;
+
+            applyLocalColorFilter(trimmed, {
+                suppressEmptyState: Boolean(trimmed),
+                requestToken
+            });
+
+            if (!trimmed || state.colors.length) {
+                renderColors();
+                return;
+            }
+
+            state.colorSearchPending = true;
+            renderColors();
 
             const sherwinResults = await searchSherwinColors(trimmed);
+            if (requestToken !== state.latestColorSearchToken) return;
+            state.colorSearchPending = false;
             if (sherwinResults.length) {
                 state.colors = sherwinResults;
                 renderColors();
                 setStatus("Colores cargados desde Sherwin", "ok");
+                return;
             }
+
+            renderColors();
         }
 
         function renderSelectedColorStrip() {
@@ -1695,15 +1731,22 @@
 
         async function loadColorList() {
             const query = (document.getElementById("kioskQuery").value || "").trim();
+            const requestToken = Date.now();
+            state.latestColorSearchToken = requestToken;
 
             const applySherwinFallback = async () => {
+                state.colorSearchPending = true;
+                renderColors();
                 const sherwinResults = await searchSherwinColors(query);
+                if (requestToken !== state.latestColorSearchToken) return false;
+                state.colorSearchPending = false;
                 if (sherwinResults.length) {
                     state.colors = sherwinResults;
                     renderColors();
                     setStatus("Colores cargados desde Sherwin", "ok");
                     return true;
                 }
+                renderColors();
                 return false;
             };
 
@@ -1720,13 +1763,27 @@
                 const res = await fetch(`${API}/api/v1/labelsapp/products?${params.toString()}`);
                 if (!res.ok) throw new Error("No se pudieron cargar colores");
                 const data = await res.json();
-                state.allColors = Array.isArray(data.productos) ? data.productos : [];
-                applyLocalColorFilter(query);
+                if (requestToken !== state.latestColorSearchToken) return;
+                state.allColors = (Array.isArray(data.productos) ? data.productos : []).map((item) => ({
+                    ...item,
+                    searchText: [item && item.codigo, item && item.nombre, item && item.base, item && item.ubicacion]
+                        .map(normalizeText)
+                        .join(" ")
+                }));
+                applyLocalColorFilter(query, {
+                    suppressEmptyState: Boolean(query),
+                    requestToken
+                });
                 if (query && !state.colors.length) {
                     await applySherwinFallback();
+                } else {
+                    state.colorSearchPending = false;
+                    renderColors();
                 }
                 setStatus("", "ok");
             } catch (err) {
+                if (requestToken !== state.latestColorSearchToken) return;
+                state.colorSearchPending = false;
                 const usedFallback = await applySherwinFallback();
                 if (!usedFallback) {
                     renderColors();
