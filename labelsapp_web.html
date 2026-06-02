@@ -500,6 +500,29 @@
             font-weight: 700;
         }
 
+        .kiosk-arrival-toast {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 1200;
+            background: #10385f;
+            color: #fff;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            box-shadow: 0 10px 24px rgba(10, 34, 57, 0.25);
+            transform: translateY(10px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+
+        .kiosk-arrival-toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
         .labelsapp-subtab-content {
             display: none;
         }
@@ -926,10 +949,10 @@
         <section class="card">
             <div class="card-head">Factura</div>
             <div class="labelsapp-subtabs">
-                <button class="labelsapp-subtab-btn active" type="button" data-labelsapp-tab="queue" onclick="switchLabelsAppTab(event, 'queue')">Cola actual</button>
-                <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="hold" onclick="switchLabelsAppTab(event, 'hold')">En espera</button>
+                <button class="labelsapp-subtab-btn active" type="button" data-labelsapp-tab="queue" onclick="switchLabelsAppTab(event, 'queue')">Cola actual <span id="queueTabBadge" class="tab-badge">0</span></button>
+                <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="hold" onclick="switchLabelsAppTab(event, 'hold')">En espera <span id="holdTabBadge" class="tab-badge">0</span></button>
                 <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="clients" onclick="switchLabelsAppTab(event, 'clients')">Clientes/Kiosko <span id="kioskInboxBadge" class="tab-badge">0</span></button>
-                <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="live" onclick="switchLabelsAppTab(event, 'live')">Tiempo real</button>
+                <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="live" onclick="switchLabelsAppTab(event, 'live')">Tiempo real <span id="liveTabBadge" class="tab-badge">0</span></button>
                 <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="history" onclick="switchLabelsAppTab(event, 'history')">Historial</button>
             </div>
 
@@ -1184,6 +1207,7 @@
         let kioskInboxInitialized = false;
         let kioskNewCount = 0;
         let kioskSeenFacturas = new Set();
+        let kioskArrivalToastTimer = null;
         let labelsAppTab = "queue";
         let productTab = "capture";
         let editingQueueIndex = -1;
@@ -2773,11 +2797,13 @@
         function renderHeldLists() {
             const body = document.getElementById("heldListsBody");
             const summary = document.getElementById("holdSummary");
+            const holdBadge = document.getElementById("holdTabBadge");
             if (summary) {
                 const localItems = heldLists.reduce((acc, l) => acc + Number((l.items || []).length), 0);
                 const pendingItems = pendingQueue.reduce((acc, p) => acc + Number(p.items || 0), 0);
                 summary.textContent = `${pendingQueue.length} factura(s) pendientes · ${pendingItems} items` + (heldLists.length ? ` · ${heldLists.length} borrador(es) locales` : "");
             }
+            if (holdBadge) holdBadge.textContent = String(pendingQueue.length + heldLists.length);
             if (!body) return;
             if (!pendingQueue.length && !heldLists.length) {
                 body.innerHTML = `<tr><td colspan="5" class="empty">No hay listas en espera</td></tr>`;
@@ -2865,6 +2891,7 @@
 
         function renderQueue() {
             const body = document.getElementById("queueBody");
+            const queueBadge = document.getElementById("queueTabBadge");
             if (!queue.length) {
                 body.innerHTML = `<tr><td colspan="9" class="empty">No hay productos en la lista</td></tr>`;
             } else {
@@ -2897,6 +2924,7 @@
 
             const total = queue.reduce((acc, i) => acc + Number(i.cantidad || 0), 0);
             document.getElementById("summary").textContent = `${queue.length} item(s) · ${total} unidades`;
+            if (queueBadge) queueBadge.textContent = String(queue.length);
             updateWorkflowHint();
         }
 
@@ -2968,7 +2996,9 @@
         function renderLiveQueue() {
             const body = document.getElementById("liveQueueBody");
             const status = document.getElementById("liveStatus");
+            const liveBadge = document.getElementById("liveTabBadge");
             if (!body) return;
+            if (liveBadge) liveBadge.textContent = String(liveQueue.length);
 
             if (!liveQueue.length) {
                 body.innerHTML = `<tr><td colspan="8" class="empty">No hay facturas activas en este momento</td></tr>`;
@@ -3049,7 +3079,7 @@
         function renderHistory() {
             const body = document.getElementById("historyBody");
             const summary = document.getElementById("historySummary");
-            const entries = historyEntries || [];
+            const entries = (historyEntries || []).filter((entry) => !isKioskHistoryEntry(entry));
 
             if (summary) {
                 const totalItems = entries.reduce((acc, entry) => acc + Number(entry.total_unidades || entry.inserted || (entry.productos || entry.items || []).length || 0), 0);
@@ -3058,7 +3088,7 @@
 
             if (!body) return;
             if (!entries.length) {
-                body.innerHTML = `<tr><td colspan="7" class="empty">No hay envíos que coincidan con los filtros</td></tr>`;
+                body.innerHTML = `<tr><td colspan="7" class="empty">No hay envíos del facturador que coincidan con los filtros</td></tr>`;
                 return;
             }
 
@@ -3091,6 +3121,34 @@
             return origen === "kiosk";
         }
 
+        function showKioskArrivalToast(arrivals) {
+            if (!arrivals || arrivals < 1) return;
+
+            let toast = document.getElementById("kioskArrivalToast");
+            if (!toast) {
+                toast = document.createElement("div");
+                toast.id = "kioskArrivalToast";
+                toast.className = "kiosk-arrival-toast";
+                document.body.appendChild(toast);
+            }
+
+            toast.textContent = arrivals === 1
+                ? "Nuevo pedido recibido en Clientes/Kiosko"
+                : `${arrivals} pedidos nuevos en Clientes/Kiosko`;
+            toast.classList.add("show");
+
+            if (kioskArrivalToastTimer) {
+                clearTimeout(kioskArrivalToastTimer);
+                kioskArrivalToastTimer = null;
+            }
+
+            kioskArrivalToastTimer = setTimeout(() => {
+                const node = document.getElementById("kioskArrivalToast");
+                if (node) node.classList.remove("show");
+                kioskArrivalToastTimer = null;
+            }, 2400);
+        }
+
         function updateKioskInboxBadge() {
             const badge = document.getElementById("kioskInboxBadge");
             if (!badge) return;
@@ -3119,7 +3177,7 @@
                     <td>${Number(entry.total_items || entry.inserted || (entry.productos || entry.items || []).length || 0)}</td>
                     <td>${escapeHtml(new Date(entry.fecha_envio || Date.now()).toLocaleString())}</td>
                     <td>
-                        <button class="btn btn-link" onclick="loadHistoryEntry('${entry.id}')">Cargar a cola actual</button>
+                        <button class="btn btn-link" onclick="loadHistoryEntry('${entry.id}')">Transferir</button>
                     </td>
                 </tr>
             `).join("");
@@ -3159,6 +3217,7 @@
                         if (!kioskSeenFacturas.has(factura)) arrivals += 1;
                     }
                     kioskNewCount = arrivals;
+                    showKioskArrivalToast(arrivals);
                 } else {
                     kioskNewCount = 0;
                     kioskInboxInitialized = true;
