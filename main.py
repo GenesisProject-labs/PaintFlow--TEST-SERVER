@@ -607,23 +607,33 @@ def _resolve_requester_role(db, username: Optional[str] = None, usuario_id: Opti
 
 
 def _get_labelsapp_live_queue(db, table_name: str, limit: int = 50):
+    cols = _get_table_columns(db, table_name)
+    id_cliente_expr = "MAX(COALESCE(id_cliente, ''))" if "id_cliente" in cols else "''"
+    operador_expr = "MAX(COALESCE(operador, '—'))" if "operador" in cols else "'—'"
+    pr_rank_expr = (
+        "MAX(CASE TRIM(COALESCE(prioridad,'')) WHEN 'Alta' THEN 3 WHEN 'Media' THEN 2 WHEN 'Baja' THEN 1 ELSE 0 END)"
+        if "prioridad" in cols
+        else "0"
+    )
+    estado_expr = "TRIM(COALESCE(estado,''))" if "estado" in cols else "'Pendiente'"
+
     cur = db.cursor()
     cur.execute(
         f"""
         SELECT id_factura,
-               MAX(COALESCE(id_cliente, '')) AS id_cliente,
+               {id_cliente_expr} AS id_cliente,
                COUNT(*) AS total,
-               SUM(CASE WHEN TRIM(COALESCE(estado,'')) IN ('Finalizado','Completado') THEN 1 ELSE 0 END) AS cnt_final,
-               SUM(CASE WHEN TRIM(COALESCE(estado,'')) = 'En Proceso' THEN 1 ELSE 0 END) AS cnt_proc,
-               MAX(CASE TRIM(COALESCE(prioridad,'')) WHEN 'Alta' THEN 3 WHEN 'Media' THEN 2 WHEN 'Baja' THEN 1 ELSE 0 END) AS pr_rank,
-               MAX(COALESCE(operador, '—')) AS operador
+               SUM(CASE WHEN {estado_expr} IN ('Finalizado','Completado') THEN 1 ELSE 0 END) AS cnt_final,
+               SUM(CASE WHEN {estado_expr} = 'En Proceso' THEN 1 ELSE 0 END) AS cnt_proc,
+               {pr_rank_expr} AS pr_rank,
+               {operador_expr} AS operador
         FROM {table_name}
-        WHERE TRIM(COALESCE(estado,'')) <> 'Cancelado'
+        WHERE {estado_expr} <> 'Cancelado'
         GROUP BY id_factura
-        HAVING SUM(CASE WHEN TRIM(COALESCE(estado,'')) IN ('Finalizado','Completado') THEN 1 ELSE 0 END) < COUNT(*)
+        HAVING SUM(CASE WHEN {estado_expr} IN ('Finalizado','Completado') THEN 1 ELSE 0 END) < COUNT(*)
            AND (
-               SUM(CASE WHEN TRIM(COALESCE(estado,'')) = 'En Proceso' THEN 1 ELSE 0 END) > 0
-               OR SUM(CASE WHEN TRIM(COALESCE(estado,'')) IN ('Finalizado','Completado') THEN 1 ELSE 0 END) > 0
+               SUM(CASE WHEN {estado_expr} = 'En Proceso' THEN 1 ELSE 0 END) > 0
+               OR SUM(CASE WHEN {estado_expr} IN ('Finalizado','Completado') THEN 1 ELSE 0 END) > 0
            )
         ORDER BY pr_rank DESC, id_factura DESC
         LIMIT %s
@@ -655,6 +665,15 @@ def _get_labelsapp_live_queue(db, table_name: str, limit: int = 50):
 
 def _get_labelsapp_pending_queue(db, table_name: str, limit: int = 80):
     cols = _get_table_columns(db, table_name)
+    id_cliente_expr = "MAX(COALESCE(id_cliente, ''))" if "id_cliente" in cols else "''"
+    operador_expr = "MAX(COALESCE(operador, '—'))" if "operador" in cols else "'—'"
+    pr_rank_expr = (
+        "MAX(CASE TRIM(COALESCE(prioridad,'')) WHEN 'Alta' THEN 3 WHEN 'Media' THEN 2 WHEN 'Baja' THEN 1 ELSE 0 END)"
+        if "prioridad" in cols
+        else "0"
+    )
+    estado_expr = "TRIM(COALESCE(estado,''))" if "estado" in cols else "'Pendiente'"
+
     if "fecha_creacion" in cols:
         created_expr = "MAX(fecha_creacion)"
     elif "fecha_creado" in cols:
@@ -666,17 +685,17 @@ def _get_labelsapp_pending_queue(db, table_name: str, limit: int = 80):
     cur.execute(
         f"""
         SELECT id_factura,
-               MAX(COALESCE(id_cliente, '')) AS id_cliente,
+               {id_cliente_expr} AS id_cliente,
                COUNT(*) AS total,
-               MAX(CASE TRIM(COALESCE(prioridad,'')) WHEN 'Alta' THEN 3 WHEN 'Media' THEN 2 WHEN 'Baja' THEN 1 ELSE 0 END) AS pr_rank,
-               MAX(COALESCE(operador, '—')) AS operador,
+               {pr_rank_expr} AS pr_rank,
+               {operador_expr} AS operador,
                {created_expr} AS created_at
         FROM {table_name}
-        WHERE TRIM(COALESCE(estado,'')) <> 'Cancelado'
+        WHERE {estado_expr} <> 'Cancelado'
         GROUP BY id_factura
-        HAVING SUM(CASE WHEN TRIM(COALESCE(estado,'')) IN ('Finalizado','Completado') THEN 1 ELSE 0 END) = 0
-           AND SUM(CASE WHEN TRIM(COALESCE(estado,'')) = 'En Proceso' THEN 1 ELSE 0 END) = 0
-        ORDER BY pr_rank DESC, MAX(fecha_creacion) DESC, id_factura DESC
+        HAVING SUM(CASE WHEN {estado_expr} IN ('Finalizado','Completado') THEN 1 ELSE 0 END) = 0
+           AND SUM(CASE WHEN {estado_expr} = 'En Proceso' THEN 1 ELSE 0 END) = 0
+        ORDER BY pr_rank DESC, {created_expr} DESC, id_factura DESC
         LIMIT %s
         """,
         (limit,)
