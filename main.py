@@ -805,6 +805,19 @@ def _ensure_pedidos_table(db, table_name: str) -> None:
     cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_sucursal_prioridad_factura ON {table_name}(sucursal, prioridad, id_factura)")
 
 
+def _pedidos_table_exists(db, table_name: str) -> bool:
+    cur = db.cursor()
+    cur.execute("SELECT to_regclass(%s)", (f"public.{table_name}",))
+    row = cur.fetchone()
+    return bool(row and row[0])
+
+
+def _set_local_pg_timeouts(db, statement_ms: int = 8000, lock_ms: int = 1200) -> None:
+    cur = db.cursor()
+    cur.execute("SET LOCAL lock_timeout = %s", (f"{int(lock_ms)}ms",))
+    cur.execute("SET LOCAL statement_timeout = %s", (f"{int(statement_ms)}ms",))
+
+
 def _ensure_labelsapp_history_table(db) -> None:
     cur = db.cursor()
     cur.execute(
@@ -2301,12 +2314,22 @@ async def labelsapp_live_queue(
     db=Depends(get_db)
 ):
     """Obtener la cola agrupada en tiempo real para la vista web."""
+    sucursal_slug = "principal"
+    table_name = _safe_table_for_sucursal(sucursal_slug)
     try:
         limit = max(1, min(int(limit or 50), 250))
         sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
         table_name = _safe_table_for_sucursal(sucursal_slug)
 
-        _ensure_pedidos_table(db, table_name)
+        if not _pedidos_table_exists(db, table_name):
+            return {
+                "sucursal": sucursal_slug,
+                "tabla": table_name,
+                "total": 0,
+                "items": [],
+            }
+
+        _set_local_pg_timeouts(db, statement_ms=8000, lock_ms=1200)
         items = _get_labelsapp_live_queue(db, table_name, limit=limit)
 
         return {
@@ -2318,6 +2341,14 @@ async def labelsapp_live_queue(
     except HTTPException:
         raise
     except Exception as e:
+        if getattr(e, "pgcode", "") in {"57014", "55P03"}:
+            logger.warning(f"Live queue timeout/lock for {table_name}: {e}")
+            return {
+                "sucursal": sucursal_slug,
+                "tabla": table_name,
+                "total": 0,
+                "items": [],
+            }
         logger.error(f"Error fetching labelsapp live queue: {e}")
         raise HTTPException(status_code=500, detail="Error consultando la cola en tiempo real")
 
@@ -2331,12 +2362,22 @@ async def labelsapp_pending_queue(
     db=Depends(get_db)
 ):
     """Obtener la cola pendiente (en espera) por sucursal para facturador."""
+    sucursal_slug = "principal"
+    table_name = _safe_table_for_sucursal(sucursal_slug)
     try:
         limit = max(1, min(int(limit or 80), 250))
         sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
         table_name = _safe_table_for_sucursal(sucursal_slug)
 
-        _ensure_pedidos_table(db, table_name)
+        if not _pedidos_table_exists(db, table_name):
+            return {
+                "sucursal": sucursal_slug,
+                "tabla": table_name,
+                "total": 0,
+                "items": [],
+            }
+
+        _set_local_pg_timeouts(db, statement_ms=8000, lock_ms=1200)
         items = _get_labelsapp_pending_queue(db, table_name, limit=limit)
 
         return {
@@ -2348,6 +2389,14 @@ async def labelsapp_pending_queue(
     except HTTPException:
         raise
     except Exception as e:
+        if getattr(e, "pgcode", "") in {"57014", "55P03"}:
+            logger.warning(f"Pending queue timeout/lock for {table_name}: {e}")
+            return {
+                "sucursal": sucursal_slug,
+                "tabla": table_name,
+                "total": 0,
+                "items": [],
+            }
         logger.error(f"Error fetching labelsapp pending queue: {e}")
         raise HTTPException(status_code=500, detail="Error consultando la cola en espera")
 
