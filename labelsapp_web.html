@@ -1625,7 +1625,9 @@
         }
 
         function getHistoryEntryById(id) {
-            return historyEntries.find((entry) => String(entry.id) === String(id));
+            const key = String(id);
+            return (historyEntries || []).find((entry) => String(entry.id) === key)
+                || (kioskInbox || []).find((entry) => String(entry.id) === key);
         }
 
         function loadTransferredKioskEntries() {
@@ -3400,16 +3402,18 @@
                 liveQueueTimer = null;
             }
 
+            liveQueueTimer = setInterval(() => {
+                // Mantener vivo el badge de Tiempo real aunque no se abra esa subpestaña.
+                loadLiveQueue();
+
+                if (labelsAppTab === "hold") {
+                    loadPendingQueue();
+                } else if (labelsAppTab === "clients") {
+                    loadKioskInbox();
+                }
+            }, 4000);
+
             if (active) {
-                liveQueueTimer = setInterval(() => {
-                    if (labelsAppTab === "live") {
-                        loadLiveQueue();
-                    } else if (labelsAppTab === "hold") {
-                        loadPendingQueue();
-                    } else if (labelsAppTab === "clients") {
-                        loadKioskInbox();
-                    }
-                }, 4000);
                 openLiveEventStream();
             } else {
                 closeLiveEventStream();
@@ -3504,7 +3508,6 @@
                     username: user.username,
                     usuario_id: user.id,
                     sucursal: user.sucursal || user.sucursal_nombre || "",
-                    operador: "labelsapp_web",
                     items: queue.map((item) => ({
                         ...item,
                         prioridad: item.prioridad || prioridad
@@ -3781,6 +3784,7 @@
             renderKioskInbox();
             clearHistoryFilters();
             switchLabelsAppTab(null, "queue");
+            loadLiveQueue();
             switchProductTab(null, "capture");
             if (hasSeenWorkflow()) {
                 const el = document.getElementById("workflowHint");

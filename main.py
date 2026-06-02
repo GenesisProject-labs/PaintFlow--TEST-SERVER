@@ -654,6 +654,14 @@ def _get_labelsapp_live_queue(db, table_name: str, limit: int = 50):
 
 
 def _get_labelsapp_pending_queue(db, table_name: str, limit: int = 80):
+    cols = _get_table_columns(db, table_name)
+    if "fecha_creacion" in cols:
+        created_expr = "MAX(fecha_creacion)"
+    elif "fecha_creado" in cols:
+        created_expr = "MAX(fecha_creado)"
+    else:
+        created_expr = "NULL"
+
     cur = db.cursor()
     cur.execute(
         f"""
@@ -662,7 +670,7 @@ def _get_labelsapp_pending_queue(db, table_name: str, limit: int = 80):
                COUNT(*) AS total,
                MAX(CASE TRIM(COALESCE(prioridad,'')) WHEN 'Alta' THEN 3 WHEN 'Media' THEN 2 WHEN 'Baja' THEN 1 ELSE 0 END) AS pr_rank,
                MAX(COALESCE(operador, '—')) AS operador,
-               MAX(fecha_creacion) AS created_at
+               {created_expr} AS created_at
         FROM {table_name}
         WHERE TRIM(COALESCE(estado,'')) <> 'Cancelado'
         GROUP BY id_factura
@@ -2209,7 +2217,14 @@ async def labelsapp_send(payload: LabelsAppSendRequest, db=Depends(get_db)):
         cur = db.cursor()
         operador_label = _resolve_operador_label(db, username=payload.username, usuario_id=payload.usuario_id, operador=payload.operador)
         operador_hint = ((payload.operador or operador_label or "").strip().lower())
-        estado_inicial = "Pendiente" if operador_hint in {"kiosk_touch", "kiosk", "cliente"} else "En Proceso"
+        factura_hint = (payload.id_factura or "").strip().upper()
+        is_kiosk_or_client = (
+            operador_hint in {"kiosk_touch", "kiosk", "cliente"}
+            or factura_hint.startswith("CLI-")
+            or factura_hint.startswith("KIOSK-")
+            or factura_hint.startswith("BORRADOR-")
+        )
+        estado_inicial = "Pendiente" if is_kiosk_or_client else "En Proceso"
 
         for idx, item in enumerate(payload.items):
             cantidad = max(1, int(item.cantidad or 1))
