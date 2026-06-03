@@ -2461,6 +2461,13 @@ async function handleLogin(e) {
             return;
         }
 
+        if (userRole === 'colorista') {
+            clearSession();
+            errorDiv.textContent = 'Los coloristas deben usar la app de escritorio.';
+            errorDiv.classList.add('show');
+            return;
+        }
+
         if (userRole !== 'administrador') {
             clearSession();
             errorDiv.textContent = 'Acceso restringido para este rol';
