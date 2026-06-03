@@ -16,6 +16,7 @@ import string
 import os
 import re
 import unicodedata
+from threading import Lock
 from collections import defaultdict
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
@@ -92,6 +93,40 @@ FORMULA_SOURCE_TABLES = [
     "formulas_bacc_c",
     "formulas_bacc_qt",
 ]
+
+QUEUE_CACHE_TTL_SEC = 2.0
+_labelsapp_queue_cache = {
+    "live": {},
+    "pending": {},
+}
+_labelsapp_queue_cache_lock = Lock()
+_labelsapp_live_fetch_lock = Lock()
+_labelsapp_pending_fetch_lock = Lock()
+
+
+def _queue_cache_get(kind: str, key):
+    now = time.time()
+    with _labelsapp_queue_cache_lock:
+        bucket = _labelsapp_queue_cache.get(kind, {})
+        entry = bucket.get(key)
+        if not entry:
+            return None
+        if (now - float(entry.get("ts", 0))) > QUEUE_CACHE_TTL_SEC:
+            try:
+                del bucket[key]
+            except Exception:
+                pass
+            return None
+        return entry.get("items")
+
+
+def _queue_cache_set(kind: str, key, items):
+    with _labelsapp_queue_cache_lock:
+        bucket = _labelsapp_queue_cache.setdefault(kind, {})
+        bucket[key] = {
+            "ts": time.time(),
+            "items": items,
+        }
 
 
 class LabelsAppCodigoBaseRequest(BaseModel):
@@ -2348,8 +2383,15 @@ async def labelsapp_live_queue(
                 "items": [],
             }
 
-        _set_local_pg_timeouts(db, statement_ms=8000, lock_ms=1200)
-        items = _get_labelsapp_live_queue(db, table_name, limit=limit)
+        cache_key = (table_name, limit)
+        items = _queue_cache_get("live", cache_key)
+        if items is None:
+            with _labelsapp_live_fetch_lock:
+                items = _queue_cache_get("live", cache_key)
+                if items is None:
+                    _set_local_pg_timeouts(db, statement_ms=2500, lock_ms=500)
+                    items = _get_labelsapp_live_queue(db, table_name, limit=limit)
+                    _queue_cache_set("live", cache_key, items)
 
         return {
             "sucursal": sucursal_slug,
@@ -2396,8 +2438,15 @@ async def labelsapp_pending_queue(
                 "items": [],
             }
 
-        _set_local_pg_timeouts(db, statement_ms=8000, lock_ms=1200)
-        items = _get_labelsapp_pending_queue(db, table_name, limit=limit)
+        cache_key = (table_name, limit)
+        items = _queue_cache_get("pending", cache_key)
+        if items is None:
+            with _labelsapp_pending_fetch_lock:
+                items = _queue_cache_get("pending", cache_key)
+                if items is None:
+                    _set_local_pg_timeouts(db, statement_ms=2500, lock_ms=500)
+                    items = _get_labelsapp_pending_queue(db, table_name, limit=limit)
+                    _queue_cache_set("pending", cache_key, items)
 
         return {
             "sucursal": sucursal_slug,
