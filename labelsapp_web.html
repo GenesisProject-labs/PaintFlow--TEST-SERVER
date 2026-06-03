@@ -3109,7 +3109,7 @@
 
         function openLiveEventStream() {
             const user = ensureSession();
-            if (!user || !["live", "hold", "clients"].includes(labelsAppTab)) return;
+            if (!user || labelsAppTab !== "live") return;
             if (liveEventSource) return;
 
             try {
@@ -3403,15 +3403,17 @@
             }
 
             liveQueueTimer = setInterval(() => {
-                // Mantener vivo el badge de Tiempo real aunque no se abra esa subpestaña.
-                loadLiveQueue();
+                // Si SSE esta activo, evitamos duplicar trafico por polling.
+                if (liveEventSource) return;
 
-                if (labelsAppTab === "hold") {
+                if (labelsAppTab === "live") {
+                    loadLiveQueue();
+                } else if (labelsAppTab === "hold") {
                     loadPendingQueue();
                 } else if (labelsAppTab === "clients") {
                     loadKioskInbox();
                 }
-            }, 4000);
+            }, 12000);
 
             if (active) {
                 openLiveEventStream();
@@ -3438,7 +3440,7 @@
             if (liveTab) liveTab.classList.toggle("active", labelsAppTab === "live");
             if (historyTab) historyTab.classList.toggle("active", labelsAppTab === "history");
 
-            setLivePolling(labelsAppTab === "live" || labelsAppTab === "hold" || labelsAppTab === "clients");
+            setLivePolling(labelsAppTab === "live");
             if (labelsAppTab === "live") {
                 loadLiveQueue();
             }

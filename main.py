@@ -16,6 +16,7 @@ import string
 import os
 import re
 import unicodedata
+from threading import Lock
 from collections import defaultdict
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
@@ -92,6 +93,40 @@ FORMULA_SOURCE_TABLES = [
     "formulas_bacc_c",
     "formulas_bacc_qt",
 ]
+
+QUEUE_CACHE_TTL_SEC = 2.0
+_labelsapp_queue_cache = {
+    "live": {},
+    "pending": {},
+}
+_labelsapp_queue_cache_lock = Lock()
+_labelsapp_live_fetch_lock = Lock()
+_labelsapp_pending_fetch_lock = Lock()
+
+
+def _queue_cache_get(kind: str, key):
+    now = time.time()
+    with _labelsapp_queue_cache_lock:
+        bucket = _labelsapp_queue_cache.get(kind, {})
+        entry = bucket.get(key)
+        if not entry:
+            return None
+        if (now - float(entry.get("ts", 0))) > QUEUE_CACHE_TTL_SEC:
+            try:
+                del bucket[key]
+            except Exception:
+                pass
+            return None
+        return entry.get("items")
+
+
+def _queue_cache_set(kind: str, key, items):
+    with _labelsapp_queue_cache_lock:
+        bucket = _labelsapp_queue_cache.setdefault(kind, {})
+        bucket[key] = {
+            "ts": time.time(),
+            "items": items,
+        }
 
 
 class LabelsAppCodigoBaseRequest(BaseModel):
@@ -2330,26 +2365,43 @@ async def labelsapp_live_queue(
     username: Optional[str] = None,
     usuario_id: Optional[int] = None,
     sucursal: Optional[str] = None,
-    db=Depends(get_db)
 ):
     """Obtener la cola agrupada en tiempo real para la vista web."""
     sucursal_slug = "principal"
     table_name = _safe_table_for_sucursal(sucursal_slug)
+    db = None
     try:
         limit = max(1, min(int(limit or 50), 250))
-        sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
+
+        # Evita tocar DB si la sucursal ya viene en el request.
+        if (sucursal or "").strip():
+            sucursal_slug = _normalize_sucursal_slug(str(sucursal))
+        elif username or usuario_id:
+            db = DatabasePool.get_connection()
+            sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
+
         table_name = _safe_table_for_sucursal(sucursal_slug)
 
-        if not _pedidos_table_exists(db, table_name):
-            return {
-                "sucursal": sucursal_slug,
-                "tabla": table_name,
-                "total": 0,
-                "items": [],
-            }
+        cache_key = (table_name, limit)
+        items = _queue_cache_get("live", cache_key)
+        if items is None:
+            if db is None:
+                db = DatabasePool.get_connection()
 
-        _set_local_pg_timeouts(db, statement_ms=8000, lock_ms=1200)
-        items = _get_labelsapp_live_queue(db, table_name, limit=limit)
+            if not _pedidos_table_exists(db, table_name):
+                return {
+                    "sucursal": sucursal_slug,
+                    "tabla": table_name,
+                    "total": 0,
+                    "items": [],
+                }
+
+            with _labelsapp_live_fetch_lock:
+                items = _queue_cache_get("live", cache_key)
+                if items is None:
+                    _set_local_pg_timeouts(db, statement_ms=2500, lock_ms=500)
+                    items = _get_labelsapp_live_queue(db, table_name, limit=limit)
+                    _queue_cache_set("live", cache_key, items)
 
         return {
             "sucursal": sucursal_slug,
@@ -2360,6 +2412,7 @@ async def labelsapp_live_queue(
     except HTTPException:
         raise
     except Exception as e:
+        err_text = str(e).lower()
         if getattr(e, "pgcode", "") in {"57014", "55P03"}:
             logger.warning(f"Live queue timeout/lock for {table_name}: {e}")
             return {
@@ -2368,8 +2421,27 @@ async def labelsapp_live_queue(
                 "total": 0,
                 "items": [],
             }
+        if (
+            isinstance(e, RuntimeError)
+            or "database unavailable" in err_text
+            or "ssl connection has been closed unexpectedly" in err_text
+            or "could not connect to server" in err_text
+        ):
+            logger.warning(f"Live queue DB unavailable for {table_name}: {e}")
+            return {
+                "sucursal": sucursal_slug,
+                "tabla": table_name,
+                "total": 0,
+                "items": [],
+            }
         logger.error(f"Error fetching labelsapp live queue: {e}")
         raise HTTPException(status_code=500, detail="Error consultando la cola en tiempo real")
+    finally:
+        if db is not None:
+            try:
+                DatabasePool.return_connection(db)
+            except Exception:
+                pass
 
 
 @app.get("/api/v1/labelsapp/pending-queue")
@@ -2378,26 +2450,43 @@ async def labelsapp_pending_queue(
     username: Optional[str] = None,
     usuario_id: Optional[int] = None,
     sucursal: Optional[str] = None,
-    db=Depends(get_db)
 ):
     """Obtener la cola pendiente (en espera) por sucursal para facturador."""
     sucursal_slug = "principal"
     table_name = _safe_table_for_sucursal(sucursal_slug)
+    db = None
     try:
         limit = max(1, min(int(limit or 80), 250))
-        sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
+
+        # Evita tocar DB si la sucursal ya viene en el request.
+        if (sucursal or "").strip():
+            sucursal_slug = _normalize_sucursal_slug(str(sucursal))
+        elif username or usuario_id:
+            db = DatabasePool.get_connection()
+            sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
+
         table_name = _safe_table_for_sucursal(sucursal_slug)
 
-        if not _pedidos_table_exists(db, table_name):
-            return {
-                "sucursal": sucursal_slug,
-                "tabla": table_name,
-                "total": 0,
-                "items": [],
-            }
+        cache_key = (table_name, limit)
+        items = _queue_cache_get("pending", cache_key)
+        if items is None:
+            if db is None:
+                db = DatabasePool.get_connection()
 
-        _set_local_pg_timeouts(db, statement_ms=8000, lock_ms=1200)
-        items = _get_labelsapp_pending_queue(db, table_name, limit=limit)
+            if not _pedidos_table_exists(db, table_name):
+                return {
+                    "sucursal": sucursal_slug,
+                    "tabla": table_name,
+                    "total": 0,
+                    "items": [],
+                }
+
+            with _labelsapp_pending_fetch_lock:
+                items = _queue_cache_get("pending", cache_key)
+                if items is None:
+                    _set_local_pg_timeouts(db, statement_ms=2500, lock_ms=500)
+                    items = _get_labelsapp_pending_queue(db, table_name, limit=limit)
+                    _queue_cache_set("pending", cache_key, items)
 
         return {
             "sucursal": sucursal_slug,
@@ -2408,6 +2497,7 @@ async def labelsapp_pending_queue(
     except HTTPException:
         raise
     except Exception as e:
+        err_text = str(e).lower()
         if getattr(e, "pgcode", "") in {"57014", "55P03"}:
             logger.warning(f"Pending queue timeout/lock for {table_name}: {e}")
             return {
@@ -2416,8 +2506,27 @@ async def labelsapp_pending_queue(
                 "total": 0,
                 "items": [],
             }
+        if (
+            isinstance(e, RuntimeError)
+            or "database unavailable" in err_text
+            or "ssl connection has been closed unexpectedly" in err_text
+            or "could not connect to server" in err_text
+        ):
+            logger.warning(f"Pending queue DB unavailable for {table_name}: {e}")
+            return {
+                "sucursal": sucursal_slug,
+                "tabla": table_name,
+                "total": 0,
+                "items": [],
+            }
         logger.error(f"Error fetching labelsapp pending queue: {e}")
         raise HTTPException(status_code=500, detail="Error consultando la cola en espera")
+    finally:
+        if db is not None:
+            try:
+                DatabasePool.return_connection(db)
+            except Exception:
+                pass
 
 
 @app.get("/api/v1/labelsapp/factura/{id_factura}/items")
