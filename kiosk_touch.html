@@ -501,6 +501,13 @@
             background: #ffffff;
         }
 
+        .cover-card .catalog-image.is-selectable {
+            cursor: pointer;
+            transition: transform 160ms ease;
+        }
+        .cover-card .catalog-image.is-selectable:hover { transform: scale(1.02); }
+        .cover-card .catalog-image.is-selectable:active { transform: scale(0.98); }
+
         .cover-card.side {
             opacity: 0.74;
             transform: scale(0.88);
@@ -1728,7 +1735,7 @@
                     </article>
 
                     <article class="cover-card center">
-                        <img class="catalog-image" src="${escapeHtml(imageFor(current))}" alt="${escapeHtml(current.name || "Producto")}" />
+                        <img class="catalog-image is-selectable" src="${escapeHtml(imageFor(current))}" alt="${escapeHtml(current.name || "Producto")}" role="button" tabindex="0" title="Toca para seleccionar este producto" onclick="openChooser(${idx})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openChooser(${idx});}" />
                         <div class="center-body">
                             <div class="product-position">Producto ${idx + 1} de ${total}</div>
                             <div class="name">${escapeHtml(current.name || "Producto")}</div>
@@ -1737,7 +1744,6 @@
                                 <div><strong>Capacidad de cobertura:</strong> ${escapeHtml(current.coverage || "No especificada")}</div>
                                 <div><strong>Tipo:</strong> ${escapeHtml(current.type || "No especificado")}</div>
                             </div>
-                            <button class="btn alt" type="button" onclick="openChooser(${idx})">Seleccionar</button>
                         </div>
                     </article>
 
