@@ -263,19 +263,6 @@
             padding: 0;
             overflow: hidden;
             background: linear-gradient(180deg, #ffffff 0%, #faf7f0 100%);
-            cursor: pointer;
-            position: relative;
-            -webkit-tap-highlight-color: transparent;
-            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-        }
-
-        .color-card:active {
-            transform: scale(0.97);
-        }
-
-        .color-card:focus-visible {
-            outline: 3px solid #2563eb;
-            outline-offset: 2px;
         }
 
         .code {
@@ -386,7 +373,10 @@
             color: #f8fbff;
         }
 
-
+        .color-select {
+            width: calc(100% - 24px);
+            margin: 0 12px 12px;
+        }
 
         .catalog-image {
             width: 100%;
@@ -401,26 +391,6 @@
             display: grid;
             grid-template-columns: 1fr;
             gap: 10px;
-            touch-action: pan-y;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        .product-coverflow.is-swiping .coverflow-track {
-            transition: none;
-        }
-
-        .product-coverflow .coverflow-track {
-            transition: transform 0.22s ease;
-            will-change: transform;
-        }
-
-        .swipe-hint {
-            text-align: center;
-            font-size: 0.78rem;
-            color: var(--muted);
-            margin-top: 4px;
-            opacity: 0.85;
         }
 
         .coverflow-track {
@@ -1551,8 +1521,9 @@
                         </div>
                         <div class="palette-cards">
                             ${groupItems.map(({ item, index }) => `
-                                <article class="card color-card" role="button" tabindex="0" aria-label="Seleccionar ${escapeHtml(item.nombre || item.codigo || "color")}" onclick="selectColor(${index})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectColor(${index});}">
+                                <article class="card color-card">
                                     ${swatchFor(item)}
+                                    <button class="btn alt color-select" type="button" onclick="selectColor(${index})">Seleccionar</button>
                                 </article>
                             `).join("")}
                         </div>
@@ -1671,7 +1642,7 @@
 
             root.className = "product-coverflow";
             root.innerHTML = `
-                <div class="coverflow-track" data-coverflow-track>
+                <div class="coverflow-track">
                     <article class="cover-card side" role="button" tabindex="0" onclick="prevCatalogProduct()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();prevCatalogProduct();}">
                         <img class="catalog-image" src="${escapeHtml(imageFor(prev))}" alt="${escapeHtml(prev.name || "Producto anterior")}" />
                         <div class="name">${escapeHtml(prev.name || "Anterior")}</div>
@@ -1696,67 +1667,7 @@
                         <div class="name">${escapeHtml(next.name || "Siguiente")}</div>
                     </article>
                 </div>
-                <div class="swipe-hint">Desliza para cambiar de producto</div>
             `;
-            attachCoverflowSwipe(root);
-        }
-
-        function attachCoverflowSwipe(root) {
-            const track = root.querySelector("[data-coverflow-track]");
-            if (!track) return;
-            let startX = 0;
-            let startY = 0;
-            let dx = 0;
-            let active = false;
-            let pointerId = null;
-            const THRESHOLD = 50;
-            const MAX_TRANSLATE = 120;
-
-            const reset = () => {
-                root.classList.remove("is-swiping");
-                track.style.transform = "";
-                active = false;
-                pointerId = null;
-                dx = 0;
-            };
-
-            track.addEventListener("pointerdown", (ev) => {
-                if (ev.pointerType === "mouse" && ev.button !== 0) return;
-                active = true;
-                pointerId = ev.pointerId;
-                startX = ev.clientX;
-                startY = ev.clientY;
-                dx = 0;
-                root.classList.add("is-swiping");
-                try { track.setPointerCapture(ev.pointerId); } catch (_) {}
-            });
-
-            track.addEventListener("pointermove", (ev) => {
-                if (!active || ev.pointerId !== pointerId) return;
-                const cdx = ev.clientX - startX;
-                const cdy = ev.clientY - startY;
-                if (Math.abs(cdy) > Math.abs(cdx) && Math.abs(cdy) > 16) {
-                    reset();
-                    return;
-                }
-                dx = Math.max(-MAX_TRANSLATE, Math.min(MAX_TRANSLATE, cdx));
-                track.style.transform = `translateX(${dx}px)`;
-            });
-
-            const finish = (ev) => {
-                if (!active || (ev && ev.pointerId !== pointerId)) return;
-                const moved = dx;
-                reset();
-                if (moved <= -THRESHOLD) {
-                    nextCatalogProduct();
-                } else if (moved >= THRESHOLD) {
-                    prevCatalogProduct();
-                }
-            };
-
-            track.addEventListener("pointerup", finish);
-            track.addEventListener("pointercancel", finish);
-            track.addEventListener("pointerleave", finish);
         }
 
         function prevCatalogProduct() {
