@@ -3,6 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+    (function(){
+        try {
+            var raw = localStorage.getItem('currentUser');
+            var active = localStorage.getItem('sessionActive');
+            if (!raw || raw === 'null' || active !== 'true') { window.location.replace('/'); return; }
+            var u = JSON.parse(raw);
+            var rol = (u.rol || '').toString().trim().toLowerCase();
+            var username = (u.username || '').toString().trim().toLowerCase();
+            var isKioskClient = (username === 'cliente' && rol !== 'cliente');
+            var allowed = ['administrador','analista'];
+            if (rol === 'administrador') return;
+            if (allowed.indexOf(rol) !== -1) return;
+            var home = '/';
+            if (rol === 'analista') home = '/employees';
+            else if (rol === 'facturador' || rol === 'cajero') home = '/labelsapp-web';
+            else if (rol === 'cliente' || isKioskClient) home = '/cliente';
+            window.location.replace(home);
+        } catch(e) { window.location.replace('/'); }
+    })();
+    </script>
     <title>EMPLEADOS - PaintFlow</title>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>

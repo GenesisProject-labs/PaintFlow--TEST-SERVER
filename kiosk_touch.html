@@ -3,6 +3,25 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+    (function(){
+        try {
+            var raw = localStorage.getItem('currentUser');
+            var active = localStorage.getItem('sessionActive');
+            if (!raw || raw === 'null' || active !== 'true') { window.location.replace('/'); return; }
+            var u = JSON.parse(raw);
+            var rol = (u.rol || '').toString().trim().toLowerCase();
+            var username = (u.username || '').toString().trim().toLowerCase();
+            var isKioskClient = (username === 'cliente' && rol !== 'cliente');
+            if (rol === 'administrador') return;
+            if (rol === 'cliente' || isKioskClient) return;
+            var home = '/';
+            if (rol === 'analista') home = '/employees';
+            else if (rol === 'facturador' || rol === 'cajero') home = '/labelsapp-web';
+            window.location.replace(home);
+        } catch(e) { window.location.replace('/'); }
+    })();
+    </script>
     <title>PaintFlow Cliente</title>
     <style>
         :root {
@@ -1775,7 +1794,6 @@
             renderSelectedColorStrip();
             renderCatalog();
             setFlowStep("product");
-            setStatus("Color elegido. Ahora selecciona el producto.", "ok");
         }
 
         function backToColorStep() {
