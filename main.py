@@ -214,75 +214,6 @@ logger = logging.getLogger(__name__)
 ACTIVE_SESSIONS = {}
 SHERWIN_SWATCH_CACHE: Dict[str, Dict[str, Any]] = {}
 SHERWIN_SWATCH_CACHE_TTL_SECONDS = 3600
-SHERWIN_SWATCH_CACHE_LOCK = Lock()
-SHERWIN_UPSTREAM_MAX_CONCURRENCY = 6
-SHERWIN_UPSTREAM_SEMAPHORE = asyncio.Semaphore(SHERWIN_UPSTREAM_MAX_CONCURRENCY)
-SHERWIN_CIRCUIT_LOCK = Lock()
-SHERWIN_CIRCUIT_FAILURE_THRESHOLD = 5
-SHERWIN_CIRCUIT_OPEN_SECONDS = 20
-SHERWIN_CIRCUIT_STATE: Dict[str, Any] = {
-    "failures": 0,
-    "open_until": 0.0,
-}
-
-SHERWIN_LOCAL_CATALOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sherwin_colors_cache.json")
-SHERWIN_LOCAL_CATALOG_LOCK = Lock()
-SHERWIN_LOCAL_CATALOG_STATE: Dict[str, Any] = {
-    "mtime": 0.0,
-    "payload": None,
-    "by_code": {},
-}
-
-
-def _load_local_sherwin_catalog() -> Dict[str, Any]:
-    """Lee sherwin_colors_cache.json (lazy, con cache + invalidacion por mtime)."""
-    path = SHERWIN_LOCAL_CATALOG_PATH
-    try:
-        mtime = os.path.getmtime(path)
-    except OSError:
-        with SHERWIN_LOCAL_CATALOG_LOCK:
-            SHERWIN_LOCAL_CATALOG_STATE.update({"mtime": 0.0, "payload": None, "by_code": {}})
-        return {"fetched_at": 0, "total": 0, "colors": []}
-
-    with SHERWIN_LOCAL_CATALOG_LOCK:
-        if SHERWIN_LOCAL_CATALOG_STATE["payload"] and SHERWIN_LOCAL_CATALOG_STATE["mtime"] == mtime:
-            return SHERWIN_LOCAL_CATALOG_STATE["payload"]
-
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception as e:
-        logger.warning(f"No se pudo leer catalogo Sherwin local: {e}")
-        return {"fetched_at": 0, "total": 0, "colors": []}
-
-    colors = data.get("colors") or []
-    by_code: Dict[str, Dict[str, Any]] = {}
-    for c in colors:
-        if not isinstance(c, dict):
-            continue
-        code = str(c.get("code") or "").upper().replace(" ", "")
-        if code:
-            by_code[code] = c
-
-    payload = {
-        "fetched_at": int(data.get("fetched_at") or 0),
-        "total": len(colors),
-        "colors": colors,
-    }
-    with SHERWIN_LOCAL_CATALOG_LOCK:
-        SHERWIN_LOCAL_CATALOG_STATE.update({"mtime": mtime, "payload": payload, "by_code": by_code})
-    return payload
-
-
-def _lookup_local_sherwin(code: str) -> Optional[Dict[str, Any]]:
-    if not code:
-        return None
-    _load_local_sherwin_catalog()
-    key = re.sub(r"[^0-9A-Z]", "", str(code).upper().replace("SW", ""))
-    if not key:
-        return None
-    with SHERWIN_LOCAL_CATALOG_LOCK:
-        return SHERWIN_LOCAL_CATALOG_STATE["by_code"].get(key)
 
 app = FastAPI(title=settings.API_TITLE, version=settings.API_VERSION, description="API PaintFlow")
 
@@ -1971,74 +1902,25 @@ def _cached_sherwin_swatch_get(sw_code: str) -> Optional[Dict[str, Any]]:
     key = (sw_code or "").strip().upper()
     if not key:
         return None
-    with SHERWIN_SWATCH_CACHE_LOCK:
-        entry = SHERWIN_SWATCH_CACHE.get(key)
-        if not entry:
-            return None
-        if (time.time() - float(entry.get("ts") or 0)) > SHERWIN_SWATCH_CACHE_TTL_SECONDS:
-            SHERWIN_SWATCH_CACHE.pop(key, None)
-            return None
-        return dict(entry)
+    entry = SHERWIN_SWATCH_CACHE.get(key)
+    if not entry:
+        return None
+    if (time.time() - float(entry.get("ts") or 0)) > SHERWIN_SWATCH_CACHE_TTL_SECONDS:
+        SHERWIN_SWATCH_CACHE.pop(key, None)
+        return None
+    return entry
 
 
 def _cached_sherwin_swatch_set(sw_code: str, name: str, hex_value: str, found: bool) -> None:
     key = (sw_code or "").strip().upper()
     if not key:
         return
-    with SHERWIN_SWATCH_CACHE_LOCK:
-        SHERWIN_SWATCH_CACHE[key] = {
-            "ts": time.time(),
-            "name": (name or "").strip() or f"SW {key}",
-            "hex": (hex_value or "").strip(),
-            "found": bool(found),
-        }
-
-
-def _execute_sherwin_search_request(req: UrlRequest, timeout_seconds: int) -> Dict[str, Any]:
-    with urlopen(req, timeout=timeout_seconds) as resp:
-        return {
-            "status_code": int(getattr(resp, "status", 200) or 200),
-            "body": resp.read().decode("utf-8", errors="replace"),
-        }
-
-
-def _sherwin_circuit_is_open() -> bool:
-    with SHERWIN_CIRCUIT_LOCK:
-        return float(SHERWIN_CIRCUIT_STATE.get("open_until") or 0) > time.time()
-
-
-def _sherwin_circuit_register_success() -> None:
-    with SHERWIN_CIRCUIT_LOCK:
-        SHERWIN_CIRCUIT_STATE["failures"] = 0
-        SHERWIN_CIRCUIT_STATE["open_until"] = 0.0
-
-
-def _sherwin_circuit_register_failure() -> None:
-    with SHERWIN_CIRCUIT_LOCK:
-        failures = int(SHERWIN_CIRCUIT_STATE.get("failures") or 0) + 1
-        SHERWIN_CIRCUIT_STATE["failures"] = failures
-        if failures >= SHERWIN_CIRCUIT_FAILURE_THRESHOLD:
-            SHERWIN_CIRCUIT_STATE["open_until"] = time.time() + SHERWIN_CIRCUIT_OPEN_SECONDS
-
-
-async def _fetch_sherwin_swatch_async(sw_code: str, lng: str, corev: str, timeout_seconds: int) -> Dict[str, Any]:
-    if _sherwin_circuit_is_open():
-        raise RuntimeError("Sherwin circuit open")
-
-    async with SHERWIN_UPSTREAM_SEMAPHORE:
-        try:
-            data = await asyncio.to_thread(
-                _fetch_sherwin_swatch,
-                sw_code,
-                lng,
-                corev,
-                timeout_seconds,
-            )
-            _sherwin_circuit_register_success()
-            return data
-        except Exception:
-            _sherwin_circuit_register_failure()
-            raise
+    SHERWIN_SWATCH_CACHE[key] = {
+        "ts": time.time(),
+        "name": (name or "").strip() or f"SW {key}",
+        "hex": (hex_value or "").strip(),
+        "found": bool(found),
+    }
 
 
 def _fetch_sherwin_swatch(sw_code: str, lng: str = "en-US", corev: str = "7.16.0", timeout_seconds: int = 8) -> Dict[str, Any]:
@@ -2110,10 +1992,7 @@ async def sherwin_color_search(
     if not query:
         raise HTTPException(status_code=400, detail="query es requerido")
 
-    timeout_seconds = max(3, min(int(timeout_seconds or 12), 20))
-
-    if _sherwin_circuit_is_open():
-        return SherwinColorSearchResponse(count=0, results=[])
+    timeout_seconds = max(3, min(int(timeout_seconds or 12), 25))
 
     params = {
         "query": query,
@@ -2132,13 +2011,11 @@ async def sherwin_color_search(
     )
 
     try:
-        async with SHERWIN_UPSTREAM_SEMAPHORE:
-            upstream_response = await asyncio.to_thread(_execute_sherwin_search_request, req, timeout_seconds)
-        status_code = int(upstream_response.get("status_code") or 200)
-        body = str(upstream_response.get("body") or "")
+        with urlopen(req, timeout=timeout_seconds) as resp:
+            status_code = int(getattr(resp, "status", 200) or 200)
+            body = resp.read().decode("utf-8", errors="replace")
 
         if status_code >= 400:
-            _sherwin_circuit_register_failure()
             raise HTTPException(status_code=502, detail="Sherwin API devolvio error")
 
         raw = json.loads(body or "{}")
@@ -2155,8 +2032,6 @@ async def sherwin_color_search(
             except Exception:
                 continue
 
-        _sherwin_circuit_register_success()
-
         return SherwinColorSearchResponse(
             count=_to_int(raw.get("count") if isinstance(raw, dict) else len(typed_results), len(typed_results)),
             results=typed_results,
@@ -2164,7 +2039,6 @@ async def sherwin_color_search(
     except HTTPException:
         raise
     except Exception as e:
-        _sherwin_circuit_register_failure()
         logger.error(f"Error querying Sherwin Prism API: {e}")
         raise HTTPException(status_code=502, detail="No se pudo consultar Sherwin API")
 
@@ -2177,7 +2051,6 @@ async def sherwin_swatches(
     timeout_seconds: int = 8,
 ):
     """Obtiene muestras de color (nombre + hex) para varios codigos SW."""
-    timeout_seconds = max(3, min(int(timeout_seconds or 8), 20))
     parts = [p.strip() for p in (codes or "").split(",") if p.strip()]
     if not parts:
         raise HTTPException(status_code=400, detail="codes es requerido")
@@ -2193,113 +2066,15 @@ async def sherwin_swatches(
         if len(clean_codes) >= 40:
             break
 
-    if _sherwin_circuit_is_open():
-        items: List[SherwinSwatchItem] = []
-        for code in clean_codes:
-            local = _lookup_local_sherwin(code)
-            if local and local.get("hex"):
-                items.append(SherwinSwatchItem(
-                    code=code,
-                    name=str(local.get("name") or f"SW {code}"),
-                    hex=str(local.get("hex") or ""),
-                    found=True,
-                    cached=True,
-                ))
-                continue
-            cached = _cached_sherwin_swatch_get(code)
-            if cached:
-                items.append(SherwinSwatchItem(
-                    code=code,
-                    name=str(cached.get("name") or f"SW {code}"),
-                    hex=str(cached.get("hex") or ""),
-                    found=bool(cached.get("found")),
-                    cached=True,
-                ))
-            else:
-                items.append(SherwinSwatchItem(code=code, name=f"SW {code}", hex="", found=False, cached=False))
-        return SherwinSwatchBatchResponse(total=len(items), items=items)
-
     items: List[SherwinSwatchItem] = []
-    missing_codes: List[str] = []
     for code in clean_codes:
-        local = _lookup_local_sherwin(code)
-        if local and local.get("hex"):
-            items.append(SherwinSwatchItem(
-                code=code,
-                name=str(local.get("name") or f"SW {code}"),
-                hex=str(local.get("hex") or ""),
-                found=True,
-                cached=True,
-            ))
-        else:
-            missing_codes.append(code)
-
-    if not missing_codes:
-        return SherwinSwatchBatchResponse(total=len(items), items=items)
-
-    tasks = [
-        _fetch_sherwin_swatch_async(code, lng=lng, corev=corev, timeout_seconds=timeout_seconds)
-        for code in missing_codes
-    ]
-    fetched = await asyncio.gather(*tasks, return_exceptions=True)
-
-    for code, data in zip(missing_codes, fetched):
         try:
-            if isinstance(data, Exception):
-                raise data
+            data = _fetch_sherwin_swatch(code, lng=lng, corev=corev, timeout_seconds=timeout_seconds)
             items.append(SherwinSwatchItem(**data))
         except Exception:
             items.append(SherwinSwatchItem(code=code, name=f"SW {code}", hex="", found=False, cached=False))
 
     return SherwinSwatchBatchResponse(total=len(items), items=items)
-
-
-@app.get("/api/v1/sherwin/catalog")
-async def sherwin_local_catalog(limit: int = 0, offset: int = 0):
-    """Catalogo Sherwin pre-descargado y servido desde disco (sin tocar upstream)."""
-    payload = _load_local_sherwin_catalog()
-    colors = payload.get("colors") or []
-    total = len(colors)
-    if limit and limit > 0:
-        start = max(0, int(offset or 0))
-        end = start + int(limit)
-        colors = colors[start:end]
-    return {
-        "fetched_at": payload.get("fetched_at"),
-        "total": total,
-        "returned": len(colors),
-        "offset": int(offset or 0),
-        "colors": colors,
-    }
-
-
-@app.get("/api/v1/sherwin/local/search")
-async def sherwin_local_search(query: str = "", limit: int = 50):
-    """Busqueda en memoria sobre el catalogo local (code, name, families)."""
-    payload = _load_local_sherwin_catalog()
-    colors = payload.get("colors") or []
-    q = (query or "").strip().lower()
-    if not q:
-        return {"total": 0, "results": []}
-
-    compact = re.sub(r"[^0-9a-z]", "", q)
-    matches: List[Dict[str, Any]] = []
-    for c in colors:
-        code = str(c.get("code") or "").lower()
-        name = str(c.get("name") or "").lower()
-        if compact and compact in code:
-            matches.append(c)
-            continue
-        if q in name:
-            matches.append(c)
-            continue
-        families = [str(f or "").lower() for f in (c.get("families") or [])]
-        if any(q in f for f in families):
-            matches.append(c)
-
-    if limit and limit > 0:
-        matches = matches[: int(limit)]
-    return {"total": len(matches), "results": matches}
 
 
 @app.get("/api/v1/labelsapp/personalizados")

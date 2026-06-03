@@ -186,59 +186,8 @@
             padding-right: 4px;
         }
 
-        .palette-groups {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            max-height: 74vh;
-            overflow: auto;
-            padding-right: 4px;
-        }
-
-        .palette-group {
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            background: #ffffff;
-            padding: 12px;
-            box-shadow: 0 6px 14px rgba(17, 36, 60, 0.06);
-        }
-
-        .palette-group-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            padding: 0 2px;
-        }
-
-        .palette-title {
-            margin: 0;
-            font-size: 0.95rem;
-            font-weight: 800;
-            color: #15385c;
-            letter-spacing: 0.02em;
-            text-transform: uppercase;
-        }
-
-        .palette-count {
-            font-size: 0.78rem;
-            color: #4f6887;
-            background: #eef5ff;
-            border: 1px solid #d5e6fb;
-            border-radius: 999px;
-            padding: 0.18rem 0.5rem;
-            font-weight: 700;
-        }
-
-        .palette-cards {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
-        }
-
         @media (max-width: 1240px) {
             .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-            .palette-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
 
         .card {
@@ -1022,9 +971,6 @@
             if (!code) return null;
             const normalizedCode = code.toUpperCase().startsWith("SW") ? code.toUpperCase() : `SW ${code}`;
             const hex = normalizeHex((item && item.hex) || "");
-            const families = Array.isArray(item && item.colorFamilyNames)
-                ? item.colorFamilyNames.map((entry) => String(entry || "").trim()).filter(Boolean)
-                : [];
             return {
                 codigo: normalizedCode,
                 nombre: String((item && item.name) || `SW ${code}`).trim(),
@@ -1033,7 +979,6 @@
                 personalizado: false,
                 sherwin: true,
                 hex,
-                colorFamilyNames: families,
             };
         }
 
@@ -1393,77 +1338,6 @@
             `;
         }
 
-        function normalizePaletteLabel(raw) {
-            const value = normalizeText(raw || "");
-            if (!value) return "Otros";
-            if (value.includes("neutral") || value.includes("beige") || value.includes("taupe")) return "Neutros";
-            if (value.includes("white") || value.includes("blanco")) return "Blancos";
-            if (value.includes("gray") || value.includes("grey") || value.includes("gris")) return "Grises";
-            if (value.includes("red") || value.includes("rojo")) return "Rojos";
-            if (value.includes("orange") || value.includes("naranja")) return "Naranjas";
-            if (value.includes("yellow") || value.includes("amarillo")) return "Amarillos";
-            if (value.includes("green") || value.includes("verde")) return "Verdes";
-            if (value.includes("blue") || value.includes("azul")) return "Azules";
-            if (value.includes("purple") || value.includes("violet") || value.includes("morado") || value.includes("violeta")) return "Violetas";
-            return raw;
-        }
-
-        function resolveColorHex(item) {
-            const directHex = normalizeHex(item && item.hex);
-            if (directHex) return directHex;
-            const code = extractSwCode(item && item.codigo);
-            if (!code) return "";
-            return normalizeHex(state.colorByCode[code] && state.colorByCode[code].hex);
-        }
-
-        function paletteFromHex(hex) {
-            const raw = String(hex || "").trim().replace(/^#/, "");
-            if (!raw) return "Otros";
-            let normalized = raw;
-            if (raw.length === 3) normalized = raw.split("").map((c) => c + c).join("");
-            if (normalized.length !== 6) return "Otros";
-
-            const r = parseInt(normalized.slice(0, 2), 16);
-            const g = parseInt(normalized.slice(2, 4), 16);
-            const b = parseInt(normalized.slice(4, 6), 16);
-            if ([r, g, b].some((n) => Number.isNaN(n))) return "Otros";
-
-            const max = Math.max(r, g, b) / 255;
-            const min = Math.min(r, g, b) / 255;
-            const delta = max - min;
-            if (delta < 0.12) {
-                if (max > 0.9) return "Blancos";
-                if (max < 0.25) return "Neutros";
-                return "Grises";
-            }
-
-            let hue = 0;
-            const rr = r / 255;
-            const gg = g / 255;
-            const bb = b / 255;
-            if (max === rr) hue = ((gg - bb) / delta) % 6;
-            else if (max === gg) hue = ((bb - rr) / delta) + 2;
-            else hue = ((rr - gg) / delta) + 4;
-            hue = (hue * 60 + 360) % 360;
-
-            if (hue < 15 || hue >= 345) return "Rojos";
-            if (hue < 45) return "Naranjas";
-            if (hue < 70) return "Amarillos";
-            if (hue < 165) return "Verdes";
-            if (hue < 255) return "Azules";
-            if (hue < 345) return "Violetas";
-            return "Otros";
-        }
-
-        function resolvePaletteGroup(item) {
-            const families = Array.isArray(item && item.colorFamilyNames) ? item.colorFamilyNames : [];
-            if (families.length) {
-                const label = normalizePaletteLabel(families[0]);
-                if (String(label || "").trim()) return String(label).trim();
-            }
-            return paletteFromHex(resolveColorHex(item));
-        }
-
         function setFlowStep(step) {
             const colorStep = document.getElementById("colorStep");
             const productStep = document.getElementById("productStep");
@@ -1478,7 +1352,6 @@
         function renderColors() {
             const root = document.getElementById("colorStage");
             if (!root) return;
-            root.className = "cards";
             if (state.colorSearchPending && !state.colors.length) {
                 root.innerHTML = "<div class=\"card\">Buscando colores...</div>";
                 return;
@@ -1491,45 +1364,12 @@
             const visibleColors = state.colors.slice(0, MAX_VISIBLE_COLORS);
             const hiddenCount = Math.max(0, state.colors.length - visibleColors.length);
 
-            const entries = visibleColors.map((item, idx) => ({
-                item,
-                index: idx,
-                group: resolvePaletteGroup(item) || "Otros",
-            }));
-
-            const orderedGroups = ["Blancos", "Grises", "Neutros", "Rojos", "Naranjas", "Amarillos", "Verdes", "Azules", "Violetas", "Otros"];
-            const groups = new Map();
-            for (const entry of entries) {
-                const key = entry.group;
-                if (!groups.has(key)) groups.set(key, []);
-                groups.get(key).push(entry);
-            }
-
-            const orderedKeys = [
-                ...orderedGroups.filter((key) => groups.has(key)),
-                ...Array.from(groups.keys()).filter((key) => !orderedGroups.includes(key)),
-            ];
-
-            root.className = "palette-groups";
-            root.innerHTML = orderedKeys.map((groupKey) => {
-                const groupItems = groups.get(groupKey) || [];
-                return `
-                    <section class="palette-group">
-                        <div class="palette-group-head">
-                            <h3 class="palette-title">${escapeHtml(groupKey)}</h3>
-                            <span class="palette-count">${groupItems.length}</span>
-                        </div>
-                        <div class="palette-cards">
-                            ${groupItems.map(({ item, index }) => `
-                                <article class="card color-card">
-                                    ${swatchFor(item)}
-                                    <button class="btn alt color-select" type="button" onclick="selectColor(${index})">Seleccionar</button>
-                                </article>
-                            `).join("")}
-                        </div>
-                    </section>
-                `;
-            }).join("") + (hiddenCount > 0 ? `
+            root.innerHTML = visibleColors.map((item, idx) => `
+                <article class="card color-card">
+                    ${swatchFor(item)}
+                    <button class="btn alt color-select" type="button" onclick="selectColor(${idx})">Seleccionar</button>
+                </article>
+            `).join("") + (hiddenCount > 0 ? `
                 <article class="card">
                     <div class="name">Mostrando primeros ${visibleColors.length} colores</div>
                     <div class="meta">Refina la busqueda para ver los ${hiddenCount} colores restantes.</div>
@@ -1572,14 +1412,13 @@
             const requestToken = Date.now();
             state.latestColorSearchToken = requestToken;
             state.colorSearchPending = false;
-            const shouldCallSherwin = isSherwinCodeQuery(trimmed) || normalizeText(trimmed).length >= 3;
 
             applyLocalColorFilter(trimmed, {
                 suppressEmptyState: Boolean(trimmed),
                 requestToken
             });
 
-            if (!trimmed || state.colors.length || !shouldCallSherwin) {
+            if (!trimmed || state.colors.length) {
                 renderColors();
                 return;
             }
@@ -2038,58 +1877,6 @@
             }
         }
 
-        async function loadSherwinLocalCatalog() {
-            try {
-                const res = await fetch(`${API}/api/v1/sherwin/catalog`);
-                if (!res.ok) return;
-                const data = await res.json();
-                const colors = Array.isArray(data && data.colors) ? data.colors : [];
-                if (!colors.length) return;
-
-                const existingByCode = new Set();
-                for (const item of state.allColors) {
-                    const c = extractSwCode(item && item.codigo);
-                    if (c) existingByCode.add(c);
-                }
-
-                const additions = [];
-                for (const c of colors) {
-                    const rawCode = String((c && c.code) || "").trim();
-                    if (!rawCode) continue;
-                    const codeKey = rawCode.toUpperCase().replace(/[^0-9A-Z]/g, "");
-                    if (!codeKey || existingByCode.has(codeKey)) continue;
-                    const codigo = `SW ${codeKey}`;
-                    const nombre = String((c && c.name) || `SW ${codeKey}`).trim();
-                    const hex = normalizeHex((c && c.hex) || "");
-                    const families = Array.isArray(c && c.families) ? c.families.filter(Boolean) : [];
-                    const item = {
-                        codigo,
-                        nombre,
-                        base: "",
-                        ubicacion: "",
-                        personalizado: false,
-                        sherwin: true,
-                        hex,
-                        colorFamilyNames: families,
-                    };
-                    item.searchText = [codigo, nombre, ...families]
-                        .map(normalizeText)
-                        .join(" ");
-                    additions.push(item);
-                    existingByCode.add(codeKey);
-                    state.colorByCode[codeKey] = { name: nombre, hex };
-                }
-
-                if (additions.length) {
-                    state.allColors = state.allColors.concat(additions);
-                    const currentQuery = (document.getElementById("kioskQuery").value || "").trim();
-                    applyLocalColorFilter(currentQuery, { suppressEmptyState: Boolean(currentQuery) });
-                }
-            } catch (_) {
-                // silencioso: si falla, seguimos con el flujo normal
-            }
-        }
-
         let debounceTimer = null;
         let lastQuery = "";
 
@@ -2150,13 +1937,7 @@
             setFlowStep("color");
             renderColors();
             renderCart();
-            await Promise.all([
-                loadCatalog(),
-                (async () => {
-                    await loadColorList();
-                    await loadSherwinLocalCatalog();
-                })()
-            ]);
+            await Promise.all([loadCatalog(), loadColorList()]);
         })();
     </script>
 </body>
