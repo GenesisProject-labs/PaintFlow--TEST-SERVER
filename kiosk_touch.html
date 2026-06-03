@@ -500,7 +500,9 @@
             cursor: pointer;
             transition: transform 160ms ease, filter 160ms ease;
         }
-        .product-pickable:hover { transform: scale(1.02); filter: brightness(1.03); }
+        @media (hover: hover) and (pointer: fine) {
+            .product-pickable:hover { transform: scale(1.02); filter: brightness(1.03); }
+        }
         .product-pickable:active { transform: scale(0.98); }
 
         .cover-card.side {
@@ -1802,18 +1804,6 @@
             track.addEventListener("pointerup", finish);
             track.addEventListener("pointercancel", finish);
             track.addEventListener("pointerleave", finish);
-
-            // Desktop: scroll horizontal o vertical con la rueda cambia de producto
-            let wheelCooldown = 0;
-            root.addEventListener("wheel", (ev) => {
-                const delta = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
-                if (Math.abs(delta) < 20) return;
-                const now = Date.now();
-                if (now - wheelCooldown < 350) { ev.preventDefault(); return; }
-                wheelCooldown = now;
-                ev.preventDefault();
-                if (delta > 0) nextCatalogProduct(); else prevCatalogProduct();
-            }, { passive: false });
         }
 
         // Navegación con teclado (PC): ← → cuando se muestra el paso de producto
