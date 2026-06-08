@@ -1450,7 +1450,19 @@
             },
             "laca": {
                 terminaciones: ["Mate", "Semimate", "Brillo"],
-                presentaciones: ["1/8", "Cuarto", "Medio Galon", "Galon"]
+                presentaciones: ["1/8", "Cuarto", "Medio Galon", "3/4", "Galon"]
+            },
+            "monocapa": {
+                terminaciones: ["Mate", "Semimate", "Brillo"],
+                presentaciones: ["1/8", "Cuarto", "Medio Galon", "3/4", "Galon", "Cubeta"]
+            },
+            "uretano": {
+                terminaciones: ["Mate", "Semimate", "Brillo"],
+                presentaciones: ["1/8", "Cuarto", "Medio Galon", "3/4", "Galon", "Cubeta"]
+            },
+            "industrial": {
+                terminaciones: ["Mate", "Semimate", "Brillo"],
+                presentaciones: ["1/8", "Cuarto", "Medio Galon", "3/4", "Galon", "Cubeta"]
             },
             "esmalte kem": {
                 terminaciones: ["Mate", "Semimate", "Brillo"],
@@ -2345,6 +2357,7 @@
         function getSuffixByPresentacion(presentacion) {
             const p = normalize(presentacion);
             if (p === "1/8") return "1/8";
+            if (p === "3/4") return "3/4";
             if (p.includes("cuarto")) return "QT";
             if (p.includes("medio")) return "1/2";
             if (p.includes("galon")) return "1";
