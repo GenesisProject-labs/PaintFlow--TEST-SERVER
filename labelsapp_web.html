@@ -771,6 +771,44 @@
             justify-content: flex-start;
         }
 
+        .copyable-cell {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            max-width: 100%;
+        }
+        .copyable-cell .copyable-text {
+            user-select: text;
+            -webkit-user-select: text;
+            cursor: text;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .copy-btn {
+            border: 1px solid #d8e4f3;
+            background: #f7fbff;
+            color: #38516d;
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-size: 0.78rem;
+            line-height: 1;
+            cursor: pointer;
+            transition: background 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
+            flex: 0 0 auto;
+        }
+        .copy-btn:hover {
+            background: #e8f1fc;
+            color: #0e47a6;
+            border-color: #b9d2ee;
+        }
+        .copy-btn.copied {
+            background: #def6e3;
+            border-color: #9ed6ad;
+            color: #1f7c3b;
+            transform: scale(1.05);
+        }
+
         .labelsapp-queue-table td:nth-child(n+4) .queue-cell-content,
         .queue-cell-control,
         .queue-cell-action {
@@ -2235,6 +2273,44 @@
                 .replaceAll("'", "&#039;");
         }
 
+        function renderCopyableCell(value) {
+            const safe = escapeHtml(value);
+            const isEmpty = !value || value === "-";
+            if (isEmpty) return safe;
+            const attr = (value || "").toString().replaceAll('"', '&quot;');
+            return `<span class="copyable-cell"><span class="copyable-text">${safe}</span><button type="button" class="copy-btn" title="Copiar" data-copy="${attr}" onclick="event.stopPropagation(); copyCellValue(this)">📋</button></span>`;
+        }
+
+        async function copyCellValue(btn) {
+            if (!btn) return;
+            const text = btn.getAttribute("data-copy") || "";
+            if (!text) return;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    const ta = document.createElement("textarea");
+                    ta.value = text;
+                    ta.style.position = "fixed";
+                    ta.style.opacity = "0";
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(ta);
+                }
+                const original = btn.textContent;
+                btn.textContent = "✓";
+                btn.classList.add("copied");
+                setTimeout(() => {
+                    btn.textContent = original;
+                    btn.classList.remove("copied");
+                }, 1100);
+            } catch (_) {
+                /* silencioso */
+            }
+        }
+
         function setSelectOptions(selectId, values) {
             const select = document.getElementById(selectId);
             select.innerHTML = values.map(v => `<option value="${v}">${v}</option>`).join("");
@@ -3145,11 +3221,14 @@
             if (!queue.length) {
                 body.innerHTML = `<tr><td colspan="9" class="empty">No hay productos en la lista</td></tr>`;
             } else {
-                body.innerHTML = queue.map((item, idx) => `
+                body.innerHTML = queue.map((item, idx) => {
+                    const codigoBase = formatCodigoBaseForItem(item) || "-";
+                    const codigoTxt = item.codigo || "-";
+                    return `
                     <tr>
-                        <td ondblclick="editQueueItem(${idx})"><div class="queue-cell-content">${item.codigo}</div></td>
-                        <td><div class="queue-cell-content">${item.descripcion || "-"}</div></td>
-                        <td><div class="queue-cell-content">${item.producto}</div></td>
+                        <td ondblclick="editQueueItem(${idx})"><div class="queue-cell-content">${renderCopyableCell(codigoTxt)}</div></td>
+                        <td><div class="queue-cell-content">${escapeHtml(item.descripcion || "-")}</div></td>
+                        <td><div class="queue-cell-content">${escapeHtml(item.producto)}</div></td>
                         <td>
                             <div class="queue-cell-control">
                                 <select class="queue-inline-select" onchange="updateQueueTerminacion(${idx}, this.value)">
@@ -3164,12 +3243,13 @@
                                 </select>
                             </div>
                         </td>
-                        <td ondblclick="editQueueItem(${idx})"><div class="queue-cell-content">${item.cantidad}</div></td>
-                        <td><div class="queue-cell-content">${item.base || "-"}</div></td>
-                        <td><div class="queue-cell-content">${formatCodigoBaseForItem(item) || "-"}</div></td>
+                        <td ondblclick="editQueueItem(${idx})"><div class="queue-cell-content">${escapeHtml(String(item.cantidad))}</div></td>
+                        <td><div class="queue-cell-content">${escapeHtml(item.base || "-")}</div></td>
+                        <td><div class="queue-cell-content">${renderCopyableCell(codigoBase)}</div></td>
                         <td><div class="queue-cell-action"><button class="btn btn-danger" onclick="removeQueueItem(${idx})">Quitar</button></div></td>
                     </tr>
-                `).join("");
+                `;
+                }).join("");
             }
 
             const total = queue.reduce((acc, i) => acc + Number(i.cantidad || 0), 0);
@@ -3420,9 +3500,11 @@
                 return;
             }
 
-            body.innerHTML = kioskInbox.map((entry) => `
+            body.innerHTML = kioskInbox.map((entry) => {
+                const factura = entry.id_factura || entry.factura || "-";
+                return `
                 <tr>
-                    <td>${escapeHtml(entry.id_factura || entry.factura || "-")}</td>
+                    <td>${renderCopyableCell(factura)}</td>
                     <td>${escapeHtml(entry.id_cliente || "-")}</td>
                     <td>${Number(entry.total_items || entry.inserted || (entry.productos || entry.items || []).length || 0)}</td>
                     <td>${escapeHtml(new Date(entry.fecha_envio || Date.now()).toLocaleString())}</td>
@@ -3430,7 +3512,8 @@
                         <button class="btn btn-link" onclick="transferKioskEntry('${entry.id}')">Transferir</button>
                     </td>
                 </tr>
-            `).join("");
+            `;
+            }).join("");
         }
 
         async function loadKioskInbox() {
