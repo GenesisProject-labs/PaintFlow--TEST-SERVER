@@ -898,6 +898,164 @@
             .modal-grid { grid-template-columns: 1fr; }
             .cart-widget { right: 10px; top: 10px; }
         }
+
+        /* ---- Modal "Ver en pared" ---- */
+        .wall-preview-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(8, 12, 22, 0.86);
+            z-index: 9000;
+            align-items: center; justify-content: center;
+            padding: 16px;
+        }
+        .wall-preview-overlay.is-open { display: flex; }
+        .wall-preview-modal {
+            background: #0f172a;
+            border-radius: 18px;
+            max-width: 1100px;
+            width: 100%;
+            max-height: 95vh;
+            display: flex;
+            flex-direction: column;
+            color: #e2e8f0;
+            box-shadow: 0 30px 90px rgba(0,0,0,0.6);
+            overflow: hidden;
+        }
+        .wall-preview-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .wall-preview-head h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .wall-preview-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.06);
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+        }
+        .wall-preview-chip .swatch {
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.35);
+        }
+        .wall-preview-close {
+            background: rgba(255,255,255,0.12);
+            border: 0;
+            color: #fff;
+            font-size: 22px;
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .wall-preview-body {
+            padding: 16px 20px 20px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+            overflow: auto;
+        }
+        .wall-canvas-wrap {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 16 / 10;
+            min-height: 280px;
+        }
+        .wall-canvas-wrap canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .wall-canvas-empty {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            text-align: center;
+            color: #94a3b8;
+            padding: 24px;
+            font-size: 14px;
+        }
+        .wall-scene-picker {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 2px;
+        }
+        .wall-scene-btn {
+            border: 2px solid transparent;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #1e293b;
+            cursor: pointer;
+            min-width: 120px;
+            flex: 0 0 auto;
+            padding: 0;
+        }
+        .wall-scene-btn img {
+            width: 120px;
+            height: 72px;
+            object-fit: cover;
+            display: block;
+        }
+        .wall-scene-btn .label {
+            display: block;
+            font-size: 12px;
+            color: #cbd5f5;
+            padding: 4px 6px;
+            background: rgba(0,0,0,0.4);
+        }
+        .wall-scene-btn.is-active {
+            border-color: #38bdf8;
+        }
+        .wall-preview-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            flex-wrap: wrap;
+        }
+        .wall-preview-hint {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        .wall-preview-btn {
+            background: linear-gradient(135deg, #0ea5e9, #6366f1);
+            color: #fff;
+            border: 0;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .wall-preview-btn.subtle {
+            background: rgba(255,255,255,0.1);
+        }
+        .wall-preview-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #0ea5e9, #6366f1);
+            color: #fff;
+            border: 0;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 8px 0 0;
+        }
+        .wall-preview-cta .icon { font-size: 18px; }
     </style>
 </head>
 <body>
@@ -1009,6 +1167,34 @@
             <div class="modal-actions">
                 <button class="btn subtle" type="button" onclick="closeCheckoutModal()">Cancelar</button>
                 <button class="btn" type="button" onclick="confirmCheckoutSend()">Confirmar y enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal "Ver en pared": vista previa del color sobre fotos reales. -->
+    <div id="wallPreviewOverlay" class="wall-preview-overlay" onclick="closeWallPreview(event)">
+        <div class="wall-preview-modal" onclick="event.stopPropagation()">
+            <div class="wall-preview-head">
+                <h3>Cómo se vería en una pared</h3>
+                <div class="wall-preview-chip" id="wallPreviewChip">
+                    <span class="swatch" id="wallPreviewSwatch" style="background:#888"></span>
+                    <span id="wallPreviewLabel">—</span>
+                </div>
+                <button class="wall-preview-close" type="button" onclick="closeWallPreview()" aria-label="Cerrar">×</button>
+            </div>
+            <div class="wall-preview-body">
+                <div class="wall-canvas-wrap">
+                    <canvas id="wallCanvas"></canvas>
+                    <div class="wall-canvas-empty" id="wallCanvasEmpty">Cargando escenas…</div>
+                </div>
+                <div class="wall-scene-picker" id="wallScenePicker"></div>
+            </div>
+            <div class="wall-preview-footer">
+                <span class="wall-preview-hint">El color final puede variar según la luz, el tipo de pared y el acabado elegido.</span>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="wall-preview-btn subtle" type="button" onclick="downloadWallPreview()">Descargar imagen</button>
+                    <button class="wall-preview-btn" type="button" onclick="closeWallPreview()">Listo</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1736,6 +1922,18 @@
             const root = document.getElementById("selectedColorStrip");
             if (!root) return;
             root.innerHTML = "";
+            const idx = state.selectedColorIndex;
+            if (idx < 0 || idx >= state.colors.length) return;
+            const color = state.colors[idx] || {};
+            const hex = resolveColorHex(color);
+            if (!hex) return;
+            // Botón para abrir el visualizador "Ver en pared".
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "wall-preview-cta";
+            btn.innerHTML = '<span class="icon">🎨</span><span>Ver cómo se vería en una pared</span>';
+            btn.onclick = () => openWallPreview();
+            root.appendChild(btn);
         }
 
         function renderCatalog() {
@@ -2394,6 +2592,209 @@
                 })()
             ]);
         })();
+
+        /* ================================================================
+         * "Ver en pared": vista previa del color seleccionado sobre fotos
+         * reales. Las máscaras se generan offline con tools/build_wall_masks.py
+         * y se publican en /static/escenas/. El blend "color" del canvas
+         * conserva las sombras y luces de la pared real.
+         * ================================================================ */
+        const wallPreviewState = {
+            scenes: [],
+            loaded: false,
+            loading: null,
+            activeId: null,
+            baseImg: null,
+            maskImg: null,
+        };
+
+        async function _loadWallManifest() {
+            if (wallPreviewState.loaded) return wallPreviewState.scenes;
+            if (wallPreviewState.loading) return wallPreviewState.loading;
+            wallPreviewState.loading = (async () => {
+                try {
+                    const res = await fetch("/static/escenas/manifest.json", { cache: "no-store" });
+                    if (!res.ok) throw new Error("manifest no disponible");
+                    const data = await res.json();
+                    wallPreviewState.scenes = Array.isArray(data && data.scenes) ? data.scenes : [];
+                } catch (_) {
+                    wallPreviewState.scenes = [];
+                }
+                wallPreviewState.loaded = true;
+                return wallPreviewState.scenes;
+            })();
+            return wallPreviewState.loading;
+        }
+
+        function _loadImage(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error("No pude cargar " + src));
+                img.src = src;
+            });
+        }
+
+        function _selectedColorForPreview() {
+            const idx = state.selectedColorIndex;
+            if (idx < 0 || idx >= state.colors.length) return null;
+            const c = state.colors[idx] || {};
+            const hex = resolveColorHex(c);
+            if (!hex) return null;
+            return {
+                hex,
+                code: String(c.codigo || c.code || ""),
+                name: String(c.nombre || c.name || ""),
+            };
+        }
+
+        async function openWallPreview() {
+            const overlay = document.getElementById("wallPreviewOverlay");
+            const empty = document.getElementById("wallCanvasEmpty");
+            if (!overlay) return;
+
+            const color = _selectedColorForPreview();
+            if (!color) {
+                setStatus("Selecciona un color primero.", "warn");
+                return;
+            }
+
+            // Actualizar chip de color en el header.
+            const swatch = document.getElementById("wallPreviewSwatch");
+            const label = document.getElementById("wallPreviewLabel");
+            if (swatch) swatch.style.background = color.hex;
+            if (label) label.textContent = [color.code, color.name].filter(Boolean).join(" · ") || color.hex;
+
+            overlay.classList.add("is-open");
+            if (empty) {
+                empty.style.display = "flex";
+                empty.textContent = "Cargando escenas…";
+            }
+
+            const scenes = await _loadWallManifest();
+            if (!scenes.length) {
+                if (empty) {
+                    empty.style.display = "flex";
+                    empty.innerHTML = "Aún no hay escenas configuradas.<br>" +
+                        "El administrador puede agregarlas siguiendo " +
+                        "<code>tools/README_escenas.md</code>.";
+                }
+                _renderScenePicker([]);
+                return;
+            }
+
+            _renderScenePicker(scenes);
+            const initial = wallPreviewState.activeId && scenes.find(s => s.id === wallPreviewState.activeId)
+                ? wallPreviewState.activeId
+                : scenes[0].id;
+            await _activateScene(initial);
+        }
+
+        function closeWallPreview(ev) {
+            if (ev && ev.target && ev.target.id !== "wallPreviewOverlay" && ev.type === "click") return;
+            const overlay = document.getElementById("wallPreviewOverlay");
+            if (overlay) overlay.classList.remove("is-open");
+        }
+
+        function _renderScenePicker(scenes) {
+            const picker = document.getElementById("wallScenePicker");
+            if (!picker) return;
+            picker.innerHTML = "";
+            scenes.forEach(scene => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "wall-scene-btn" + (scene.id === wallPreviewState.activeId ? " is-active" : "");
+                btn.innerHTML = `
+                    <img src="${escapeHtml(scene.base)}" alt="${escapeHtml(scene.label || scene.id)}" loading="lazy" />
+                    <span class="label">${escapeHtml(scene.label || scene.id)}</span>
+                `;
+                btn.onclick = () => _activateScene(scene.id);
+                picker.appendChild(btn);
+            });
+        }
+
+        async function _activateScene(sceneId) {
+            const scene = wallPreviewState.scenes.find(s => s.id === sceneId);
+            if (!scene) return;
+            wallPreviewState.activeId = sceneId;
+            // Actualizar estilo activo en el picker.
+            const picker = document.getElementById("wallScenePicker");
+            if (picker) {
+                Array.from(picker.children).forEach((el, i) => {
+                    el.classList.toggle("is-active", wallPreviewState.scenes[i] && wallPreviewState.scenes[i].id === sceneId);
+                });
+            }
+
+            const empty = document.getElementById("wallCanvasEmpty");
+            if (empty) {
+                empty.style.display = "flex";
+                empty.textContent = "Cargando escena…";
+            }
+
+            try {
+                const [baseImg, maskImg] = await Promise.all([
+                    _loadImage(scene.base),
+                    _loadImage(scene.mask_paredes),
+                ]);
+                wallPreviewState.baseImg = baseImg;
+                wallPreviewState.maskImg = maskImg;
+                if (empty) empty.style.display = "none";
+                _paintWall();
+            } catch (e) {
+                if (empty) {
+                    empty.style.display = "flex";
+                    empty.textContent = "No pude cargar la escena (" + e.message + ").";
+                }
+            }
+        }
+
+        function _paintWall() {
+            const canvas = document.getElementById("wallCanvas");
+            const base = wallPreviewState.baseImg;
+            const mask = wallPreviewState.maskImg;
+            if (!canvas || !base || !mask) return;
+            const color = _selectedColorForPreview();
+            if (!color) return;
+
+            const w = base.naturalWidth || base.width;
+            const h = base.naturalHeight || base.height;
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+
+            // 1. Foto base.
+            ctx.globalCompositeOperation = "source-over";
+            ctx.drawImage(base, 0, 0, w, h);
+
+            // 2. Capa offscreen: color sólido recortado por la máscara (alpha).
+            const off = document.createElement("canvas");
+            off.width = w;
+            off.height = h;
+            const offCtx = off.getContext("2d");
+            offCtx.fillStyle = color.hex;
+            offCtx.fillRect(0, 0, w, h);
+            offCtx.globalCompositeOperation = "destination-in";
+            offCtx.drawImage(mask, 0, 0, w, h);
+
+            // 3. Aplicar con blend "color": conserva luminancia/sombras de la pared real
+            //    y toma el hue+saturación del color elegido. Es lo que hace Sherwin.
+            ctx.globalCompositeOperation = "color";
+            ctx.drawImage(off, 0, 0);
+            ctx.globalCompositeOperation = "source-over";
+        }
+
+        function downloadWallPreview() {
+            const canvas = document.getElementById("wallCanvas");
+            if (!canvas || !canvas.width) return;
+            const color = _selectedColorForPreview();
+            const slug = (wallPreviewState.activeId || "vista")
+                + (color ? "_" + (color.code || color.hex.replace("#", "")) : "");
+            const link = document.createElement("a");
+            link.download = `paintflow_${slug}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        }
     </script>
 </body>
 </html>
