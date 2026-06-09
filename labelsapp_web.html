@@ -1360,6 +1360,35 @@
 
     <script>
         const API = window.location.origin;
+
+        // Dedup de requests GET en vuelo: si la misma URL se solicita varias veces antes
+        // de responder, reutilizamos la misma Promise. Evita ráfagas que saturan el pool
+        // de conexiones del backend (causa raíz de timeouts y status 499 masivos).
+        const _inflightGets = new Map();
+        const _originalFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+            try {
+                const method = ((init && init.method) || (typeof input === "object" && input.method) || "GET").toUpperCase();
+                if (method !== "GET") return _originalFetch(input, init);
+                const url = (typeof input === "string") ? input : (input && input.url) || "";
+                if (!url) return _originalFetch(input, init);
+                const key = "GET " + url;
+                const existing = _inflightGets.get(key);
+                if (existing) {
+                    // Clonar la respuesta para que cada caller pueda leerla independiente.
+                    return existing.then(r => r.clone());
+                }
+                const promise = _originalFetch(input, init).finally(() => {
+                    // Liberar el slot apenas termine (ok o error); no cachear respuestas.
+                    setTimeout(() => _inflightGets.delete(key), 0);
+                });
+                _inflightGets.set(key, promise);
+                return promise.then(r => r.clone());
+            } catch (_) {
+                return _originalFetch(input, init);
+            }
+        };
+
         const productByCode = new Map();
         const codeIndex = [];
         const queue = [];

@@ -381,21 +381,61 @@ async def productos_catalog():
 
     return {"total": len(items), "productos": items}
 
+def _run_startup_schema_setup():
+    """Schema bootstrap ejecutado en background para no bloquear el bind del puerto.
+
+    Cualquier DDL que tome locks (DROP/CREATE TRIGGER, ALTER) debe correr aqui con
+    lock_timeout/statement_timeout para que un deploy nunca quede colgado esperando
+    un lock que tenga la instancia anterior durante el rollover de Render.
+    """
+    try:
+        db = DatabasePool.get_connection()
+    except Exception as e:
+        logger.error(f"[startup-setup] No se pudo obtener conexion: {e}")
+        return
+
+    try:
+        try:
+            with db.cursor() as cur:
+                # Fallar rapido si hay contencion en vez de colgar el deploy.
+                cur.execute("SET lock_timeout = '3s'")
+                cur.execute("SET statement_timeout = '30s'")
+        except Exception as e:
+            logger.warning(f"[startup-setup] No se pudo aplicar timeouts: {e}")
+
+        for step_name, fn in (
+            ("labelsapp_history_table", _ensure_labelsapp_history_table),
+            ("usuarios_cliente_role_constraint", _ensure_usuarios_cliente_role_constraint),
+            ("formula_backup", _ensure_formula_backup),
+            ("productsw_search_index", _ensure_productsw_search_index),
+        ):
+            try:
+                fn(db)
+                db.commit()
+                logger.info(f"[startup-setup] OK: {step_name}")
+            except Exception as e:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                logger.warning(f"[startup-setup] Skip {step_name}: {e}")
+    finally:
+        try:
+            DatabasePool.return_connection(db)
+        except Exception:
+            pass
+
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting PaintFlow API...")
     DatabasePool.init_pool()
+    # No bloquear el startup con DDL: si alguna tabla esta con lock por la instancia
+    # vieja durante un rollover, el bind del puerto debe ocurrir igual.
     try:
-        db = DatabasePool.get_connection()
-        try:
-            _ensure_labelsapp_history_table(db)
-            _ensure_usuarios_cliente_role_constraint(db)
-            _ensure_formula_backup(db)
-            db.commit()
-        finally:
-            DatabasePool.return_connection(db)
+        asyncio.get_event_loop().run_in_executor(None, _run_startup_schema_setup)
     except Exception as e:
-        logger.warning(f"Could not ensure labelsapp history table on startup: {e}")
+        logger.warning(f"No se pudo programar schema setup en background: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -1723,9 +1763,17 @@ async def labelsapp_products(
 ):
     """Buscar productos para LabelsApp Web"""
     try:
-        safe_limit = None if limit <= 0 else max(1, min(limit, 50000))
+        # Cap defensivo: limit absurdamente alto (ej. 50000) hace que un solo cliente
+        # mate el pool. 2000 es mas que suficiente para autocomplete.
+        safe_limit = None if limit <= 0 else max(1, min(limit, 2000))
         query = (q or "").strip()
         cur = db.cursor()
+        # Time-budget por request: si por alguna razon falta el indice trigram, evita
+        # que un ILIKE secuencial se coma 7 minutos y bloquee al resto.
+        try:
+            cur.execute("SET LOCAL statement_timeout = '8s'")
+        except Exception:
+            pass
         if query:
             params = (f"%{query}%", f"%{query}%")
             sql = """
@@ -4495,6 +4543,13 @@ async def list_colorantes(skip: int = 0, limit: int = 200, db=Depends(get_db)):
 
 def _ensure_formula_backup(db) -> None:
     cur = db.cursor()
+    # Defensa adicional aunque el caller ya haya seteado lock_timeout: este DDL
+    # nunca debe colgar el proceso. 2s alcanza cuando la tabla esta libre.
+    try:
+        cur.execute("SET LOCAL lock_timeout = '2s'")
+    except Exception:
+        pass
+
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS formulas_backup (
@@ -4551,14 +4606,83 @@ def _ensure_formula_backup(db) -> None:
         if not cur.fetchone():
             continue
         trigger_name = f"trg_{table_name}_formula_backup"
-        cur.execute(f"DROP TRIGGER IF EXISTS {trigger_name} ON {table_name}")
+        # Si ya existe el trigger apuntando a fn_formulas_backup, no lo recreamos:
+        # DROP TRIGGER requiere ACCESS EXCLUSIVE y puede colgar el startup en deploys
+        # mientras la instancia anterior sigue tocando la tabla.
         cur.execute(
-            f"""
-            CREATE TRIGGER {trigger_name}
-            AFTER INSERT OR UPDATE OR DELETE ON {table_name}
-            FOR EACH ROW EXECUTE FUNCTION fn_formulas_backup()
             """
+            SELECT 1
+            FROM pg_trigger t
+            JOIN pg_class c ON c.oid = t.tgrelid
+            JOIN pg_proc p ON p.oid = t.tgfoid
+            WHERE c.relname = %s
+              AND t.tgname = %s
+              AND p.proname = 'fn_formulas_backup'
+              AND NOT t.tgisinternal
+            """,
+            (table_name, trigger_name),
         )
+        if cur.fetchone():
+            continue
+        try:
+            cur.execute(f"DROP TRIGGER IF EXISTS {trigger_name} ON {table_name}")
+            cur.execute(
+                f"""
+                CREATE TRIGGER {trigger_name}
+                AFTER INSERT OR UPDATE OR DELETE ON {table_name}
+                FOR EACH ROW EXECUTE FUNCTION fn_formulas_backup()
+                """
+            )
+        except Exception as e:
+            # No abortar el setup completo si una tabla esta con lock; el proximo
+            # arranque lo reintenta. Lo importante es que el puerto siga abierto.
+            logger.warning(f"[startup-setup] No se pudo (re)crear trigger {trigger_name}: {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            # Re-abrir cursor: rollback invalida el actual.
+            cur = db.cursor()
+            try:
+                cur.execute("SET LOCAL lock_timeout = '2s'")
+            except Exception:
+                pass
+
+
+def _ensure_productsw_search_index(db) -> None:
+    """Crear indice trigram para acelerar /labelsapp/products (ILIKE %q%)."""
+    cur = db.cursor()
+    try:
+        cur.execute("SET LOCAL lock_timeout = '2s'")
+    except Exception:
+        pass
+    try:
+        cur.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+    except Exception as e:
+        logger.warning(f"[startup-setup] pg_trgm no disponible: {e}")
+        return
+    # IF NOT EXISTS evita el DROP innecesario; CONCURRENTLY no se puede dentro de
+    # transaccion, asi que usamos el modo normal pero con lock_timeout corto.
+    for stmt in (
+        "CREATE INDEX IF NOT EXISTS idx_productsw_codigo_trgm ON ProductSW USING gin (codigo gin_trgm_ops)",
+        "CREATE INDEX IF NOT EXISTS idx_productsw_nombre_trgm ON ProductSW USING gin (nombre gin_trgm_ops)",
+        "CREATE INDEX IF NOT EXISTS idx_productsw_activo_nombre ON ProductSW (activo, nombre)",
+    ):
+        try:
+            cur.execute(stmt)
+        except Exception as e:
+            logger.warning(f"[startup-setup] No se pudo crear indice: {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            cur = db.cursor()
+            try:
+                cur.execute("SET LOCAL lock_timeout = '2s'")
+            except Exception:
+                pass
+
+
 
 @app.get("/api/v1/formulas-normales")
 async def list_formulas_normales(request: Request, codigo: str = None, tipo: str = "galon", skip: int = 0, limit: int = 100, db=Depends(get_db)):
