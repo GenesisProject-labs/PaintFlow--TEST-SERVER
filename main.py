@@ -1111,9 +1111,57 @@ def _generate_order_id(id_factura: str, codigo: str, idx: int) -> str:
     return f"O{digest}"
 
 
+# Cache TTL para _calculate_codigo_base: el frontend (labelsapp_web.html)
+# llama POST /labelsapp/codigo-base por cada cambio de linea en el carrito,
+# y cada llamada hace hasta 8 SELECT a ReglasCodigo. Con 20 lineas y varios
+# operadores, esto saturaba el pool. El resultado solo depende de
+# (base, producto, terminacion) + datos relativamente estaticos en BD, asi
+# que cachear 5 min en RAM es seguro.
+_CODIGO_BASE_CACHE_TTL = 300.0
+_codigo_base_cache: Dict[tuple, tuple] = {}  # key -> (codigo, expires_at)
+_codigo_base_cache_lock = Lock()
+
+
+def _codigo_base_cache_get(key: tuple) -> Optional[str]:
+    now = time.time()
+    with _codigo_base_cache_lock:
+        entry = _codigo_base_cache.get(key)
+        if not entry:
+            return None
+        codigo, expires_at = entry
+        if expires_at < now:
+            _codigo_base_cache.pop(key, None)
+            return None
+        return codigo
+
+
+def _codigo_base_cache_set(key: tuple, codigo: str) -> None:
+    with _codigo_base_cache_lock:
+        # Limite duro para evitar growth ilimitado.
+        if len(_codigo_base_cache) > 5000:
+            _codigo_base_cache.clear()
+        _codigo_base_cache[key] = (codigo, time.time() + _CODIGO_BASE_CACHE_TTL)
+
+
 def _calculate_codigo_base(db, base: str, producto: str, terminacion: str) -> str:
     if not base or not producto or not terminacion:
         return ""
+
+    cache_key = (
+        (base or "").strip().lower(),
+        (producto or "").strip().lower(),
+        (terminacion or "").strip().lower(),
+    )
+    cached = _codigo_base_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    result = _calculate_codigo_base_uncached(db, base, producto, terminacion)
+    _codigo_base_cache_set(cache_key, result)
+    return result
+
+
+def _calculate_codigo_base_uncached(db, base: str, producto: str, terminacion: str) -> str:
 
     def _norm(s: str) -> str:
         text = (s or "").strip().lower()
@@ -4559,58 +4607,25 @@ async def list_colorantes(skip: int = 0, limit: int = 200, db=Depends(get_db)):
 
 
 def _ensure_formula_backup(db) -> None:
+    """DESACTIVADO: el trigger fn_formulas_backup crecia formulas_backup sin
+    limite y al final del dia el bloat saturaba el pool de Postgres -> 499s
+    en cascada en /labelsapp/send, /codigo-base, /products, etc.
+
+    Esta funcion ahora solo DROPEA los triggers existentes. La tabla
+    formulas_backup y la funcion fn_formulas_backup se conservan por si hace
+    falta revisar historico — pero ya no se escribe nada nuevo en ellas.
+
+    Para reactivar el backup en el futuro, hay que reescribir esto con purga
+    periodica (ej. DELETE WHERE changed_at < now() - interval '30 days') y
+    preferiblemente publicar a una cola async en vez de un trigger sincrono.
+    """
     cur = db.cursor()
-    # Defensa adicional aunque el caller ya haya seteado lock_timeout: este DDL
-    # nunca debe colgar el proceso. 2s alcanza cuando la tabla esta libre.
     try:
         cur.execute("SET LOCAL lock_timeout = '2s'")
     except Exception:
         pass
 
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS formulas_backup (
-            id BIGSERIAL PRIMARY KEY,
-            source_table VARCHAR(80) NOT NULL,
-            source_key VARCHAR(160),
-            operation VARCHAR(10) NOT NULL,
-            row_data JSONB NOT NULL,
-            changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_formulas_backup_changed_at ON formulas_backup(changed_at DESC)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_formulas_backup_source_table ON formulas_backup(source_table, changed_at DESC)")
-    cur.execute(
-        """
-        CREATE OR REPLACE FUNCTION fn_formulas_backup() RETURNS trigger AS $$
-        DECLARE
-            payload jsonb;
-            source_key_value text;
-        BEGIN
-            IF TG_OP = 'DELETE' THEN
-                payload := to_jsonb(OLD);
-            ELSE
-                payload := to_jsonb(NEW);
-            END IF;
-
-            source_key_value := COALESCE(
-                payload ->> 'id',
-                NULLIF(TRIM(COALESCE(payload ->> 'id_pintura', '') || '|' || COALESCE(payload ->> 'id_colorante', '')), '|')
-            );
-
-            INSERT INTO formulas_backup(source_table, source_key, operation, row_data, changed_at)
-            VALUES (TG_TABLE_NAME, source_key_value, TG_OP, payload, CURRENT_TIMESTAMP);
-
-            IF TG_OP = 'DELETE' THEN
-                RETURN OLD;
-            END IF;
-            RETURN NEW;
-        END;
-        $$ LANGUAGE plpgsql;
-        """
-    )
-
+    dropped = []
     for table_name in FORMULA_SOURCE_TABLES:
         cur.execute(
             """
@@ -4623,47 +4638,36 @@ def _ensure_formula_backup(db) -> None:
         if not cur.fetchone():
             continue
         trigger_name = f"trg_{table_name}_formula_backup"
-        # Si ya existe el trigger apuntando a fn_formulas_backup, no lo recreamos:
-        # DROP TRIGGER requiere ACCESS EXCLUSIVE y puede colgar el startup en deploys
-        # mientras la instancia anterior sigue tocando la tabla.
         cur.execute(
             """
             SELECT 1
             FROM pg_trigger t
             JOIN pg_class c ON c.oid = t.tgrelid
-            JOIN pg_proc p ON p.oid = t.tgfoid
             WHERE c.relname = %s
               AND t.tgname = %s
-              AND p.proname = 'fn_formulas_backup'
               AND NOT t.tgisinternal
             """,
             (table_name, trigger_name),
         )
-        if cur.fetchone():
+        if not cur.fetchone():
             continue
         try:
             cur.execute(f"DROP TRIGGER IF EXISTS {trigger_name} ON {table_name}")
-            cur.execute(
-                f"""
-                CREATE TRIGGER {trigger_name}
-                AFTER INSERT OR UPDATE OR DELETE ON {table_name}
-                FOR EACH ROW EXECUTE FUNCTION fn_formulas_backup()
-                """
-            )
+            dropped.append(trigger_name)
         except Exception as e:
-            # No abortar el setup completo si una tabla esta con lock; el proximo
-            # arranque lo reintenta. Lo importante es que el puerto siga abierto.
-            logger.warning(f"[startup-setup] No se pudo (re)crear trigger {trigger_name}: {e}")
+            logger.warning(f"[startup-setup] No se pudo drop trigger {trigger_name}: {e}")
             try:
                 db.rollback()
             except Exception:
                 pass
-            # Re-abrir cursor: rollback invalida el actual.
             cur = db.cursor()
             try:
                 cur.execute("SET LOCAL lock_timeout = '2s'")
             except Exception:
                 pass
+
+    if dropped:
+        logger.info(f"[startup-setup] Triggers fn_formulas_backup desactivados: {dropped}")
 
 
 def _ensure_productsw_search_index(db) -> None:
