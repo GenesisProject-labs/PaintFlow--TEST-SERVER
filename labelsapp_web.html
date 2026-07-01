@@ -122,99 +122,6 @@
             box-shadow: 0 6px 18px rgba(22, 163, 74, 0.35);
         }
 
-        .catalog-card {
-            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-            border: 1px solid #a7f3d0;
-            border-radius: 14px;
-            padding: 18px 22px;
-            margin-bottom: 16px;
-            display: flex;
-            gap: 20px;
-            align-items: center;
-            flex-wrap: wrap;
-            box-shadow: 0 6px 18px rgba(16, 122, 87, 0.10);
-        }
-
-        .catalog-card .catalog-info {
-            flex: 1 1 260px;
-            min-width: 240px;
-        }
-
-        .catalog-card .catalog-title {
-            font-size: 1.1em;
-            font-weight: 700;
-            color: #065f46;
-            margin: 0 0 4px 0;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .catalog-card .catalog-sub {
-            font-size: 0.88em;
-            color: #047857;
-            margin: 0 0 8px 0;
-        }
-
-        .catalog-card .catalog-link-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .catalog-card .catalog-link-input {
-            flex: 1 1 260px;
-            padding: 8px 12px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-            font-size: 0.82em;
-            border: 1px solid #a7f3d0;
-            border-radius: 8px;
-            background: #fff;
-            color: #065f46;
-            min-width: 200px;
-        }
-
-        .catalog-card .catalog-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .catalog-card .catalog-btn {
-            padding: 10px 18px;
-            border-radius: 25px;
-            font-weight: 700;
-            font-size: 0.92em;
-            cursor: pointer;
-            border: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .catalog-card .catalog-btn-primary {
-            background: linear-gradient(135deg, #16a34a 0%, #0d7a37 100%);
-            color: #fff;
-            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.30);
-        }
-
-        .catalog-card .catalog-btn-primary:hover {
-            background: linear-gradient(135deg, #0d7a37 0%, #075521 100%);
-            transform: translateY(-2px);
-        }
-
-        .catalog-card .catalog-btn-secondary {
-            background: #fff;
-            color: #065f46;
-            border: 1px solid #a7f3d0;
-        }
-
-        .catalog-card .catalog-btn-secondary:hover {
-            background: #ecfdf5;
-        }
-
         .user-menu-container {
             position: relative;
         }
@@ -1242,25 +1149,6 @@
 
         <section class="card">
             <div class="card-head">Factura</div>
-            <div class="catalog-card">
-                <div class="catalog-info">
-                    <p class="catalog-title"><span aria-hidden="true">🎟️</span> Catalogo para clientes</p>
-                    <p class="catalog-sub">Sucursal: <strong id="catalogSucursalLabel">Cargando...</strong>. Compartilo por WhatsApp o email para que el cliente arme su pedido.</p>
-                    <div class="catalog-link-row">
-                        <input id="catalogPublicLink" class="catalog-link-input" type="text" readonly onclick="this.select()" placeholder="Link listo para copiar" />
-                    </div>
-                </div>
-                <div class="catalog-actions">
-                    <button class="catalog-btn catalog-btn-primary" type="button" onclick="abrirCatalogoPublico()">
-                        <span aria-hidden="true">↗</span>
-                        <span>Abrir catalogo</span>
-                    </button>
-                    <button class="catalog-btn catalog-btn-secondary" type="button" onclick="copiarCatalogoPublico()">
-                        <span aria-hidden="true">📋</span>
-                        <span>Copiar link</span>
-                    </button>
-                </div>
-            </div>
             <div class="labelsapp-subtabs">
                 <button class="labelsapp-subtab-btn active" type="button" data-labelsapp-tab="queue" onclick="switchLabelsAppTab(event, 'queue')">Cola actual <span id="queueTabBadge" class="tab-badge">0</span></button>
                 <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="hold" onclick="switchLabelsAppTab(event, 'hold')">En espera <span id="holdTabBadge" class="tab-badge">0</span></button>
@@ -2388,16 +2276,22 @@
         }
 
         async function initCatalogPublicCard() {
-            const labelEl = document.getElementById("catalogSucursalLabel");
-            const inputEl = document.getElementById("catalogPublicLink");
-            if (!labelEl || !inputEl) return;
             const sucursal = await resolveCatalogSucursal();
             const finalSucursal = sucursal || "principal";
             const url = `${window.location.origin}/cliente?publico=1&sucursal=${encodeURIComponent(finalSucursal)}`;
             catalogPublicState.sucursal = finalSucursal;
             catalogPublicState.url = url;
-            labelEl.textContent = finalSucursal + (sucursal ? "" : " (sin asignar, usando 'principal')");
-            inputEl.value = url;
+
+            // Si la tarjeta visual existe, también la mantiene actualizada; si no existe,
+            // el menú de usuario sigue funcionando con catalogPublicState.
+            const labelEl = document.getElementById("catalogSucursalLabel");
+            const inputEl = document.getElementById("catalogPublicLink");
+            if (labelEl) {
+                labelEl.textContent = finalSucursal + (sucursal ? "" : " (sin asignar, usando 'principal')");
+            }
+            if (inputEl) {
+                inputEl.value = url;
+            }
         }
 
         function abrirCatalogoPublico() {
