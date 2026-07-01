@@ -100,6 +100,11 @@ _labelsapp_queue_cache = {
     "pending": {},
 }
 _labelsapp_queue_cache_lock = Lock()
+USAGE_METRICS_CACHE_TTL_SEC = 90.0
+_labels_usage_metrics_cache: Dict[tuple, Dict[str, Any]] = {}
+_labels_usage_metrics_cache_lock = Lock()
+_labels_usage_metrics_fetch_locks: Dict[tuple, Lock] = {}
+_labels_usage_metrics_fetch_locks_guard = Lock()
 # Locks por tabla: si dos requests piden la misma sucursal en paralelo solo uno
 # pega a la DB, pero requests para sucursales distintas no se serializan entre si.
 # Un solo Lock global hace que el dashboard de analistas (fanout a 13 sucursales)
@@ -144,6 +149,41 @@ def _queue_cache_set(kind: str, key, items):
             "ts": time.time(),
             "items": items,
         }
+
+
+def _usage_metrics_cache_get(key: tuple):
+    now = time.time()
+    with _labels_usage_metrics_cache_lock:
+        entry = _labels_usage_metrics_cache.get(key)
+        if not entry:
+            return None
+        if (now - float(entry.get("ts", 0))) > USAGE_METRICS_CACHE_TTL_SEC:
+            try:
+                del _labels_usage_metrics_cache[key]
+            except Exception:
+                pass
+            return None
+        return entry.get("data")
+
+
+def _usage_metrics_cache_set(key: tuple, data: dict) -> None:
+    with _labels_usage_metrics_cache_lock:
+        _labels_usage_metrics_cache[key] = {
+            "ts": time.time(),
+            "data": data,
+        }
+
+
+def _get_usage_metrics_lock(key: tuple) -> Lock:
+    lock = _labels_usage_metrics_fetch_locks.get(key)
+    if lock is not None:
+        return lock
+    with _labels_usage_metrics_fetch_locks_guard:
+        lock = _labels_usage_metrics_fetch_locks.get(key)
+        if lock is None:
+            lock = Lock()
+            _labels_usage_metrics_fetch_locks[key] = lock
+        return lock
 
 
 class LabelsAppCodigoBaseRequest(BaseModel):
@@ -4226,6 +4266,11 @@ async def labelsapp_usage_metrics(
     """Resumen de uso de LabelsApp para dashboard administrativo."""
     try:
         safe_limit = max(3, min(int(product_limit or 5), 20))
+        cache_key = (safe_limit, (date_from or ""), (date_to or ""))
+        cached = _usage_metrics_cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         from_dt = None
         to_dt_exclusive = None
         if date_from:
@@ -4241,147 +4286,160 @@ async def labelsapp_usage_metrics(
         if from_dt and to_dt_exclusive and from_dt >= to_dt_exclusive:
             raise HTTPException(status_code=400, detail="Rango inválido: date_from debe ser menor o igual que date_to")
 
-        cur = db.cursor()
+        with _get_usage_metrics_lock(cache_key):
+            cached = _usage_metrics_cache_get(cache_key)
+            if cached is not None:
+                return cached
 
-        cur.execute(
-            """
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema='public'
-              AND table_name LIKE 'pedidos_pendientes_%'
-            ORDER BY table_name
-            """
-        )
-        tables = [r[0] for r in cur.fetchall() if r and r[0]]
-
-        product_totals = defaultdict(int)
-        product_totals_by_sucursal = defaultdict(lambda: defaultdict(int))
-        sucursal_totals = {}
-        completion_by_sucursal = defaultdict(lambda: {"total_min": 0.0, "count": 0})
-        total_facturas = 0
-        total_items = 0
-
-        for table_name in tables:
-            if not re.match(r"^pedidos_pendientes_[a-z0-9_]+$", table_name):
-                continue
-
-            sucursal_slug = table_name.replace("pedidos_pendientes_", "").strip() or "principal"
+            _set_local_pg_timeouts(db, statement_ms=9000, lock_ms=700)
+            cur = db.cursor()
 
             cur.execute(
                 """
-                SELECT column_name
-                FROM information_schema.columns
-                WHERE table_schema='public' AND table_name=%s
-                """,
-                (table_name,)
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema='public'
+                  AND table_name LIKE 'pedidos_pendientes_%'
+                ORDER BY table_name
+                """
             )
-            table_columns = {r[0] for r in (cur.fetchall() or []) if r and r[0]}
-            factura_col = "id_factura" if "id_factura" in table_columns else None
-            cantidad_col = "cantidad" if "cantidad" in table_columns else None
-            producto_col = "producto" if "producto" in table_columns else None
-            date_col = "fecha_creacion" if "fecha_creacion" in table_columns else None
-            if not factura_col and "factura" in table_columns:
-                factura_col = "factura"
-            if not producto_col and "nombre_producto" in table_columns:
-                producto_col = "nombre_producto"
+            tables = [r[0] for r in cur.fetchall() if r and r[0]]
 
-            if (from_dt or to_dt_exclusive) and not date_col:
-                # Si no hay columna de fecha, no se puede filtrar por rango en esta tabla.
-                continue
+            columns_by_table = defaultdict(set)
+            if tables:
+                cur.execute(
+                    """
+                    SELECT table_name, column_name
+                    FROM information_schema.columns
+                    WHERE table_schema='public'
+                      AND table_name = ANY(%s)
+                    """,
+                    (tables,)
+                )
+                for table, column in cur.fetchall() or []:
+                    if table and column:
+                        columns_by_table[str(table)].add(str(column))
 
-            date_clauses = []
-            date_params = []
-            if from_dt:
-                date_clauses.append(f"{date_col} >= %s")
-                date_params.append(from_dt)
-            if to_dt_exclusive:
-                date_clauses.append(f"{date_col} < %s")
-                date_params.append(to_dt_exclusive)
-            where_date_sql = f"WHERE {' AND '.join(date_clauses)}" if date_clauses else ""
+            product_totals = defaultdict(int)
+            product_totals_by_sucursal = defaultdict(lambda: defaultdict(int))
+            sucursal_totals = {}
+            completion_by_sucursal = defaultdict(lambda: {"total_min": 0.0, "count": 0})
+            total_facturas = 0
+            total_items = 0
 
-            facturas_expr = (
-                f"COUNT(DISTINCT NULLIF(TRIM(COALESCE({factura_col}::text, '')), ''))"
-                if factura_col else
-                "COUNT(*)"
-            )
-            items_expr = (
-                f"COALESCE(SUM(COALESCE({cantidad_col}, 1)), 0)"
-                if cantidad_col else
-                "COUNT(*)"
-            )
+            for table_name in tables:
+                if not re.match(r"^pedidos_pendientes_[a-z0-9_]+$", table_name):
+                    continue
 
-            cur.execute(
-                f"""
-                SELECT {facturas_expr} AS facturas,
-                       {items_expr} AS items
-                FROM {table_name}
-                {where_date_sql}
-                """,
-                tuple(date_params)
-            )
-            facts_row = cur.fetchone() or (0, 0)
-            facturas_count = int(facts_row[0] or 0)
-            items_count = int(facts_row[1] or 0)
+                sucursal_slug = table_name.replace("pedidos_pendientes_", "").strip() or "principal"
 
-            sucursal_totals[sucursal_slug] = {
-                "sucursal_slug": sucursal_slug,
-                "facturas": facturas_count,
-                "items": items_count,
-            }
-            total_facturas += facturas_count
-            total_items += items_count
+                table_columns = columns_by_table.get(table_name, set())
+                factura_col = "id_factura" if "id_factura" in table_columns else None
+                cantidad_col = "cantidad" if "cantidad" in table_columns else None
+                producto_col = "producto" if "producto" in table_columns else None
+                date_col = "fecha_creacion" if "fecha_creacion" in table_columns else None
+                if not factura_col and "factura" in table_columns:
+                    factura_col = "factura"
+                if not producto_col and "nombre_producto" in table_columns:
+                    producto_col = "nombre_producto"
 
-            if producto_col:
-                product_qty_expr = (
+                if (from_dt or to_dt_exclusive) and not date_col:
+                    # Si no hay columna de fecha, no se puede filtrar por rango en esta tabla.
+                    continue
+
+                date_clauses = []
+                date_params = []
+                if from_dt:
+                    date_clauses.append(f"{date_col} >= %s")
+                    date_params.append(from_dt)
+                if to_dt_exclusive:
+                    date_clauses.append(f"{date_col} < %s")
+                    date_params.append(to_dt_exclusive)
+                where_date_sql = f"WHERE {' AND '.join(date_clauses)}" if date_clauses else ""
+
+                facturas_expr = (
+                    f"COUNT(DISTINCT NULLIF(TRIM(COALESCE({factura_col}::text, '')), ''))"
+                    if factura_col else
+                    "COUNT(*)"
+                )
+                items_expr = (
                     f"COALESCE(SUM(COALESCE({cantidad_col}, 1)), 0)"
                     if cantidad_col else
                     "COUNT(*)"
                 )
+
                 cur.execute(
                     f"""
-                    SELECT TRIM(COALESCE({producto_col}::text, '')) AS producto,
-                           {product_qty_expr} AS qty
+                    SELECT {facturas_expr} AS facturas,
+                           {items_expr} AS items
                     FROM {table_name}
-                    WHERE TRIM(COALESCE({producto_col}::text, '')) <> ''
-                    {'AND ' + ' AND '.join(date_clauses) if date_clauses else ''}
-                    GROUP BY TRIM(COALESCE({producto_col}::text, ''))
+                    {where_date_sql}
                     """,
                     tuple(date_params)
                 )
-                for producto, qty in cur.fetchall() or []:
-                    product_name = (producto or "").strip()
-                    if not product_name:
-                        continue
-                    qty_i = int(qty or 0)
-                    product_totals[product_name] += qty_i
-                    product_totals_by_sucursal[sucursal_slug][product_name] += qty_i
+                facts_row = cur.fetchone() or (0, 0)
+                facturas_count = int(facts_row[0] or 0)
+                items_count = int(facts_row[1] or 0)
 
-            if "fecha_creacion" in table_columns and "fecha_completado" in table_columns:
-                completion_clauses = [
-                    "fecha_creacion IS NOT NULL",
-                    "fecha_completado IS NOT NULL",
-                    "TRIM(COALESCE(estado, '')) IN ('Finalizado', 'Completado')",
-                ]
-                completion_params = []
-                if from_dt:
-                    completion_clauses.append("fecha_completado >= %s")
-                    completion_params.append(from_dt)
-                if to_dt_exclusive:
-                    completion_clauses.append("fecha_completado < %s")
-                    completion_params.append(to_dt_exclusive)
-                cur.execute(
-                    f"""
-                    SELECT
-                        COALESCE(SUM(EXTRACT(EPOCH FROM (fecha_completado - fecha_creacion)) / 60.0), 0) AS total_min,
-                        COUNT(*) AS cnt
-                    FROM {table_name}
-                    WHERE {' AND '.join(completion_clauses)}
-                    """,
-                    tuple(completion_params)
-                )
-                comp_row = cur.fetchone() or (0, 0)
-                completion_by_sucursal[sucursal_slug]["total_min"] += float(comp_row[0] or 0)
-                completion_by_sucursal[sucursal_slug]["count"] += int(comp_row[1] or 0)
+                sucursal_totals[sucursal_slug] = {
+                    "sucursal_slug": sucursal_slug,
+                    "facturas": facturas_count,
+                    "items": items_count,
+                }
+                total_facturas += facturas_count
+                total_items += items_count
+
+                if producto_col:
+                    product_qty_expr = (
+                        f"COALESCE(SUM(COALESCE({cantidad_col}, 1)), 0)"
+                        if cantidad_col else
+                        "COUNT(*)"
+                    )
+                    cur.execute(
+                        f"""
+                        SELECT TRIM(COALESCE({producto_col}::text, '')) AS producto,
+                               {product_qty_expr} AS qty
+                        FROM {table_name}
+                        WHERE TRIM(COALESCE({producto_col}::text, '')) <> ''
+                        {'AND ' + ' AND '.join(date_clauses) if date_clauses else ''}
+                        GROUP BY TRIM(COALESCE({producto_col}::text, ''))
+                        """,
+                        tuple(date_params)
+                    )
+                    for producto, qty in cur.fetchall() or []:
+                        product_name = (producto or "").strip()
+                        if not product_name:
+                            continue
+                        qty_i = int(qty or 0)
+                        product_totals[product_name] += qty_i
+                        product_totals_by_sucursal[sucursal_slug][product_name] += qty_i
+
+                if "fecha_creacion" in table_columns and "fecha_completado" in table_columns:
+                    completion_clauses = [
+                        "fecha_creacion IS NOT NULL",
+                        "fecha_completado IS NOT NULL",
+                        "TRIM(COALESCE(estado, '')) IN ('Finalizado', 'Completado')",
+                    ]
+                    completion_params = []
+                    if from_dt:
+                        completion_clauses.append("fecha_completado >= %s")
+                        completion_params.append(from_dt)
+                    if to_dt_exclusive:
+                        completion_clauses.append("fecha_completado < %s")
+                        completion_params.append(to_dt_exclusive)
+                    cur.execute(
+                        f"""
+                        SELECT
+                            COALESCE(SUM(EXTRACT(EPOCH FROM (fecha_completado - fecha_creacion)) / 60.0), 0) AS total_min,
+                            COUNT(*) AS cnt
+                        FROM {table_name}
+                        WHERE {' AND '.join(completion_clauses)}
+                        """,
+                        tuple(completion_params)
+                    )
+                    comp_row = cur.fetchone() or (0, 0)
+                    completion_by_sucursal[sucursal_slug]["total_min"] += float(comp_row[0] or 0)
+                    completion_by_sucursal[sucursal_slug]["count"] += int(comp_row[1] or 0)
 
         # Mapa de sucursal_slug -> metadatos reales
         slug_to_meta = {}
@@ -4547,27 +4605,29 @@ async def labelsapp_usage_metrics(
             rows = sorted(sucursal_login_by_zone.get(z, []), key=lambda x: (x.get("sucursal") or "").lower())
             sucursal_login_by_zone_list.append({"zona": z, "sucursales": rows})
 
-        return {
-            "total_facturas": total_facturas,
-            "total_items": total_items,
-            "avg_completion_minutes_overall": avg_completion_minutes_overall,
-            "total_completed_orders": int(total_completed_orders),
-            "last_login": last_login,
-            "top_products": top_products,
-            "low_products": low_products,
-            "sucursal_usage": sucursal_usage,
-            "zona_usage": zona_usage,
-            "zone_top_products": zone_top_products,
-            "sucursal_login_by_zone": sucursal_login_by_zone_list,
-            "sucursal_mas_uso": sucursal_usage[0] if sucursal_usage else None,
-            "sucursal_menos_uso": sucursal_usage[-1] if sucursal_usage else None,
-            "zona_mas_uso": zona_usage[0] if zona_usage else None,
-            "zona_menos_uso": zona_usage[-1] if zona_usage else None,
-            "filters": {
-                "date_from": date_from or "",
-                "date_to": date_to or "",
-            },
-        }
+            response_data = {
+                "total_facturas": total_facturas,
+                "total_items": total_items,
+                "avg_completion_minutes_overall": avg_completion_minutes_overall,
+                "total_completed_orders": int(total_completed_orders),
+                "last_login": last_login,
+                "top_products": top_products,
+                "low_products": low_products,
+                "sucursal_usage": sucursal_usage,
+                "zona_usage": zona_usage,
+                "zone_top_products": zone_top_products,
+                "sucursal_login_by_zone": sucursal_login_by_zone_list,
+                "sucursal_mas_uso": sucursal_usage[0] if sucursal_usage else None,
+                "sucursal_menos_uso": sucursal_usage[-1] if sucursal_usage else None,
+                "zona_mas_uso": zona_usage[0] if zona_usage else None,
+                "zona_menos_uso": zona_usage[-1] if zona_usage else None,
+                "filters": {
+                    "date_from": date_from or "",
+                    "date_to": date_to or "",
+                },
+            }
+            _usage_metrics_cache_set(cache_key, response_data)
+            return response_data
     except Exception as e:
         logger.error(f"Error getting labelsapp usage metrics: {e}")
         raise HTTPException(status_code=500, detail="Error obteniendo métricas de LabelsApp")

@@ -2906,17 +2906,23 @@ let labelsMetricsLoading = false;
 let labelsLastRenderSignature = '';
 let labelsDateFrom = '';
 let labelsDateTo = '';
+let labelsMetricsLastFetchMs = 0;
+const LABELS_METRICS_AUTO_REFRESH_MS = 180000;
+const LABELS_METRICS_CLIENT_FRESH_MS = 90000;
 
 // Función para actualizar gráficas del dashboard
 function updateDashboardCharts() {
     console.log('✓ updateDashboardCharts ejecutándose (LabelsApp métricas)');
-    updateLabelsAppUsageMetrics();
+    updateLabelsAppUsageMetrics({ allowFallback: true });
 
-    // Actualización automática cada 5 segundos
+    // Auto refresh más conservador para no saturar DB ni generar cascadas de fallback.
     if (loginActivityRefreshInterval) clearInterval(loginActivityRefreshInterval);
     loginActivityRefreshInterval = setInterval(() => {
-        updateLabelsAppUsageMetrics();
-    }, 30000);
+        const dashboardEl = document.getElementById('dashboard');
+        const dashboardVisible = !!(dashboardEl && dashboardEl.style.display !== 'none');
+        if (document.visibilityState !== 'visible' || !dashboardVisible) return;
+        updateLabelsAppUsageMetrics({ silent: true, allowFallback: false });
+    }, LABELS_METRICS_AUTO_REFRESH_MS);
 
     console.log('✓ updateDashboardCharts completado');
 }
@@ -2952,8 +2958,9 @@ function onLabelsDateInputChange() {
 function applyLabelsDateFilter() {
     onLabelsDateInputChange();
     labelsMetricsCache = null;
+    labelsMetricsLastFetchMs = 0;
     labelsLastRenderSignature = '';
-    updateLabelsAppUsageMetrics();
+    updateLabelsAppUsageMetrics({ force: true, allowFallback: true });
 }
 
 function clearLabelsDateFilter() {
@@ -2964,8 +2971,9 @@ function clearLabelsDateFilter() {
     labelsDateFrom = '';
     labelsDateTo = '';
     labelsMetricsCache = null;
+    labelsMetricsLastFetchMs = 0;
     labelsLastRenderSignature = '';
-    updateLabelsAppUsageMetrics();
+    updateLabelsAppUsageMetrics({ force: true, allowFallback: true });
 }
 
 function normalizeSucursalSlug(text) {
@@ -3447,7 +3455,7 @@ function getCachedLabelsMetrics() {
         if ((parsed.filterKey || '') !== getLabelsDateFilterKey()) return null;
         const ageMs = Date.now() - Number(parsed.ts || 0);
         if (ageMs > 120000) return null;
-        return parsed.data;
+        return { data: parsed.data, ageMs };
     } catch (_) {
         return null;
     }
@@ -3455,8 +3463,9 @@ function getCachedLabelsMetrics() {
 
 function setCachedLabelsMetrics(data) {
     try {
+        labelsMetricsLastFetchMs = Date.now();
         localStorage.setItem('labels_metrics_cache_v1', JSON.stringify({
-            ts: Date.now(),
+            ts: labelsMetricsLastFetchMs,
             filterKey: getLabelsDateFilterKey(),
             data
         }));
@@ -3548,24 +3557,35 @@ async function buildFallbackLabelsMetrics() {
     };
 }
 
-async function updateLabelsAppUsageMetrics() {
+async function updateLabelsAppUsageMetrics(options = {}) {
+    const { force = false, silent = false, allowFallback = true } = options;
     if (labelsMetricsLoading) return;
     labelsMetricsLoading = true;
 
     const statusEl = document.getElementById('labelsMetricStatus');
+    let hadCached = false;
     try {
         const cached = getCachedLabelsMetrics();
-        if (cached) {
-            labelsMetricsCache = cached;
-            updateLabelsZoneSelector(cached);
+        if (cached && cached.data) {
+            hadCached = true;
+            labelsMetricsCache = cached.data;
+            labelsMetricsLastFetchMs = Date.now() - Number(cached.ageMs || 0);
+            updateLabelsZoneSelector(cached.data);
             updateLabelsZoneView();
-            if (statusEl) statusEl.textContent = 'Mostrando cache, actualizando datos...';
-        } else if (statusEl) {
+            if (statusEl && !silent) statusEl.textContent = 'Mostrando cache, actualizando datos...';
+
+            if (!force && Number(cached.ageMs || 0) <= LABELS_METRICS_CLIENT_FRESH_MS) {
+                if (statusEl && !silent) {
+                    statusEl.textContent = `Actualizado (cache): ${new Date().toLocaleTimeString('es-DO')}`;
+                }
+                return;
+            }
+        } else if (statusEl && !silent) {
             statusEl.textContent = 'Cargando métricas...';
         }
 
         const query = getLabelsDateQueryParams();
-        const res = await fetchWithTimeout(API + `/api/v1/labelsapp/usage-metrics?${query.toString()}`, 7000);
+        const res = await fetchWithTimeout(API + `/api/v1/labelsapp/usage-metrics?${query.toString()}`, 12000);
         if (!res.ok) {
             let detail = '';
             try {
@@ -3603,6 +3623,12 @@ async function updateLabelsAppUsageMetrics() {
         if (statusEl) statusEl.textContent = `Actualizado${period}: ${new Date().toLocaleTimeString('es-DO')}`;
     } catch (e) {
         console.error('Error metrics labelsapp:', e);
+        if (hadCached || !allowFallback) {
+            if (statusEl) {
+                statusEl.textContent = `Mostrando cache por degradación temporal (${new Date().toLocaleTimeString('es-DO')})`;
+            }
+            return;
+        }
         try {
             const fallbackData = await buildFallbackLabelsMetrics();
             labelsMetricsCache = fallbackData;
