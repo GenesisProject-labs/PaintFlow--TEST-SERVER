@@ -6,6 +6,11 @@
     <script>
     (function(){
         try {
+            // Modo publico: link compartido al cliente (?publico=1). No pedir login ni redirigir por rol.
+            var qs = (window.location.search || '').toLowerCase();
+            if (qs.indexOf('publico=1') !== -1 || qs.indexOf('publico=true') !== -1 || qs.indexOf('public=1') !== -1 || qs.indexOf('public=true') !== -1) {
+                return;
+            }
             var raw = localStorage.getItem('currentUser');
             var active = localStorage.getItem('sessionActive');
             if (!raw || raw === 'null' || active !== 'true') { window.location.replace('/'); return; }
