@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import csv
 import time
 import random
@@ -58,6 +58,57 @@ class EmpleadoUpdate(BaseModel):
     telefono: str = None
     codigo_empleado: str = None
     activo: bool = True
+
+
+class MaintenanceAssetCreate(BaseModel):
+    codigo: str
+    nombre: str
+    categoria: str = "General"
+    sucursal_id: Optional[int] = None
+    ubicacion_detalle: Optional[str] = ""
+    descripcion: Optional[str] = ""
+    estado_operativo: str = "Operativo"
+    frecuencia_dias: int = 90
+    ultimo_mantenimiento: Optional[date] = None
+    proximo_mantenimiento: Optional[date] = None
+    responsable_usuario_id: Optional[int] = None
+    activo: bool = True
+
+
+class MaintenanceAssetUpdate(BaseModel):
+    nombre: Optional[str] = None
+    categoria: Optional[str] = None
+    sucursal_id: Optional[int] = None
+    ubicacion_detalle: Optional[str] = None
+    descripcion: Optional[str] = None
+    estado_operativo: Optional[str] = None
+    frecuencia_dias: Optional[int] = None
+    ultimo_mantenimiento: Optional[date] = None
+    proximo_mantenimiento: Optional[date] = None
+    responsable_usuario_id: Optional[int] = None
+    activo: Optional[bool] = None
+
+
+class MaintenanceWorkOrderCreate(BaseModel):
+    activo_id: int
+    tipo: str = "Preventivo"
+    titulo: str
+    descripcion: Optional[str] = ""
+    prioridad: str = "Media"
+    estado: str = "Pendiente"
+    programado_para: Optional[date] = None
+    asignado_usuario_id: Optional[int] = None
+    creado_por_usuario_id: Optional[int] = None
+
+
+class MaintenanceWorkOrderUpdate(BaseModel):
+    tipo: Optional[str] = None
+    titulo: Optional[str] = None
+    descripcion: Optional[str] = None
+    prioridad: Optional[str] = None
+    estado: Optional[str] = None
+    programado_para: Optional[date] = None
+    asignado_usuario_id: Optional[int] = None
 
 
 class LabelsAppItem(BaseModel):
@@ -289,6 +340,7 @@ SHERWIN_LOCAL_CATALOG_STATE: Dict[str, Any] = {
     "payload": None,
     "by_code": {},
 }
+MAINTENANCE_SCHEMA_READY = False
 
 
 def _load_local_sherwin_catalog() -> Dict[str, Any]:
@@ -386,6 +438,12 @@ if os.path.exists(static_dir):
 else:
     logger.warning(f"Static directory not found at: {static_dir}")
 
+pngs_dir = os.path.join(os.path.dirname(__file__), "pngs")
+if os.path.exists(pngs_dir):
+    app.mount("/pngs", StaticFiles(directory=pngs_dir), name="pngs")
+else:
+    logger.warning(f"PNGs directory not found at: {pngs_dir}")
+
 PRODUCTOS_MEDIA_DIR = ""
 for _candidate in (
     os.path.join(os.path.dirname(__file__), "Productos"),
@@ -452,6 +510,7 @@ def _run_startup_schema_setup():
         return
 
     try:
+        global MAINTENANCE_SCHEMA_READY
         try:
             with db.cursor() as cur:
                 # Fallar rapido si hay contencion en vez de colgar el deploy.
@@ -465,6 +524,7 @@ def _run_startup_schema_setup():
             ("usuarios_cliente_role_constraint", _ensure_usuarios_cliente_role_constraint),
             ("formula_backup", _ensure_formula_backup),
             ("productsw_search_index", _ensure_productsw_search_index),
+            ("maintenance_schema", _ensure_maintenance_schema),
         ):
             try:
                 fn(db)
@@ -476,6 +536,17 @@ def _run_startup_schema_setup():
                 except Exception:
                     pass
                 logger.warning(f"[startup-setup] Skip {step_name}: {e}")
+        try:
+            _seed_maintenance_demo_data(db)
+            db.commit()
+            MAINTENANCE_SCHEMA_READY = True
+            logger.info("[startup-setup] OK: maintenance_demo_seed")
+        except Exception as e:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            logger.warning(f"[startup-setup] Skip maintenance_demo_seed: {e}")
     finally:
         try:
             DatabasePool.return_connection(db)
@@ -586,6 +657,21 @@ async def cliente_html():
     raise HTTPException(status_code=404, detail="Cliente page not found")
 
 
+@app.get("/maintenance")
+async def maintenance_page():
+    """Modulo de gestion de mantenimiento integrado en PaintFlow."""
+    html_path = os.path.join(os.path.dirname(__file__), "maintenance_management.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Maintenance page not found")
+
+
+@app.get("/maintenance-management")
+async def maintenance_management_page():
+    """Alias comercial para el modulo de mantenimiento."""
+    return RedirectResponse(url="/maintenance", status_code=307)
+
+
 @app.get("/clientes")
 async def clientes_page():
     """Alias plural hacia la ruta canonica de cliente."""
@@ -639,6 +725,8 @@ PERSONALIZADOS_CSV_PATH = os.path.join(os.path.dirname(__file__), "productos_per
 LABELSAPP_FEEDBACK_CSV_PATH = os.path.join(os.path.dirname(__file__), "labelsapp_feedback.csv")
 PERSONALIZADO_CODIGO_MAX = 7
 PERSONALIZADO_NOMBRE_MAX = 20
+_personalizados_migration_done: Dict[str, bool] = {}
+_personalizados_migration_lock = Lock()
 
 
 class LabelsAppPersonalizedProductRequest(BaseModel):
@@ -662,7 +750,7 @@ class LabelsAppFeedbackRequest(BaseModel):
     modulo: Optional[str] = "labelsapp-web"
 
 
-def _load_personalized_products() -> List[dict]:
+def _load_personalized_products_csv() -> List[dict]:
     items = []
     if not os.path.exists(PERSONALIZADOS_CSV_PATH):
         return items
@@ -716,10 +804,164 @@ def _filter_personalized_products_by_sucursal(items: List[dict], sucursal_slug: 
 
 def _find_personalized_product_by_code(codigo: str) -> Optional[dict]:
     codigo_norm = (codigo or "").strip().lower()
-    for item in _load_personalized_products():
+    for item in _load_personalized_products_csv():
         if (item.get("codigo") or "").strip().lower() == codigo_norm:
             return item
     return None
+
+
+def _personalizados_table_for_sucursal(sucursal_slug: str) -> str:
+    slug = _normalize_sucursal_slug(sucursal_slug or "principal")
+    if not re.match(r"^[a-z0-9_]+$", slug):
+        slug = "principal"
+    return f"personalizado_{slug}"
+
+
+def _ensure_personalizados_table(db, table_name: str) -> None:
+    cur = db.cursor()
+    cur.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            codigo VARCHAR(32) PRIMARY KEY,
+            nombre VARCHAR(120) NOT NULL,
+            base VARCHAR(80) NOT NULL DEFAULT '',
+            ubicacion VARCHAR(120) NOT NULL DEFAULT '',
+            fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+        """
+    )
+    cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_nombre ON {table_name}(LOWER(nombre))")
+
+
+def _migrate_personalizados_csv_for_sucursal(db, sucursal_slug: str, table_name: str) -> None:
+    slug = _normalize_sucursal_slug(sucursal_slug or "principal")
+    with _personalizados_migration_lock:
+        if _personalizados_migration_done.get(slug):
+            return
+
+    cur = db.cursor()
+    cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+    table_count = int((cur.fetchone() or [0])[0] or 0)
+    if table_count > 0:
+        with _personalizados_migration_lock:
+            _personalizados_migration_done[slug] = True
+        return
+
+    legacy_items = _filter_personalized_products_by_sucursal(_load_personalized_products_csv(), slug)
+    inserted = 0
+    for item in legacy_items:
+        codigo = (item.get("codigo") or "").strip()
+        nombre = (item.get("nombre") or "").strip()
+        if not codigo or not nombre:
+            continue
+        if len(codigo) > PERSONALIZADO_CODIGO_MAX:
+            continue
+        if len(nombre) > PERSONALIZADO_NOMBRE_MAX:
+            continue
+        cur.execute(
+            f"""
+            INSERT INTO {table_name} (codigo, nombre, base, ubicacion, fecha_creacion)
+            VALUES (%s, %s, %s, %s, COALESCE(NULLIF(%s, '')::timestamp, NOW()))
+            ON CONFLICT (codigo) DO NOTHING
+            """,
+            (
+                codigo,
+                nombre,
+                (item.get("base") or "").strip(),
+                (item.get("ubicacion") or "").strip(),
+                (item.get("fecha_creacion") or "").strip(),
+            ),
+        )
+        inserted += 1
+
+    if inserted:
+        logger.info(f"Migrated {inserted} personalizados legacy rows into {table_name}")
+
+    with _personalizados_migration_lock:
+        _personalizados_migration_done[slug] = True
+
+
+def _list_personalizados_for_sucursal(db, sucursal_slug: str) -> List[dict]:
+    table_name = _personalizados_table_for_sucursal(sucursal_slug)
+    _ensure_personalizados_table(db, table_name)
+    _migrate_personalizados_csv_for_sucursal(db, sucursal_slug, table_name)
+    cur = db.cursor()
+    cur.execute(
+        f"""
+        SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, ''),
+               TO_CHAR(fecha_creacion, 'YYYY-MM-DD HH24:MI:SS')
+        FROM {table_name}
+        ORDER BY LOWER(nombre), LOWER(codigo)
+        """
+    )
+    return [
+        {
+            "codigo": r[0],
+            "nombre": r[1],
+            "base": r[2],
+            "ubicacion": r[3],
+            "fecha_creacion": r[4] or "",
+            "sucursal_slug": _normalize_sucursal_slug(sucursal_slug or "principal"),
+            "personalizado": True,
+        }
+        for r in (cur.fetchall() or [])
+    ]
+
+
+def _get_personalizado_by_codigo(db, sucursal_slug: str, codigo: str) -> Optional[dict]:
+    table_name = _personalizados_table_for_sucursal(sucursal_slug)
+    _ensure_personalizados_table(db, table_name)
+    _migrate_personalizados_csv_for_sucursal(db, sucursal_slug, table_name)
+    cur = db.cursor()
+    cur.execute(
+        f"""
+        SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, ''),
+               TO_CHAR(fecha_creacion, 'YYYY-MM-DD HH24:MI:SS')
+        FROM {table_name}
+        WHERE LOWER(TRIM(codigo)) = LOWER(TRIM(%s))
+        LIMIT 1
+        """,
+        (codigo,),
+    )
+    r = cur.fetchone()
+    if not r:
+        return None
+    return {
+        "codigo": r[0],
+        "nombre": r[1],
+        "base": r[2],
+        "ubicacion": r[3],
+        "fecha_creacion": r[4] or "",
+        "sucursal_slug": _normalize_sucursal_slug(sucursal_slug or "principal"),
+        "personalizado": True,
+    }
+
+
+def _insert_personalizado(db, sucursal_slug: str, codigo: str, nombre: str) -> None:
+    table_name = _personalizados_table_for_sucursal(sucursal_slug)
+    _ensure_personalizados_table(db, table_name)
+    _migrate_personalizados_csv_for_sucursal(db, sucursal_slug, table_name)
+    cur = db.cursor()
+    cur.execute(
+        f"""
+        INSERT INTO {table_name} (codigo, nombre, base, ubicacion, fecha_creacion, updated_at)
+        VALUES (%s, %s, '', '', NOW(), NOW())
+        """,
+        (codigo, nombre),
+    )
+
+
+def _delete_personalizado(db, sucursal_slug: str, codigo: str) -> int:
+    table_name = _personalizados_table_for_sucursal(sucursal_slug)
+    _ensure_personalizados_table(db, table_name)
+    _migrate_personalizados_csv_for_sucursal(db, sucursal_slug, table_name)
+    cur = db.cursor()
+    cur.execute(
+        f"DELETE FROM {table_name} WHERE LOWER(TRIM(codigo)) = LOWER(TRIM(%s))",
+        (codigo,),
+    )
+    return int(cur.rowcount or 0)
 
 
 def _resolve_sucursal_slug(db, username: Optional[str] = None, usuario_id: Optional[int] = None, sucursal_text: Optional[str] = None) -> str:
@@ -805,6 +1047,13 @@ def _resolve_requester_role(db, username: Optional[str] = None, usuario_id: Opti
         pass
 
     return _normalize_role_key(role)
+
+
+def _require_maintenance_access(db, username: Optional[str] = None, usuario_id: Optional[int] = None, role: Optional[str] = None) -> str:
+    resolved_role = _resolve_requester_role(db, username=username, usuario_id=usuario_id, role=role)
+    if resolved_role not in {"administrador", "activos_fijos", "tecnicos"}:
+        raise HTTPException(status_code=403, detail="Acceso restringido al modulo de mantenimiento")
+    return resolved_role
 
 
 def _get_labelsapp_live_queue(db, table_name: str, limit: int = 50):
@@ -1062,7 +1311,7 @@ def _ensure_labelsapp_history_table(db) -> None:
 
 
 def _ensure_usuarios_cliente_role_constraint(db) -> None:
-    """Asegura que la restriccion de rol de usuarios permita 'cliente'."""
+    """Asegura que la restriccion de rol de usuarios permita roles del portal."""
     cur = db.cursor()
     cur.execute(
         """
@@ -1079,17 +1328,18 @@ def _ensure_usuarios_cliente_role_constraint(db) -> None:
         return
 
     definition = str(row[1] or "")
-    if "cliente" in definition.lower():
+    definition_lower = definition.lower()
+    if all(role_name in definition_lower for role_name in ("cliente", "activos_fijos", "tecnicos")):
         return
 
-    # Reusar valores del CHECK actual y agregar cliente sin duplicados.
+    # Reusar valores del CHECK actual y agregar roles del portal sin duplicados.
     existing_roles = re.findall(r"'([^']+)'", definition)
     if not existing_roles:
         return
 
     merged_roles = []
     seen = set()
-    for role_value in existing_roles + ["cliente"]:
+    for role_value in existing_roles + ["cliente", "activos_fijos", "tecnicos"]:
         key = role_value.strip().lower()
         if not key or key in seen:
             continue
@@ -1101,6 +1351,750 @@ def _ensure_usuarios_cliente_role_constraint(db) -> None:
     cur.execute(
         f"ALTER TABLE usuarios ADD CONSTRAINT usuarios_rol_check CHECK (rol::text = ANY (ARRAY[{in_clause}]::text[]))"
     )
+
+
+def _normalize_maintenance_priority(value: Optional[str]) -> str:
+    normalized = (value or "Media").strip().lower()
+    mapping = {
+        "alta": "Alta",
+        "media": "Media",
+        "baja": "Baja",
+    }
+    return mapping.get(normalized, "Media")
+
+
+def _normalize_maintenance_status(value: Optional[str]) -> str:
+    normalized = (value or "Pendiente").strip().lower()
+    mapping = {
+        "pendiente": "Pendiente",
+        "en proceso": "En proceso",
+        "en_proceso": "En proceso",
+        "completado": "Completado",
+        "vencido": "Vencido",
+    }
+    return mapping.get(normalized, "Pendiente")
+
+
+def _normalize_maintenance_type(value: Optional[str]) -> str:
+    normalized = (value or "Preventivo").strip().lower()
+    mapping = {
+        "preventivo": "Preventivo",
+        "correctivo": "Correctivo",
+        "inspeccion": "Inspeccion",
+        "inspección": "Inspeccion",
+    }
+    return mapping.get(normalized, "Preventivo")
+
+
+def _compute_next_maintenance(last_date: Optional[date], frequency_days: int, explicit_next: Optional[date] = None) -> Optional[date]:
+    if explicit_next is not None:
+        return explicit_next
+    if last_date is None:
+        return None
+    return last_date + timedelta(days=max(1, int(frequency_days or 1)))
+
+
+def _ensure_maintenance_schema(db) -> None:
+    cur = db.cursor()
+    try:
+        cur.execute("SET LOCAL lock_timeout = '2s'")
+        cur.execute("SET LOCAL statement_timeout = '15s'")
+    except Exception:
+        pass
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS maintenance_assets (
+            id SERIAL PRIMARY KEY,
+            codigo VARCHAR(60) NOT NULL UNIQUE,
+            nombre VARCHAR(160) NOT NULL,
+            categoria VARCHAR(80) NOT NULL DEFAULT 'General',
+            sucursal_id INTEGER REFERENCES sucursales(id),
+            ubicacion_detalle VARCHAR(160),
+            descripcion TEXT,
+            estado_operativo VARCHAR(40) NOT NULL DEFAULT 'Operativo',
+            frecuencia_dias INTEGER NOT NULL DEFAULT 90,
+            ultimo_mantenimiento DATE NULL,
+            proximo_mantenimiento DATE NULL,
+            responsable_usuario_id INTEGER NULL REFERENCES usuarios(id),
+            activo BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS maintenance_work_orders (
+            id SERIAL PRIMARY KEY,
+            activo_id INTEGER NOT NULL REFERENCES maintenance_assets(id) ON DELETE CASCADE,
+            tipo VARCHAR(40) NOT NULL DEFAULT 'Preventivo',
+            titulo VARCHAR(160) NOT NULL,
+            descripcion TEXT,
+            prioridad VARCHAR(20) NOT NULL DEFAULT 'Media',
+            estado VARCHAR(30) NOT NULL DEFAULT 'Pendiente',
+            programado_para DATE NULL,
+            completado_en TIMESTAMP NULL,
+            asignado_usuario_id INTEGER NULL REFERENCES usuarios(id),
+            creado_por_usuario_id INTEGER NULL REFERENCES usuarios(id),
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    for stmt in (
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS ubicacion_detalle VARCHAR(160)",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS descripcion TEXT",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS responsable_usuario_id INTEGER NULL REFERENCES usuarios(id)",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS estado_operativo VARCHAR(40) NOT NULL DEFAULT 'Operativo'",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS frecuencia_dias INTEGER NOT NULL DEFAULT 90",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS ultimo_mantenimiento DATE NULL",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS proximo_mantenimiento DATE NULL",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE maintenance_work_orders ADD COLUMN IF NOT EXISTS descripcion TEXT",
+        "ALTER TABLE maintenance_work_orders ADD COLUMN IF NOT EXISTS completado_en TIMESTAMP NULL",
+        "ALTER TABLE maintenance_work_orders ADD COLUMN IF NOT EXISTS asignado_usuario_id INTEGER NULL REFERENCES usuarios(id)",
+        "ALTER TABLE maintenance_work_orders ADD COLUMN IF NOT EXISTS creado_por_usuario_id INTEGER NULL REFERENCES usuarios(id)",
+        "ALTER TABLE maintenance_work_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE maintenance_work_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    ):
+        cur.execute(stmt)
+    for stmt in (
+        "CREATE INDEX IF NOT EXISTS idx_maintenance_assets_due ON maintenance_assets(proximo_mantenimiento)",
+        "CREATE INDEX IF NOT EXISTS idx_maintenance_assets_sucursal ON maintenance_assets(sucursal_id)",
+        "CREATE INDEX IF NOT EXISTS idx_maintenance_assets_responsable ON maintenance_assets(responsable_usuario_id)",
+        "CREATE INDEX IF NOT EXISTS idx_maintenance_work_orders_estado ON maintenance_work_orders(estado)",
+        "CREATE INDEX IF NOT EXISTS idx_maintenance_work_orders_programado ON maintenance_work_orders(programado_para)",
+        "CREATE INDEX IF NOT EXISTS idx_maintenance_work_orders_activo ON maintenance_work_orders(activo_id)",
+    ):
+        cur.execute(stmt)
+
+
+def _seed_maintenance_demo_data(db) -> None:
+    cur = db.cursor()
+    cur.execute("SELECT COUNT(*) FROM maintenance_assets")
+    existing_assets = int((cur.fetchone() or [0])[0] or 0)
+    if existing_assets > 0:
+        return
+
+    cur.execute(
+        "SELECT id, nombre FROM sucursales WHERE activo = TRUE ORDER BY id LIMIT 6"
+    )
+    sucursales = cur.fetchall() or []
+    default_locations = [
+        ("Planta Principal", "Compresores"),
+        ("Sistema Hidraulico", "Bombas"),
+        ("Area de Produccion", "HVAC"),
+        ("Cuarto de Maquinas", "Generadores"),
+        ("Almacen", "Montacargas"),
+        ("Nave Industrial", "Ventilacion"),
+    ]
+    cur.execute(
+        """
+        SELECT id, COALESCE(nombre_completo, username, 'Usuario')
+        FROM usuarios
+        WHERE activo = TRUE
+                    AND LOWER(TRIM(COALESCE(rol, ''))) IN ('administrador', 'activos_fijos', 'tecnicos', 'analista', 'operador', 'colorista')
+        ORDER BY id
+        LIMIT 6
+        """
+    )
+    responsables = cur.fetchall() or []
+
+    today = datetime.now().date()
+    demo_assets = [
+        {"codigo": "COMP-001", "nombre": "Compresor de Aire 30HP", "categoria": "Compresores", "dias": -3, "frecuencia": 30, "estado": "En revision"},
+        {"codigo": "BOMB-002", "nombre": "Bomba de Agua 5HP", "categoria": "Bombas", "dias": 4, "frecuencia": 45, "estado": "Operativo"},
+        {"codigo": "AC-003", "nombre": "Aire Acondicionado LG 24K", "categoria": "HVAC", "dias": 5, "frecuencia": 60, "estado": "Operativo"},
+        {"codigo": "GEN-004", "nombre": "Planta Electrica 150kVA", "categoria": "Generadores", "dias": 9, "frecuencia": 90, "estado": "Operativo"},
+        {"codigo": "MONT-005", "nombre": "Montacargas Toyota 2.5T", "categoria": "Montacargas", "dias": 12, "frecuencia": 30, "estado": "Operativo"},
+        {"codigo": "EXT-006", "nombre": "Extractor de Aire Industrial", "categoria": "Ventilacion", "dias": 14, "frecuencia": 60, "estado": "Operativo"},
+    ]
+
+    asset_ids = []
+    for idx, asset in enumerate(demo_assets):
+        sucursal_id = sucursales[idx][0] if idx < len(sucursales) else (sucursales[0][0] if sucursales else None)
+        sucursal_nombre = sucursales[idx][1] if idx < len(sucursales) else (sucursales[0][1] if sucursales else "Sucursal Principal")
+        responsable_id = responsables[idx % len(responsables)][0] if responsables else None
+        ultimo_mantenimiento = today - timedelta(days=max(7, asset["frecuencia"] // 2))
+        proximo_mantenimiento = today + timedelta(days=asset["dias"])
+        area, _ = default_locations[idx % len(default_locations)]
+        cur.execute(
+            """
+            INSERT INTO maintenance_assets (
+                codigo, nombre, categoria, sucursal_id, ubicacion_detalle, descripcion,
+                estado_operativo, frecuencia_dias, ultimo_mantenimiento, proximo_mantenimiento,
+                responsable_usuario_id, activo, created_at, updated_at
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, NOW(), NOW())
+            RETURNING id
+            """,
+            (
+                asset["codigo"],
+                asset["nombre"],
+                asset["categoria"],
+                sucursal_id,
+                area,
+                f"Equipo demo para {sucursal_nombre}. Datos sembrados para pruebas visuales del modulo.",
+                asset["estado"],
+                asset["frecuencia"],
+                ultimo_mantenimiento,
+                proximo_mantenimiento,
+                responsable_id,
+            )
+        )
+        asset_ids.append((cur.fetchone() or [None])[0])
+
+    demo_orders = [
+        {"asset_idx": 0, "tipo": "Correctivo", "titulo": "Mantenimiento vencido", "prioridad": "Alta", "estado": "Vencido", "dias": -3},
+        {"asset_idx": 1, "tipo": "Preventivo", "titulo": "Cambio de sellos y lubricacion", "prioridad": "Media", "estado": "Pendiente", "dias": 4},
+        {"asset_idx": 2, "tipo": "Preventivo", "titulo": "Revision de filtros y gas refrigerante", "prioridad": "Media", "estado": "Pendiente", "dias": 5},
+        {"asset_idx": 3, "tipo": "Preventivo", "titulo": "Cambio de aceite y filtros", "prioridad": "Baja", "estado": "Completado", "dias": -22},
+        {"asset_idx": 4, "tipo": "Preventivo", "titulo": "Inspeccion hidraulica", "prioridad": "Baja", "estado": "Completado", "dias": -35},
+        {"asset_idx": 5, "tipo": "Inspeccion", "titulo": "Balanceo de aspas y limpieza", "prioridad": "Media", "estado": "En proceso", "dias": 1},
+    ]
+
+    for idx, order in enumerate(demo_orders):
+        activo_id = asset_ids[order["asset_idx"]] if order["asset_idx"] < len(asset_ids) else None
+        if not activo_id:
+            continue
+        asignado_id = responsables[idx % len(responsables)][0] if responsables else None
+        programado_para = today + timedelta(days=order["dias"])
+        completado_en = None
+        if order["estado"] == "Completado":
+            completado_en = datetime.combine(programado_para, datetime.min.time())
+        cur.execute(
+            """
+            INSERT INTO maintenance_work_orders (
+                activo_id, tipo, titulo, descripcion, prioridad, estado,
+                programado_para, completado_en, asignado_usuario_id, creado_por_usuario_id,
+                created_at, updated_at
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+            """,
+            (
+                activo_id,
+                order["tipo"],
+                order["titulo"],
+                f"Orden demo sembrada para pruebas visuales del dashboard de mantenimiento.",
+                order["prioridad"],
+                order["estado"],
+                programado_para,
+                completado_en,
+                asignado_id,
+                asignado_id,
+            )
+        )
+
+
+def _serialize_maintenance_asset_row(row) -> Dict[str, Any]:
+    return {
+        "id": row[0],
+        "codigo": row[1],
+        "nombre": row[2],
+        "categoria": row[3],
+        "sucursal_id": row[4],
+        "sucursal_nombre": row[5],
+        "ubicacion_detalle": row[6] or "",
+        "descripcion": row[7] or "",
+        "estado_operativo": row[8],
+        "frecuencia_dias": int(row[9] or 0),
+        "ultimo_mantenimiento": row[10].isoformat() if row[10] else None,
+        "proximo_mantenimiento": row[11].isoformat() if row[11] else None,
+        "responsable_usuario_id": row[12],
+        "responsable_nombre": row[13],
+        "activo": bool(row[14]),
+        "ordenes_abiertas": int(row[15] or 0),
+    }
+
+
+def _serialize_maintenance_work_order_row(row) -> Dict[str, Any]:
+    return {
+        "id": row[0],
+        "activo_id": row[1],
+        "activo_codigo": row[2],
+        "activo_nombre": row[3],
+        "tipo": row[4],
+        "titulo": row[5],
+        "descripcion": row[6] or "",
+        "prioridad": row[7],
+        "estado": row[8],
+        "programado_para": row[9].isoformat() if row[9] else None,
+        "completado_en": row[10].isoformat() if row[10] else None,
+        "asignado_usuario_id": row[11],
+        "asignado_nombre": row[12],
+        "creado_por_usuario_id": row[13],
+        "created_at": row[14].isoformat() if row[14] else None,
+    }
+
+
+def _refresh_asset_dates_from_work_order(db, activo_id: int, status: str, scheduled_for: Optional[date]) -> None:
+    if status != "Completado":
+        return
+    completed_date = scheduled_for or datetime.now().date()
+    cur = db.cursor()
+    cur.execute(
+        "SELECT frecuencia_dias FROM maintenance_assets WHERE id = %s LIMIT 1",
+        (activo_id,)
+    )
+    row = cur.fetchone()
+    if not row:
+        return
+    frequency_days = int(row[0] or 90)
+    next_due = _compute_next_maintenance(completed_date, frequency_days)
+    cur.execute(
+        """
+        UPDATE maintenance_assets
+        SET ultimo_mantenimiento = %s,
+            proximo_mantenimiento = %s,
+            updated_at = NOW()
+        WHERE id = %s
+        """,
+        (completed_date, next_due, activo_id)
+    )
+
+
+def _list_maintenance_assets(db, limit: int = 200, include_inactive: bool = False) -> List[Dict[str, Any]]:
+    cur = db.cursor()
+    filters = []
+    params: List[Any] = []
+    if not include_inactive:
+        filters.append("a.activo = TRUE")
+    where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
+    cur.execute(
+        f"""
+        SELECT a.id,
+               a.codigo,
+               a.nombre,
+               a.categoria,
+               a.sucursal_id,
+               s.nombre AS sucursal_nombre,
+               a.ubicacion_detalle,
+               a.descripcion,
+               a.estado_operativo,
+               a.frecuencia_dias,
+               a.ultimo_mantenimiento,
+               a.proximo_mantenimiento,
+               a.responsable_usuario_id,
+               COALESCE(u.nombre_completo, u.username, 'Sin asignar') AS responsable_nombre,
+               a.activo,
+               COALESCE(open_orders.total_abiertas, 0) AS ordenes_abiertas
+        FROM maintenance_assets a
+        LEFT JOIN sucursales s ON s.id = a.sucursal_id
+        LEFT JOIN usuarios u ON u.id = a.responsable_usuario_id
+        LEFT JOIN (
+            SELECT activo_id, COUNT(*) AS total_abiertas
+            FROM maintenance_work_orders
+            WHERE estado IN ('Pendiente', 'En proceso', 'Vencido')
+            GROUP BY activo_id
+        ) open_orders ON open_orders.activo_id = a.id
+        {where_clause}
+        ORDER BY a.proximo_mantenimiento NULLS LAST, a.nombre ASC
+        LIMIT %s
+        """,
+        params + [limit]
+    )
+    return [_serialize_maintenance_asset_row(row) for row in (cur.fetchall() or [])]
+
+
+def _list_maintenance_work_orders(db, limit: int = 200) -> List[Dict[str, Any]]:
+    cur = db.cursor()
+    cur.execute(
+        """
+        SELECT wo.id,
+               wo.activo_id,
+               a.codigo,
+               a.nombre,
+               wo.tipo,
+               wo.titulo,
+               wo.descripcion,
+               wo.prioridad,
+               wo.estado,
+               wo.programado_para,
+               wo.completado_en,
+               wo.asignado_usuario_id,
+               COALESCE(u.nombre_completo, u.username, 'Sin asignar') AS asignado_nombre,
+               wo.creado_por_usuario_id,
+               wo.created_at
+        FROM maintenance_work_orders wo
+        JOIN maintenance_assets a ON a.id = wo.activo_id
+        LEFT JOIN usuarios u ON u.id = wo.asignado_usuario_id
+        ORDER BY
+            CASE wo.estado
+                WHEN 'Vencido' THEN 0
+                WHEN 'Pendiente' THEN 1
+                WHEN 'En proceso' THEN 2
+                WHEN 'Completado' THEN 3
+                ELSE 4
+            END,
+            wo.programado_para NULLS LAST,
+            wo.created_at DESC
+        LIMIT %s
+        """,
+        (limit,)
+    )
+    return [_serialize_maintenance_work_order_row(row) for row in (cur.fetchall() or [])]
+
+
+@app.get("/api/v1/maintenance/lookups")
+async def maintenance_lookups(
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    role: Optional[str] = None,
+    db=Depends(get_db),
+):
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    cur = db.cursor()
+    cur.execute(
+        "SELECT id, nombre, zona FROM sucursales WHERE activo = TRUE ORDER BY nombre"
+    )
+    sucursales = [
+        {"id": row[0], "nombre": row[1], "zona": row[2]}
+        for row in (cur.fetchall() or [])
+    ]
+    cur.execute(
+        """
+        SELECT id, username, nombre_completo, rol
+        FROM usuarios
+        WHERE activo = TRUE
+        ORDER BY COALESCE(nombre_completo, username), username
+        LIMIT 300
+        """
+    )
+    usuarios = [
+        {
+            "id": row[0],
+            "username": row[1],
+            "nombre_completo": row[2],
+            "rol": row[3],
+        }
+        for row in (cur.fetchall() or [])
+    ]
+    return {"sucursales": sucursales, "usuarios": usuarios}
+
+
+@app.get("/api/v1/maintenance/dashboard")
+async def maintenance_dashboard(
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    role: Optional[str] = None,
+    db=Depends(get_db),
+):
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    cur = db.cursor()
+    cur.execute("SELECT COUNT(*) FROM maintenance_assets WHERE activo = TRUE")
+    total_assets = int((cur.fetchone() or [0])[0] or 0)
+    cur.execute(
+        "SELECT COUNT(*) FROM maintenance_assets WHERE activo = TRUE AND proximo_mantenimiento BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '7 days')"
+    )
+    due_soon = int((cur.fetchone() or [0])[0] or 0)
+    cur.execute(
+        "SELECT COUNT(*) FROM maintenance_assets WHERE activo = TRUE AND proximo_mantenimiento < CURRENT_DATE"
+    )
+    overdue = int((cur.fetchone() or [0])[0] or 0)
+    cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM maintenance_work_orders
+        WHERE estado = 'Completado'
+          AND date_trunc('month', completado_en) = date_trunc('month', CURRENT_DATE)
+        """
+    )
+    completed_this_month = int((cur.fetchone() or [0])[0] or 0)
+    cur.execute(
+        "SELECT COUNT(*) FROM maintenance_work_orders WHERE estado = 'En proceso'"
+    )
+    in_progress = int((cur.fetchone() or [0])[0] or 0)
+    cur.execute(
+        """
+        SELECT a.id, a.codigo, a.nombre, a.proximo_mantenimiento, a.estado_operativo, s.nombre
+        FROM maintenance_assets a
+        LEFT JOIN sucursales s ON s.id = a.sucursal_id
+        WHERE a.activo = TRUE
+          AND a.proximo_mantenimiento IS NOT NULL
+        ORDER BY
+            CASE WHEN a.proximo_mantenimiento < CURRENT_DATE THEN 0 ELSE 1 END,
+            a.proximo_mantenimiento ASC
+        LIMIT 6
+        """
+    )
+    alerts = [
+        {
+            "id": row[0],
+            "codigo": row[1],
+            "nombre": row[2],
+            "proximo_mantenimiento": row[3].isoformat() if row[3] else None,
+            "estado_operativo": row[4],
+            "sucursal_nombre": row[5],
+        }
+        for row in (cur.fetchall() or [])
+    ]
+    return {
+        "summary": {
+            "total_assets": total_assets,
+            "due_soon": due_soon,
+            "overdue": overdue,
+            "completed_this_month": completed_this_month,
+            "in_progress": in_progress,
+        },
+        "alerts": alerts,
+        "assets": _list_maintenance_assets(db, limit=12),
+        "work_orders": _list_maintenance_work_orders(db, limit=12),
+    }
+
+
+@app.get("/api/v1/maintenance/assets")
+async def maintenance_assets_list(
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    role: Optional[str] = None,
+    include_inactive: bool = False,
+    limit: int = 200,
+    db=Depends(get_db),
+):
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    assets = _list_maintenance_assets(db, limit=min(max(limit, 1), 500), include_inactive=include_inactive)
+    return {
+        "total": len(assets),
+        "assets": assets,
+    }
+
+
+@app.post("/api/v1/maintenance/assets")
+async def maintenance_assets_create(
+    payload: MaintenanceAssetCreate,
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    role: Optional[str] = None,
+    db=Depends(get_db),
+):
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    codigo = (payload.codigo or "").strip().upper()
+    nombre = (payload.nombre or "").strip()
+    if not codigo or not nombre:
+        raise HTTPException(status_code=400, detail="Codigo y nombre son obligatorios")
+    frecuencia_dias = max(1, int(payload.frecuencia_dias or 1))
+    proximo_mantenimiento = _compute_next_maintenance(payload.ultimo_mantenimiento, frecuencia_dias, payload.proximo_mantenimiento)
+    cur = db.cursor()
+    cur.execute(
+        "SELECT 1 FROM maintenance_assets WHERE codigo = %s LIMIT 1",
+        (codigo,)
+    )
+    if cur.fetchone():
+        raise HTTPException(status_code=409, detail="Ya existe un activo con ese codigo")
+    cur.execute(
+        """
+        INSERT INTO maintenance_assets (
+            codigo, nombre, categoria, sucursal_id, ubicacion_detalle, descripcion,
+            estado_operativo, frecuencia_dias, ultimo_mantenimiento, proximo_mantenimiento,
+            responsable_usuario_id, activo, created_at, updated_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        RETURNING id
+        """,
+        (
+            codigo,
+            nombre,
+            (payload.categoria or "General").strip() or "General",
+            payload.sucursal_id,
+            (payload.ubicacion_detalle or "").strip() or None,
+            (payload.descripcion or "").strip() or None,
+            (payload.estado_operativo or "Operativo").strip() or "Operativo",
+            frecuencia_dias,
+            payload.ultimo_mantenimiento,
+            proximo_mantenimiento,
+            payload.responsable_usuario_id,
+            bool(payload.activo),
+        )
+    )
+    asset_id = (cur.fetchone() or [None])[0]
+    db.commit()
+    return {"ok": True, "asset_id": asset_id}
+
+
+@app.patch("/api/v1/maintenance/assets/{asset_id}")
+async def maintenance_assets_update(
+    asset_id: int,
+    payload: MaintenanceAssetUpdate,
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    role: Optional[str] = None,
+    db=Depends(get_db),
+):
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    updates = []
+    params: List[Any] = []
+    if payload.nombre is not None:
+        updates.append("nombre = %s")
+        params.append(payload.nombre.strip())
+    if payload.categoria is not None:
+        updates.append("categoria = %s")
+        params.append(payload.categoria.strip() or "General")
+    if payload.sucursal_id is not None:
+        updates.append("sucursal_id = %s")
+        params.append(payload.sucursal_id)
+    if payload.ubicacion_detalle is not None:
+        updates.append("ubicacion_detalle = %s")
+        params.append(payload.ubicacion_detalle.strip() or None)
+    if payload.descripcion is not None:
+        updates.append("descripcion = %s")
+        params.append(payload.descripcion.strip() or None)
+    if payload.estado_operativo is not None:
+        updates.append("estado_operativo = %s")
+        params.append(payload.estado_operativo.strip() or "Operativo")
+    if payload.frecuencia_dias is not None:
+        updates.append("frecuencia_dias = %s")
+        params.append(max(1, int(payload.frecuencia_dias or 1)))
+    if payload.ultimo_mantenimiento is not None:
+        updates.append("ultimo_mantenimiento = %s")
+        params.append(payload.ultimo_mantenimiento)
+    if payload.proximo_mantenimiento is not None:
+        updates.append("proximo_mantenimiento = %s")
+        params.append(payload.proximo_mantenimiento)
+    if payload.responsable_usuario_id is not None:
+        updates.append("responsable_usuario_id = %s")
+        params.append(payload.responsable_usuario_id)
+    if payload.activo is not None:
+        updates.append("activo = %s")
+        params.append(bool(payload.activo))
+    if not updates:
+        raise HTTPException(status_code=400, detail="No hay cambios para aplicar")
+    updates.append("updated_at = NOW()")
+    params.append(asset_id)
+    cur = db.cursor()
+    cur.execute(
+        f"UPDATE maintenance_assets SET {', '.join(updates)} WHERE id = %s",
+        params,
+    )
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/v1/maintenance/work-orders")
+async def maintenance_work_orders_list(
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    role: Optional[str] = None,
+    limit: int = 200,
+    db=Depends(get_db),
+):
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    orders = _list_maintenance_work_orders(db, limit=min(max(limit, 1), 500))
+    return {"total": len(orders), "work_orders": orders}
+
+
+@app.post("/api/v1/maintenance/work-orders")
+async def maintenance_work_orders_create(
+    payload: MaintenanceWorkOrderCreate,
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    role: Optional[str] = None,
+    db=Depends(get_db),
+):
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    titulo = (payload.titulo or "").strip()
+    if not titulo:
+        raise HTTPException(status_code=400, detail="El titulo de la orden es obligatorio")
+    status = _normalize_maintenance_status(payload.estado)
+    scheduled_for = payload.programado_para
+    cur = db.cursor()
+    cur.execute(
+        "SELECT 1 FROM maintenance_assets WHERE id = %s LIMIT 1",
+        (payload.activo_id,)
+    )
+    if not cur.fetchone():
+        raise HTTPException(status_code=404, detail="Activo no encontrado")
+    cur.execute(
+        """
+        INSERT INTO maintenance_work_orders (
+            activo_id, tipo, titulo, descripcion, prioridad, estado,
+            programado_para, completado_en, asignado_usuario_id, creado_por_usuario_id,
+            created_at, updated_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        RETURNING id
+        """,
+        (
+            payload.activo_id,
+            _normalize_maintenance_type(payload.tipo),
+            titulo,
+            (payload.descripcion or "").strip() or None,
+            _normalize_maintenance_priority(payload.prioridad),
+            status,
+            scheduled_for,
+            datetime.now() if status == "Completado" else None,
+            payload.asignado_usuario_id,
+            payload.creado_por_usuario_id or usuario_id,
+        )
+    )
+    work_order_id = (cur.fetchone() or [None])[0]
+    _refresh_asset_dates_from_work_order(db, payload.activo_id, status, scheduled_for)
+    db.commit()
+    return {"ok": True, "work_order_id": work_order_id}
+
+
+@app.patch("/api/v1/maintenance/work-orders/{work_order_id}")
+async def maintenance_work_orders_update(
+    work_order_id: int,
+    payload: MaintenanceWorkOrderUpdate,
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    role: Optional[str] = None,
+    db=Depends(get_db),
+):
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    updates = []
+    params: List[Any] = []
+    status = None
+    scheduled_for = payload.programado_para
+    if payload.tipo is not None:
+        updates.append("tipo = %s")
+        params.append(_normalize_maintenance_type(payload.tipo))
+    if payload.titulo is not None:
+        updates.append("titulo = %s")
+        params.append(payload.titulo.strip())
+    if payload.descripcion is not None:
+        updates.append("descripcion = %s")
+        params.append(payload.descripcion.strip() or None)
+    if payload.prioridad is not None:
+        updates.append("prioridad = %s")
+        params.append(_normalize_maintenance_priority(payload.prioridad))
+    if payload.estado is not None:
+        status = _normalize_maintenance_status(payload.estado)
+        updates.append("estado = %s")
+        params.append(status)
+        updates.append("completado_en = %s")
+        params.append(datetime.now() if status == "Completado" else None)
+    if payload.programado_para is not None:
+        updates.append("programado_para = %s")
+        params.append(payload.programado_para)
+    if payload.asignado_usuario_id is not None:
+        updates.append("asignado_usuario_id = %s")
+        params.append(payload.asignado_usuario_id)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No hay cambios para aplicar")
+    updates.append("updated_at = NOW()")
+    params.append(work_order_id)
+    cur = db.cursor()
+    cur.execute(
+        "SELECT activo_id, programado_para FROM maintenance_work_orders WHERE id = %s LIMIT 1",
+        (work_order_id,)
+    )
+    existing = cur.fetchone()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    activo_id = existing[0]
+    if scheduled_for is None:
+        scheduled_for = existing[1]
+    cur.execute(
+        f"UPDATE maintenance_work_orders SET {', '.join(updates)} WHERE id = %s",
+        params,
+    )
+    if status is not None:
+        _refresh_asset_dates_from_work_order(db, activo_id, status, scheduled_for)
+    db.commit()
+    return {"ok": True}
 
 
 def _store_labelsapp_history(db, payload, sucursal_slug: str, operador_label: Optional[str], estado_envio: str = "Enviado") -> None:
@@ -1925,10 +2919,7 @@ async def labelsapp_products(
             usuario_id=usuario_id,
             sucursal_text=sucursal,
         )
-        personalized = _filter_personalized_products_by_sucursal(
-            _load_personalized_products(),
-            requester_sucursal_slug,
-        )
+        personalized = _list_personalizados_for_sucursal(db, requester_sucursal_slug)
         existing = {str(p.get("codigo") or "").strip().lower() for p in products}
         for item in personalized:
             code = (item.get("codigo") or "").strip()
@@ -1985,16 +2976,7 @@ async def labelsapp_product_by_code(
                 usuario_id=usuario_id,
                 sucursal_text=sucursal,
             )
-            personalized = next(
-                (
-                    item for item in _filter_personalized_products_by_sucursal(
-                        _load_personalized_products(),
-                        requester_sucursal_slug,
-                    )
-                    if (item.get("codigo") or "").strip().lower() == (codigo or "").strip().lower()
-                ),
-                None,
-            )
+            personalized = _get_personalizado_by_codigo(db, requester_sucursal_slug, codigo)
             if personalized:
                 return personalized
             raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -2464,7 +3446,7 @@ async def labelsapp_personalized_products(
         usuario_id=usuario_id,
         sucursal_text=sucursal,
     )
-    items = _filter_personalized_products_by_sucursal(_load_personalized_products(), requester_sucursal_slug)
+    items = _list_personalizados_for_sucursal(db, requester_sucursal_slug)
     return {"items": items}
 
 
@@ -2500,20 +3482,12 @@ async def labelsapp_create_personalized_product(
         sucursal_text=sucursal,
     )
 
-    items = _load_personalized_products()
-    scoped_items = _filter_personalized_products_by_sucursal(items, requester_sucursal_slug)
-    if any((item.get("codigo") or "").strip().lower() == codigo.lower() for item in scoped_items):
+    existing = _get_personalizado_by_codigo(db, requester_sucursal_slug, codigo)
+    if existing:
         raise HTTPException(status_code=409, detail="El código ya existe en productos personalizados")
 
-    items.append({
-        "codigo": codigo,
-        "nombre": nombre,
-        "base": "",
-        "ubicacion": "",
-        "fecha_creacion": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "sucursal_slug": requester_sucursal_slug,
-    })
-    _save_personalized_products(items)
+    _insert_personalizado(db, requester_sucursal_slug, codigo, nombre)
+    db.commit()
     return {"message": "Producto personalizado guardado", "codigo": codigo, "nombre": nombre}
 
 
@@ -2532,18 +3506,10 @@ async def labelsapp_delete_personalized_product(
         sucursal_text=sucursal,
     )
 
-    items = _load_personalized_products()
-    code_norm = (codigo or "").strip().lower()
-    filtered = [
-        item for item in items
-        if not (
-            (item.get("codigo") or "").strip().lower() == code_norm
-            and (item.get("sucursal_slug") or "").strip() == requester_sucursal_slug
-        )
-    ]
-    if len(filtered) == len(items):
+    deleted = _delete_personalizado(db, requester_sucursal_slug, codigo)
+    if deleted <= 0:
         raise HTTPException(status_code=404, detail="Código no encontrado en productos personalizados")
-    _save_personalized_products(filtered)
+    db.commit()
     return {"message": "Producto personalizado eliminado", "codigo": codigo}
 
 
@@ -3339,6 +4305,10 @@ def get_departamento(rol):
     """Mapear rol a departamento"""
     if rol and rol.lower() == 'administrador':
         return "Departamento TI"
+    elif rol and rol.lower() == 'activos_fijos':
+        return "Activos Fijos"
+    elif rol and rol.lower() == 'tecnicos':
+        return "Mantenimiento"
     elif rol and rol.lower() in ['gerente', 'contabilidad']:
         return "Finanzas"
     elif rol and rol.lower() in ['facturador', 'cajero', 'cliente', 'colorista', 'analista']:
@@ -3377,7 +4347,7 @@ async def login(username: str, password: str, db=Depends(get_db)):
             raise HTTPException(status_code=403, detail="Esta cuenta está inactiva")
         
         # Verificar que tenga un rol permitido en el portal
-        allowed_roles = ['administrador', 'analista', 'facturador', 'cajero', 'cliente']
+        allowed_roles = ['administrador', 'analista', 'facturador', 'cajero', 'cliente', 'activos_fijos', 'tecnicos']
         if not rol_normalizado or rol_normalizado not in allowed_roles:
             raise HTTPException(status_code=403, detail="Acceso restringido para este rol")
         
