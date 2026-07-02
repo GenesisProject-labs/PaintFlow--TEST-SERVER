@@ -852,20 +852,54 @@ def _list_personalized_products_for_sucursal(db, sucursal_slug: str) -> List[dic
     cached = _personalizados_cache_get(slug)
     if cached is not None:
         return cached
+    try:
+        table_name = _safe_personalizados_table_for_sucursal(slug)
+        _ensure_personalizados_table(db, table_name)
+        cur = db.cursor()
+        cur.execute(
+            f"""
+            SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, ''), fecha_creacion
+            FROM {table_name}
+            ORDER BY LOWER(nombre), LOWER(codigo)
+            """
+        )
+        items = []
+        for row in cur.fetchall() or []:
+            items.append({
+                "codigo": (row[0] or "").strip(),
+                "nombre": (row[1] or "").strip(),
+                "base": (row[2] or "").strip(),
+                "ubicacion": (row[3] or "").strip(),
+                "fecha_creacion": row[4].isoformat() if row[4] else "",
+                "sucursal_slug": slug,
+                "personalizado": True,
+            })
+        _personalizados_cache_set(slug, items)
+        return items
+    except Exception as e:
+        logger.warning(f"No se pudieron cargar personalizados DB para {slug}: {e}")
+        return []
 
-    table_name = _safe_personalizados_table_for_sucursal(slug)
-    _ensure_personalizados_table(db, table_name)
-    cur = db.cursor()
-    cur.execute(
-        f"""
-        SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, ''), fecha_creacion
-        FROM {table_name}
-        ORDER BY LOWER(nombre), LOWER(codigo)
-        """
-    )
-    items = []
-    for row in cur.fetchall() or []:
-        items.append({
+
+def _get_personalized_product_by_code(db, sucursal_slug: str, codigo: str) -> Optional[dict]:
+    slug = _normalize_sucursal_slug(sucursal_slug)
+    try:
+        table_name = _safe_personalizados_table_for_sucursal(slug)
+        _ensure_personalizados_table(db, table_name)
+        cur = db.cursor()
+        cur.execute(
+            f"""
+            SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, ''), fecha_creacion
+            FROM {table_name}
+            WHERE LOWER(TRIM(codigo)) = LOWER(TRIM(%s))
+            LIMIT 1
+            """,
+            (codigo,)
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {
             "codigo": (row[0] or "").strip(),
             "nombre": (row[1] or "").strip(),
             "base": (row[2] or "").strip(),
@@ -873,37 +907,10 @@ def _list_personalized_products_for_sucursal(db, sucursal_slug: str) -> List[dic
             "fecha_creacion": row[4].isoformat() if row[4] else "",
             "sucursal_slug": slug,
             "personalizado": True,
-        })
-    _personalizados_cache_set(slug, items)
-    return items
-
-
-def _get_personalized_product_by_code(db, sucursal_slug: str, codigo: str) -> Optional[dict]:
-    slug = _normalize_sucursal_slug(sucursal_slug)
-    table_name = _safe_personalizados_table_for_sucursal(slug)
-    _ensure_personalizados_table(db, table_name)
-    cur = db.cursor()
-    cur.execute(
-        f"""
-        SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, ''), fecha_creacion
-        FROM {table_name}
-        WHERE LOWER(TRIM(codigo)) = LOWER(TRIM(%s))
-        LIMIT 1
-        """,
-        (codigo,)
-    )
-    row = cur.fetchone()
-    if not row:
+        }
+    except Exception as e:
+        logger.warning(f"No se pudo buscar personalizado por codigo en {slug}: {e}")
         return None
-    return {
-        "codigo": (row[0] or "").strip(),
-        "nombre": (row[1] or "").strip(),
-        "base": (row[2] or "").strip(),
-        "ubicacion": (row[3] or "").strip(),
-        "fecha_creacion": row[4].isoformat() if row[4] else "",
-        "sucursal_slug": slug,
-        "personalizado": True,
-    }
 
 
 def _migrate_personalizados_csv_to_db_if_needed(db, sucursal_slug: str) -> None:
@@ -2874,8 +2881,8 @@ async def labelsapp_products(
                 return cached
 
             cur = db.cursor()
-            # Time-budget corto: autocomplete no debe monopolizar conexiones.
-            _set_local_pg_timeouts(db, statement_ms=3500, lock_ms=500)
+            # Time-budget: defensivo pero sin cortar de forma agresiva.
+            _set_local_pg_timeouts(db, statement_ms=8000, lock_ms=700)
             if query:
                 params = (f"%{query}%", f"%{query}%")
                 sql = """
@@ -2913,7 +2920,6 @@ async def labelsapp_products(
                 for r in rows
             ]
 
-            _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
             personalized = _list_personalized_products_for_sucursal(db, requester_sucursal_slug)
             existing = {str(p.get("codigo") or "").strip().lower() for p in products}
             for item in personalized:
@@ -2974,7 +2980,6 @@ async def labelsapp_product_by_code(
                 usuario_id=usuario_id,
                 sucursal_text=sucursal,
             )
-            _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
             personalized = _get_personalized_product_by_code(db, requester_sucursal_slug, codigo)
             if personalized:
                 return personalized
