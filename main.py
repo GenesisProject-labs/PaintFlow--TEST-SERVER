@@ -151,6 +151,14 @@ _labelsapp_queue_cache = {
     "pending": {},
 }
 _labelsapp_queue_cache_lock = Lock()
+PRODUCTS_CACHE_TTL_SEC = 20.0
+_labelsapp_products_cache: Dict[tuple, Dict[str, Any]] = {}
+_labelsapp_products_cache_lock = Lock()
+_labelsapp_products_fetch_locks: Dict[tuple, Lock] = {}
+_labelsapp_products_fetch_locks_guard = Lock()
+PERSONALIZADOS_CACHE_TTL_SEC = 20.0
+_labelsapp_personalizados_cache: Dict[str, Dict[str, Any]] = {}
+_labelsapp_personalizados_cache_lock = Lock()
 USAGE_METRICS_CACHE_TTL_SEC = 90.0
 _labels_usage_metrics_cache: Dict[tuple, Dict[str, Any]] = {}
 _labels_usage_metrics_cache_lock = Lock()
@@ -200,6 +208,74 @@ def _queue_cache_set(kind: str, key, items):
             "ts": time.time(),
             "items": items,
         }
+
+
+def _get_products_fetch_lock(key: tuple) -> Lock:
+    lock = _labelsapp_products_fetch_locks.get(key)
+    if lock is not None:
+        return lock
+    with _labelsapp_products_fetch_locks_guard:
+        lock = _labelsapp_products_fetch_locks.get(key)
+        if lock is None:
+            lock = Lock()
+            _labelsapp_products_fetch_locks[key] = lock
+        return lock
+
+
+def _products_cache_get(key: tuple):
+    now = time.time()
+    with _labelsapp_products_cache_lock:
+        entry = _labelsapp_products_cache.get(key)
+        if not entry:
+            return None
+        if (now - float(entry.get("ts", 0))) > PRODUCTS_CACHE_TTL_SEC:
+            _labelsapp_products_cache.pop(key, None)
+            return None
+        return entry.get("data")
+
+
+def _products_cache_set(key: tuple, data: dict) -> None:
+    with _labelsapp_products_cache_lock:
+        _labelsapp_products_cache[key] = {
+            "ts": time.time(),
+            "data": data,
+        }
+
+
+def _products_cache_invalidate_for_sucursal(sucursal_slug: str) -> None:
+    slug = _normalize_sucursal_slug(sucursal_slug)
+    with _labelsapp_products_cache_lock:
+        to_delete = [k for k in _labelsapp_products_cache.keys() if isinstance(k, tuple) and len(k) >= 1 and k[0] == slug]
+        for k in to_delete:
+            _labelsapp_products_cache.pop(k, None)
+
+
+def _personalizados_cache_get(sucursal_slug: str):
+    slug = _normalize_sucursal_slug(sucursal_slug)
+    now = time.time()
+    with _labelsapp_personalizados_cache_lock:
+        entry = _labelsapp_personalizados_cache.get(slug)
+        if not entry:
+            return None
+        if (now - float(entry.get("ts", 0))) > PERSONALIZADOS_CACHE_TTL_SEC:
+            _labelsapp_personalizados_cache.pop(slug, None)
+            return None
+        return entry.get("items")
+
+
+def _personalizados_cache_set(sucursal_slug: str, items: List[dict]) -> None:
+    slug = _normalize_sucursal_slug(sucursal_slug)
+    with _labelsapp_personalizados_cache_lock:
+        _labelsapp_personalizados_cache[slug] = {
+            "ts": time.time(),
+            "items": items,
+        }
+
+
+def _personalizados_cache_invalidate(sucursal_slug: str) -> None:
+    slug = _normalize_sucursal_slug(sucursal_slug)
+    with _labelsapp_personalizados_cache_lock:
+        _labelsapp_personalizados_cache.pop(slug, None)
 
 
 def _usage_metrics_cache_get(key: tuple):
@@ -772,7 +848,12 @@ def _ensure_personalizados_table(db, table_name: str) -> None:
 
 
 def _list_personalized_products_for_sucursal(db, sucursal_slug: str) -> List[dict]:
-    table_name = _safe_personalizados_table_for_sucursal(sucursal_slug)
+    slug = _normalize_sucursal_slug(sucursal_slug)
+    cached = _personalizados_cache_get(slug)
+    if cached is not None:
+        return cached
+
+    table_name = _safe_personalizados_table_for_sucursal(slug)
     _ensure_personalizados_table(db, table_name)
     cur = db.cursor()
     cur.execute(
@@ -790,10 +871,39 @@ def _list_personalized_products_for_sucursal(db, sucursal_slug: str) -> List[dic
             "base": (row[2] or "").strip(),
             "ubicacion": (row[3] or "").strip(),
             "fecha_creacion": row[4].isoformat() if row[4] else "",
-            "sucursal_slug": _normalize_sucursal_slug(sucursal_slug),
+            "sucursal_slug": slug,
             "personalizado": True,
         })
+    _personalizados_cache_set(slug, items)
     return items
+
+
+def _get_personalized_product_by_code(db, sucursal_slug: str, codigo: str) -> Optional[dict]:
+    slug = _normalize_sucursal_slug(sucursal_slug)
+    table_name = _safe_personalizados_table_for_sucursal(slug)
+    _ensure_personalizados_table(db, table_name)
+    cur = db.cursor()
+    cur.execute(
+        f"""
+        SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, ''), fecha_creacion
+        FROM {table_name}
+        WHERE LOWER(TRIM(codigo)) = LOWER(TRIM(%s))
+        LIMIT 1
+        """,
+        (codigo,)
+    )
+    row = cur.fetchone()
+    if not row:
+        return None
+    return {
+        "codigo": (row[0] or "").strip(),
+        "nombre": (row[1] or "").strip(),
+        "base": (row[2] or "").strip(),
+        "ubicacion": (row[3] or "").strip(),
+        "fecha_creacion": row[4].isoformat() if row[4] else "",
+        "sucursal_slug": slug,
+        "personalizado": True,
+    }
 
 
 def _migrate_personalizados_csv_to_db_if_needed(db, sucursal_slug: str) -> None:
@@ -2745,85 +2855,91 @@ async def labelsapp_products(
         # Cap defensivo: limit absurdamente alto (ej. 50000) hace que un solo cliente
         # mate el pool. 2000 es mas que suficiente para autocomplete.
         safe_limit = None if limit <= 0 else max(1, min(limit, 2000))
-        query = (q or "").strip()
-        cur = db.cursor()
-        # Time-budget por request: si por alguna razon falta el indice trigram, evita
-        # que un ILIKE secuencial se coma 7 minutos y bloquee al resto.
-        try:
-            cur.execute("SET LOCAL statement_timeout = '8s'")
-        except Exception:
-            pass
-        if query:
-            params = (f"%{query}%", f"%{query}%")
-            sql = """
-                SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
-                FROM ProductSW
-                WHERE (activo = TRUE OR activo IS NULL)
-                  AND (codigo ILIKE %s OR nombre ILIKE %s)
-                ORDER BY nombre
-            """
-            if safe_limit is not None:
-                sql += "\n                LIMIT %s"
-                params = params + (safe_limit,)
-            cur.execute(
-                sql,
-                params
-            )
-        else:
-            sql = """
-                SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
-                FROM ProductSW
-                WHERE (activo = TRUE OR activo IS NULL)
-                ORDER BY nombre
-            """
-            params = ()
-            if safe_limit is not None:
-                sql += "\n                LIMIT %s"
-                params = (safe_limit,)
-            cur.execute(sql, params)
-
-        rows = cur.fetchall()
-        products = [
-            {
-                "codigo": r[0],
-                "nombre": r[1],
-                "base": r[2],
-                "ubicacion": r[3],
-            }
-            for r in rows
-        ]
-
         requester_sucursal_slug = _resolve_sucursal_slug(
             db,
             username=username,
             usuario_id=usuario_id,
             sucursal_text=sucursal,
         )
-        _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
-        personalized = _list_personalized_products_for_sucursal(db, requester_sucursal_slug)
-        existing = {str(p.get("codigo") or "").strip().lower() for p in products}
-        for item in personalized:
-            code = (item.get("codigo") or "").strip()
-            if not code or code.lower() in existing:
-                continue
-            products.append({
-                "codigo": code,
-                "nombre": (item.get("nombre") or "").strip(),
-                "base": (item.get("base") or "").strip(),
-                "ubicacion": (item.get("ubicacion") or "").strip(),
-                "personalizado": True,
-            })
-            existing.add(code.lower())
+        query = (q or "").strip()
+        query_key = query.lower()
+        cache_key = (requester_sucursal_slug, query_key, int(safe_limit or 0))
+        cached = _products_cache_get(cache_key)
+        if cached is not None:
+            return cached
 
-        if query:
-            qn = query.lower()
-            products = [p for p in products if qn in str(p.get("codigo") or "").lower() or qn in str(p.get("nombre") or "").lower()]
+        with _get_products_fetch_lock(cache_key):
+            cached = _products_cache_get(cache_key)
+            if cached is not None:
+                return cached
 
-        products.sort(key=lambda p: (str(p.get("nombre") or "").lower(), str(p.get("codigo") or "").lower()))
+            cur = db.cursor()
+            # Time-budget corto: autocomplete no debe monopolizar conexiones.
+            _set_local_pg_timeouts(db, statement_ms=3500, lock_ms=500)
+            if query:
+                params = (f"%{query}%", f"%{query}%")
+                sql = """
+                    SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
+                    FROM ProductSW
+                    WHERE (activo = TRUE OR activo IS NULL)
+                      AND (codigo ILIKE %s OR nombre ILIKE %s)
+                    ORDER BY nombre
+                """
+                if safe_limit is not None:
+                    sql += "\n                    LIMIT %s"
+                    params = params + (safe_limit,)
+                cur.execute(sql, params)
+            else:
+                sql = """
+                    SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
+                    FROM ProductSW
+                    WHERE (activo = TRUE OR activo IS NULL)
+                    ORDER BY nombre
+                """
+                params = ()
+                if safe_limit is not None:
+                    sql += "\n                    LIMIT %s"
+                    params = (safe_limit,)
+                cur.execute(sql, params)
 
-        if safe_limit is not None:
-            products = products[:safe_limit]
-        return {"total": len(products), "productos": products}
+            rows = cur.fetchall()
+            products = [
+                {
+                    "codigo": r[0],
+                    "nombre": r[1],
+                    "base": r[2],
+                    "ubicacion": r[3],
+                }
+                for r in rows
+            ]
+
+            _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
+            personalized = _list_personalized_products_for_sucursal(db, requester_sucursal_slug)
+            existing = {str(p.get("codigo") or "").strip().lower() for p in products}
+            for item in personalized:
+                code = (item.get("codigo") or "").strip()
+                if not code or code.lower() in existing:
+                    continue
+                products.append({
+                    "codigo": code,
+                    "nombre": (item.get("nombre") or "").strip(),
+                    "base": (item.get("base") or "").strip(),
+                    "ubicacion": (item.get("ubicacion") or "").strip(),
+                    "personalizado": True,
+                })
+                existing.add(code.lower())
+
+            if query:
+                qn = query.lower()
+                products = [p for p in products if qn in str(p.get("codigo") or "").lower() or qn in str(p.get("nombre") or "").lower()]
+
+            products.sort(key=lambda p: (str(p.get("nombre") or "").lower(), str(p.get("codigo") or "").lower()))
+            if safe_limit is not None:
+                products = products[:safe_limit]
+
+            response = {"total": len(products), "productos": products}
+            _products_cache_set(cache_key, response)
+            return response
     except Exception as e:
         logger.error(f"Error listing labelsapp products: {e}")
         raise HTTPException(status_code=500, detail="Error listando productos")
@@ -2839,6 +2955,7 @@ async def labelsapp_product_by_code(
 ):
     """Obtener producto por código para autocompletar formulario"""
     try:
+        _set_local_pg_timeouts(db, statement_ms=2500, lock_ms=500)
         cur = db.cursor()
         cur.execute(
             """
@@ -2858,13 +2975,7 @@ async def labelsapp_product_by_code(
                 sucursal_text=sucursal,
             )
             _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
-            personalized = next(
-                (
-                    item for item in _list_personalized_products_for_sucursal(db, requester_sucursal_slug)
-                    if (item.get("codigo") or "").strip().lower() == (codigo or "").strip().lower()
-                ),
-                None,
-            )
+            personalized = _get_personalized_product_by_code(db, requester_sucursal_slug, codigo)
             if personalized:
                 return personalized
             raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -3389,6 +3500,8 @@ async def labelsapp_create_personalized_product(
         (codigo, nombre),
     )
     db.commit()
+    _personalizados_cache_invalidate(requester_sucursal_slug)
+    _products_cache_invalidate_for_sucursal(requester_sucursal_slug)
     return {"message": "Producto personalizado guardado", "codigo": codigo, "nombre": nombre}
 
 
@@ -3418,6 +3531,8 @@ async def labelsapp_delete_personalized_product(
     if cur.rowcount == 0:
         raise HTTPException(status_code=404, detail="Código no encontrado en productos personalizados")
     db.commit()
+    _personalizados_cache_invalidate(requester_sucursal_slug)
+    _products_cache_invalidate_for_sucursal(requester_sucursal_slug)
     return {"message": "Producto personalizado eliminado", "codigo": codigo}
 
 
@@ -3513,6 +3628,7 @@ async def labelsapp_send(payload: LabelsAppSendRequest, db=Depends(get_db)):
         raise HTTPException(status_code=400, detail="Debe enviar al menos un producto")
 
     try:
+        _set_local_pg_timeouts(db, statement_ms=6000, lock_ms=800)
         prioridad = (payload.prioridad or "Media").strip().title()
         if prioridad not in ["Alta", "Media", "Baja"]:
             prioridad = "Media"
@@ -3542,13 +3658,22 @@ async def labelsapp_send(payload: LabelsAppSendRequest, db=Depends(get_db)):
         # Las órdenes siempre entran como "Pendiente" para que el colorista
         # pueda asignarse antes de pasar a "En Proceso".
         estado_inicial = "Pendiente"
+        batch_codigo_base_cache: Dict[tuple, str] = {}
 
         for idx, item in enumerate(payload.items):
             cantidad = max(1, int(item.cantidad or 1))
             item_priority = (item.prioridad or prioridad or "Media").strip().title()
             if item_priority not in ["Alta", "Media", "Baja"]:
                 item_priority = prioridad
-            codigo_base = (item.codigo_base or "").strip() or _calculate_codigo_base(db, item.base, item.producto, item.terminacion)
+            codigo_base = (item.codigo_base or "").strip()
+            if not codigo_base:
+                key = (
+                    (item.base or "").strip().lower(),
+                    (item.producto or "").strip().lower(),
+                    (item.terminacion or "").strip().lower(),
+                )
+                codigo_base = batch_codigo_base_cache.get(key) or _calculate_codigo_base(db, item.base, item.producto, item.terminacion)
+                batch_codigo_base_cache[key] = codigo_base
 
             data = {
                 "id_orden_profesional": _generate_order_id(payload.id_factura, item.codigo, idx),
@@ -5483,29 +5608,29 @@ async def labelsapp_usage_metrics(
             rows = sorted(sucursal_login_by_zone.get(z, []), key=lambda x: (x.get("sucursal") or "").lower())
             sucursal_login_by_zone_list.append({"zona": z, "sucursales": rows})
 
-            response_data = {
-                "total_facturas": total_facturas,
-                "total_items": total_items,
-                "avg_completion_minutes_overall": avg_completion_minutes_overall,
-                "total_completed_orders": int(total_completed_orders),
-                "last_login": last_login,
-                "top_products": top_products,
-                "low_products": low_products,
-                "sucursal_usage": sucursal_usage,
-                "zona_usage": zona_usage,
-                "zone_top_products": zone_top_products,
-                "sucursal_login_by_zone": sucursal_login_by_zone_list,
-                "sucursal_mas_uso": sucursal_usage[0] if sucursal_usage else None,
-                "sucursal_menos_uso": sucursal_usage[-1] if sucursal_usage else None,
-                "zona_mas_uso": zona_usage[0] if zona_usage else None,
-                "zona_menos_uso": zona_usage[-1] if zona_usage else None,
-                "filters": {
-                    "date_from": date_from or "",
-                    "date_to": date_to or "",
-                },
-            }
-            _usage_metrics_cache_set(cache_key, response_data)
-            return response_data
+        response_data = {
+            "total_facturas": total_facturas,
+            "total_items": total_items,
+            "avg_completion_minutes_overall": avg_completion_minutes_overall,
+            "total_completed_orders": int(total_completed_orders),
+            "last_login": last_login,
+            "top_products": top_products,
+            "low_products": low_products,
+            "sucursal_usage": sucursal_usage,
+            "zona_usage": zona_usage,
+            "zone_top_products": zone_top_products,
+            "sucursal_login_by_zone": sucursal_login_by_zone_list,
+            "sucursal_mas_uso": sucursal_usage[0] if sucursal_usage else None,
+            "sucursal_menos_uso": sucursal_usage[-1] if sucursal_usage else None,
+            "zona_mas_uso": zona_usage[0] if zona_usage else None,
+            "zona_menos_uso": zona_usage[-1] if zona_usage else None,
+            "filters": {
+                "date_from": date_from or "",
+                "date_to": date_to or "",
+            },
+        }
+        _usage_metrics_cache_set(cache_key, response_data)
+        return response_data
     except Exception as e:
         logger.error(f"Error getting labelsapp usage metrics: {e}")
         raise HTTPException(status_code=500, detail="Error obteniendo métricas de LabelsApp")
