@@ -1012,7 +1012,18 @@ def _resolve_operador_label(db, username: Optional[str] = None, usuario_id: Opti
 
 
 def _normalize_role_key(role: Optional[str]) -> str:
-    return (role or "").strip().lower()
+    role_key = (role or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "admin": "administrador",
+        "tecnico": "tecnicos",
+        "tecnico_mantenimiento": "tecnicos",
+        "activo_fijo": "activos_fijos",
+        "activofijo": "activos_fijos",
+        "activos_fijo": "activos_fijos",
+        "activosfijo": "activos_fijos",
+        "activosfijos": "activos_fijos",
+    }
+    return aliases.get(role_key, role_key)
 
 
 def _can_view_all_labelsapp_history(role: Optional[str]) -> bool:
@@ -3633,7 +3644,8 @@ async def labelsapp_send(payload: LabelsAppSendRequest, db=Depends(get_db)):
         raise HTTPException(status_code=400, detail="Debe enviar al menos un producto")
 
     try:
-        _set_local_pg_timeouts(db, statement_ms=6000, lock_ms=800)
+        # Enviar listas debe priorizar confiabilidad sobre agresividad de timeout.
+        _set_local_pg_timeouts(db, statement_ms=15000, lock_ms=2000)
         prioridad = (payload.prioridad or "Media").strip().title()
         if prioridad not in ["Alta", "Media", "Baja"]:
             prioridad = "Media"
@@ -3717,7 +3729,11 @@ async def labelsapp_send(payload: LabelsAppSendRequest, db=Depends(get_db)):
         except Exception:
             pass
 
-        _store_labelsapp_history(db, payload, sucursal_slug, operador_label, estado_envio="Enviado")
+        try:
+            _store_labelsapp_history(db, payload, sucursal_slug, operador_label, estado_envio="Enviado")
+        except Exception as hist_err:
+            # No romper el envio de la cola por un fallo secundario del historial.
+            logger.warning(f"labelsapp history write failed (send): {hist_err}")
 
         db.commit()
 
