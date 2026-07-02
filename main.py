@@ -156,11 +156,6 @@ _labels_usage_metrics_cache: Dict[tuple, Dict[str, Any]] = {}
 _labels_usage_metrics_cache_lock = Lock()
 _labels_usage_metrics_fetch_locks: Dict[tuple, Lock] = {}
 _labels_usage_metrics_fetch_locks_guard = Lock()
-LABELSAPP_PRODUCTS_CACHE_TTL_SEC = 6.0
-_labelsapp_products_cache: Dict[tuple, Dict[str, Any]] = {}
-_labelsapp_products_cache_lock = Lock()
-_labelsapp_products_fetch_locks: Dict[tuple, Lock] = {}
-_labelsapp_products_fetch_locks_guard = Lock()
 # Locks por tabla: si dos requests piden la misma sucursal en paralelo solo uno
 # pega a la DB, pero requests para sucursales distintas no se serializan entre si.
 # Un solo Lock global hace que el dashboard de analistas (fanout a 13 sucursales)
@@ -239,52 +234,6 @@ def _get_usage_metrics_lock(key: tuple) -> Lock:
         if lock is None:
             lock = Lock()
             _labels_usage_metrics_fetch_locks[key] = lock
-        return lock
-
-
-def _products_cache_get(key: tuple):
-    now = time.time()
-    with _labelsapp_products_cache_lock:
-        entry = _labelsapp_products_cache.get(key)
-        if not entry:
-            return None
-        if (now - float(entry.get("ts", 0))) > LABELSAPP_PRODUCTS_CACHE_TTL_SEC:
-            try:
-                del _labelsapp_products_cache[key]
-            except Exception:
-                pass
-            return None
-        return entry.get("data")
-
-
-def _products_cache_set(key: tuple, data: dict) -> None:
-    with _labelsapp_products_cache_lock:
-        _labelsapp_products_cache[key] = {
-            "ts": time.time(),
-            "data": data,
-        }
-
-
-def _products_cache_invalidate_sucursal(sucursal_slug: str) -> None:
-    target = _normalize_sucursal_slug(sucursal_slug or "principal")
-    with _labelsapp_products_cache_lock:
-        stale_keys = [k for k in _labelsapp_products_cache.keys() if k and k[0] == target]
-        for key in stale_keys:
-            try:
-                del _labelsapp_products_cache[key]
-            except Exception:
-                pass
-
-
-def _get_products_fetch_lock(key: tuple) -> Lock:
-    lock = _labelsapp_products_fetch_locks.get(key)
-    if lock is not None:
-        return lock
-    with _labelsapp_products_fetch_locks_guard:
-        lock = _labelsapp_products_fetch_locks.get(key)
-        if lock is None:
-            lock = Lock()
-            _labelsapp_products_fetch_locks[key] = lock
         return lock
 
 
@@ -772,12 +721,9 @@ def _normalize_zona_key(text: str) -> str:
     return "_".join(p.capitalize() for p in norm.split("_"))
 
 
-PERSONALIZADOS_CSV_PATH = os.path.join(os.path.dirname(__file__), "productos_personalizados.csv")
 LABELSAPP_FEEDBACK_CSV_PATH = os.path.join(os.path.dirname(__file__), "labelsapp_feedback.csv")
 PERSONALIZADO_CODIGO_MAX = 7
 PERSONALIZADO_NOMBRE_MAX = 20
-_personalizados_migration_done: Dict[str, bool] = {}
-_personalizados_migration_lock = Lock()
 
 
 class LabelsAppPersonalizedProductRequest(BaseModel):
@@ -801,71 +747,11 @@ class LabelsAppFeedbackRequest(BaseModel):
     modulo: Optional[str] = "labelsapp-web"
 
 
-def _load_personalized_products_csv() -> List[dict]:
-    items = []
-    if not os.path.exists(PERSONALIZADOS_CSV_PATH):
-        return items
-
-    try:
-        with open(PERSONALIZADOS_CSV_PATH, "r", encoding="utf-8", newline="") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                codigo = (row.get("codigo") or "").strip()
-                nombre = (row.get("nombre") or "").strip()
-                if not codigo:
-                    continue
-                items.append({
-                    "codigo": codigo,
-                    "nombre": nombre,
-                    "base": row.get("base", "") or "",
-                    "ubicacion": row.get("ubicacion", "") or "",
-                    "fecha_creacion": row.get("fecha_creacion", "") or "",
-                    "sucursal_slug": (row.get("sucursal_slug") or "").strip(),
-                    "personalizado": True,
-                })
-    except Exception as e:
-        logger.warning(f"Error loading personalized products: {e}")
-    return items
-
-
-def _save_personalized_products(items: List[dict]) -> None:
-    fieldnames = ["codigo", "nombre", "base", "ubicacion", "fecha_creacion", "sucursal_slug"]
-    os.makedirs(os.path.dirname(PERSONALIZADOS_CSV_PATH), exist_ok=True)
-    with open(PERSONALIZADOS_CSV_PATH, "w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for item in items:
-            writer.writerow({
-                "codigo": (item.get("codigo") or "").strip(),
-                "nombre": (item.get("nombre") or "").strip(),
-                "base": (item.get("base") or "").strip(),
-                "ubicacion": (item.get("ubicacion") or "").strip(),
-                "fecha_creacion": (item.get("fecha_creacion") or "").strip(),
-                "sucursal_slug": (item.get("sucursal_slug") or "").strip(),
-            })
-
-
-def _filter_personalized_products_by_sucursal(items: List[dict], sucursal_slug: str) -> List[dict]:
-    slug = (sucursal_slug or "principal").strip() or "principal"
-    return [
-        item for item in (items or [])
-        if (item.get("sucursal_slug") or "").strip() == slug
-    ]
-
-
-def _find_personalized_product_by_code(codigo: str) -> Optional[dict]:
-    codigo_norm = (codigo or "").strip().lower()
-    for item in _load_personalized_products_csv():
-        if (item.get("codigo") or "").strip().lower() == codigo_norm:
-            return item
-    return None
-
-
-def _personalizados_table_for_sucursal(sucursal_slug: str) -> str:
-    slug = _normalize_sucursal_slug(sucursal_slug or "principal")
+def _safe_personalizados_table_for_sucursal(sucursal_slug: str) -> str:
+    slug = _normalize_sucursal_slug(sucursal_slug)
     if not re.match(r"^[a-z0-9_]+$", slug):
         slug = "principal"
-    return f"personalizado_{slug}"
+    return f"labelsapp_personalizados_{slug}"
 
 
 def _ensure_personalizados_table(db, table_name: str) -> None:
@@ -873,177 +759,94 @@ def _ensure_personalizados_table(db, table_name: str) -> None:
     cur.execute(
         f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
-            codigo VARCHAR(32) PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
+            codigo VARCHAR(32) NOT NULL,
             nombre VARCHAR(120) NOT NULL,
-            base VARCHAR(80) NOT NULL DEFAULT '',
-            ubicacion VARCHAR(120) NOT NULL DEFAULT '',
-            fecha_creacion TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            base VARCHAR(40) DEFAULT '',
+            ubicacion VARCHAR(120) DEFAULT '',
+            fecha_creacion TIMESTAMP DEFAULT NOW(),
+            UNIQUE (codigo)
         )
         """
     )
-    cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_nombre ON {table_name}(LOWER(nombre))")
 
 
-def _migrate_personalizados_csv_for_sucursal(db, sucursal_slug: str, table_name: str) -> None:
-    slug = _normalize_sucursal_slug(sucursal_slug or "principal")
-    with _personalizados_migration_lock:
-        if _personalizados_migration_done.get(slug):
-            return
-
-    cur = db.cursor()
-    cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-    table_count = int((cur.fetchone() or [0])[0] or 0)
-    if table_count > 0:
-        with _personalizados_migration_lock:
-            _personalizados_migration_done[slug] = True
-        return
-
-    legacy_items = _filter_personalized_products_by_sucursal(_load_personalized_products_csv(), slug)
-    inserted = 0
-    for item in legacy_items:
-        codigo = (item.get("codigo") or "").strip()
-        nombre = (item.get("nombre") or "").strip()
-        if not codigo or not nombre:
-            continue
-        if len(codigo) > PERSONALIZADO_CODIGO_MAX:
-            continue
-        if len(nombre) > PERSONALIZADO_NOMBRE_MAX:
-            continue
-        cur.execute(
-            f"""
-            INSERT INTO {table_name} (codigo, nombre, base, ubicacion, fecha_creacion)
-            VALUES (%s, %s, %s, %s, COALESCE(NULLIF(%s, '')::timestamp, NOW()))
-            ON CONFLICT (codigo) DO NOTHING
-            """,
-            (
-                codigo,
-                nombre,
-                (item.get("base") or "").strip(),
-                (item.get("ubicacion") or "").strip(),
-                (item.get("fecha_creacion") or "").strip(),
-            ),
-        )
-        inserted += 1
-
-    if inserted:
-        logger.info(f"Migrated {inserted} personalizados legacy rows into {table_name}")
-
-    with _personalizados_migration_lock:
-        _personalizados_migration_done[slug] = True
-
-
-def _list_personalizados_for_sucursal(db, sucursal_slug: str) -> List[dict]:
-    table_name = _personalizados_table_for_sucursal(sucursal_slug)
+def _list_personalized_products_for_sucursal(db, sucursal_slug: str) -> List[dict]:
+    table_name = _safe_personalizados_table_for_sucursal(sucursal_slug)
     _ensure_personalizados_table(db, table_name)
-    _migrate_personalizados_csv_for_sucursal(db, sucursal_slug, table_name)
     cur = db.cursor()
     cur.execute(
         f"""
-        SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, ''),
-               TO_CHAR(fecha_creacion, 'YYYY-MM-DD HH24:MI:SS')
+        SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, ''), fecha_creacion
         FROM {table_name}
         ORDER BY LOWER(nombre), LOWER(codigo)
         """
     )
-    return [
-        {
-            "codigo": r[0],
-            "nombre": r[1],
-            "base": r[2],
-            "ubicacion": r[3],
-            "fecha_creacion": r[4] or "",
-            "sucursal_slug": _normalize_sucursal_slug(sucursal_slug or "principal"),
+    items = []
+    for row in cur.fetchall() or []:
+        items.append({
+            "codigo": (row[0] or "").strip(),
+            "nombre": (row[1] or "").strip(),
+            "base": (row[2] or "").strip(),
+            "ubicacion": (row[3] or "").strip(),
+            "fecha_creacion": row[4].isoformat() if row[4] else "",
+            "sucursal_slug": _normalize_sucursal_slug(sucursal_slug),
             "personalizado": True,
-        }
-        for r in (cur.fetchall() or [])
-    ]
+        })
+    return items
 
 
-def _get_personalizado_by_codigo(db, sucursal_slug: str, codigo: str) -> Optional[dict]:
-    table_name = _personalizados_table_for_sucursal(sucursal_slug)
+def _migrate_personalizados_csv_to_db_if_needed(db, sucursal_slug: str) -> None:
+    csv_path = os.path.join(os.path.dirname(__file__), "productos_personalizados.csv")
+    if not os.path.exists(csv_path):
+        return
+
+    table_name = _safe_personalizados_table_for_sucursal(sucursal_slug)
     _ensure_personalizados_table(db, table_name)
-    _migrate_personalizados_csv_for_sucursal(db, sucursal_slug, table_name)
     cur = db.cursor()
-    cur.execute(
-        f"""
-        SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, ''),
-               TO_CHAR(fecha_creacion, 'YYYY-MM-DD HH24:MI:SS')
-        FROM {table_name}
-        WHERE LOWER(TRIM(codigo)) = LOWER(TRIM(%s))
-        LIMIT 1
-        """,
-        (codigo,),
-    )
-    r = cur.fetchone()
-    if not r:
-        return None
-    return {
-        "codigo": r[0],
-        "nombre": r[1],
-        "base": r[2],
-        "ubicacion": r[3],
-        "fecha_creacion": r[4] or "",
-        "sucursal_slug": _normalize_sucursal_slug(sucursal_slug or "principal"),
-        "personalizado": True,
-    }
+    cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+    existing = int((cur.fetchone() or [0])[0] or 0)
+    if existing > 0:
+        return
 
+    rows_to_insert = []
+    slug_norm = _normalize_sucursal_slug(sucursal_slug)
+    try:
+        with open(csv_path, "r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                row_slug = _normalize_sucursal_slug((row.get("sucursal_slug") or "").strip() or "principal")
+                if row_slug != slug_norm:
+                    continue
+                codigo = (row.get("codigo") or "").strip()
+                nombre = (row.get("nombre") or "").strip()
+                if not codigo or not nombre:
+                    continue
+                rows_to_insert.append((codigo, nombre, "", ""))
+    except Exception as e:
+        logger.warning(f"Error migrando personalizados desde CSV para {slug_norm}: {e}")
+        return
 
-def _insert_personalizado(db, sucursal_slug: str, codigo: str, nombre: str) -> None:
-    table_name = _personalizados_table_for_sucursal(sucursal_slug)
-    _ensure_personalizados_table(db, table_name)
-    _migrate_personalizados_csv_for_sucursal(db, sucursal_slug, table_name)
-    cur = db.cursor()
-    cur.execute(
-        f"""
-        INSERT INTO {table_name} (codigo, nombre, base, ubicacion, fecha_creacion, updated_at)
-        VALUES (%s, %s, '', '', NOW(), NOW())
-        """,
-        (codigo, nombre),
-    )
+    if not rows_to_insert:
+        return
 
-
-def _delete_personalizado(db, sucursal_slug: str, codigo: str) -> int:
-    table_name = _personalizados_table_for_sucursal(sucursal_slug)
-    _ensure_personalizados_table(db, table_name)
-    _migrate_personalizados_csv_for_sucursal(db, sucursal_slug, table_name)
-    cur = db.cursor()
-    cur.execute(
-        f"DELETE FROM {table_name} WHERE LOWER(TRIM(codigo)) = LOWER(TRIM(%s))",
-        (codigo,),
-    )
-    return int(cur.rowcount or 0)
+    for codigo, nombre, base, ubicacion in rows_to_insert:
+        cur.execute(
+            f"""
+            INSERT INTO {table_name} (codigo, nombre, base, ubicacion, fecha_creacion)
+            VALUES (%s, %s, %s, %s, NOW())
+            ON CONFLICT (codigo) DO UPDATE
+            SET nombre = EXCLUDED.nombre,
+                base = COALESCE(EXCLUDED.base, ''),
+                ubicacion = COALESCE(EXCLUDED.ubicacion, '')
+            """,
+            (codigo, nombre, base, ubicacion),
+        )
 
 
 def _resolve_sucursal_slug(db, username: Optional[str] = None, usuario_id: Optional[int] = None, sucursal_text: Optional[str] = None) -> str:
     if sucursal_text:
         return _normalize_sucursal_slug(sucursal_text)
-
-    try:
-        if usuario_id is not None and usuario_id in ACTIVE_SESSIONS:
-            session_data = ACTIVE_SESSIONS.get(usuario_id) or {}
-            session_slug = (
-                session_data.get("sucursal_slug")
-                or session_data.get("sucursal")
-                or session_data.get("sucursal_nombre")
-            )
-            if session_slug:
-                return _normalize_sucursal_slug(str(session_slug))
-
-        if username:
-            username_norm = (username or "").strip().lower()
-            for session_data in ACTIVE_SESSIONS.values():
-                s_user = str(session_data.get("username") or "").strip().lower()
-                if s_user and s_user == username_norm:
-                    session_slug = (
-                        session_data.get("sucursal_slug")
-                        or session_data.get("sucursal")
-                        or session_data.get("sucursal_nombre")
-                    )
-                    if session_slug:
-                        return _normalize_sucursal_slug(str(session_slug))
-    except Exception:
-        pass
 
     try:
         cur = db.cursor()
@@ -1092,19 +895,7 @@ def _resolve_operador_label(db, username: Optional[str] = None, usuario_id: Opti
 
 
 def _normalize_role_key(role: Optional[str]) -> str:
-    role_key = (role or "").strip().lower().replace("-", "_").replace(" ", "_")
-    aliases = {
-        "admin": "administrador",
-        "tecnico": "tecnicos",
-        "tecnico_mantenimiento": "tecnicos",
-        "activo_fijo": "activos_fijos",
-        "activofijo": "activos_fijos",
-        "activos_fijo": "activos_fijos",
-        "activosfijos": "activos_fijos",
-        "activosfijo": "activos_fijos",
-        "activos_fijos": "activos_fijos",
-    }
-    return aliases.get(role_key, role_key)
+    return (role or "").strip().lower()
 
 
 def _can_view_all_labelsapp_history(role: Optional[str]) -> bool:
@@ -2955,99 +2746,84 @@ async def labelsapp_products(
         # mate el pool. 2000 es mas que suficiente para autocomplete.
         safe_limit = None if limit <= 0 else max(1, min(limit, 2000))
         query = (q or "").strip()
+        cur = db.cursor()
+        # Time-budget por request: si por alguna razon falta el indice trigram, evita
+        # que un ILIKE secuencial se coma 7 minutos y bloquee al resto.
+        try:
+            cur.execute("SET LOCAL statement_timeout = '8s'")
+        except Exception:
+            pass
+        if query:
+            params = (f"%{query}%", f"%{query}%")
+            sql = """
+                SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
+                FROM ProductSW
+                WHERE (activo = TRUE OR activo IS NULL)
+                  AND (codigo ILIKE %s OR nombre ILIKE %s)
+                ORDER BY nombre
+            """
+            if safe_limit is not None:
+                sql += "\n                LIMIT %s"
+                params = params + (safe_limit,)
+            cur.execute(
+                sql,
+                params
+            )
+        else:
+            sql = """
+                SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
+                FROM ProductSW
+                WHERE (activo = TRUE OR activo IS NULL)
+                ORDER BY nombre
+            """
+            params = ()
+            if safe_limit is not None:
+                sql += "\n                LIMIT %s"
+                params = (safe_limit,)
+            cur.execute(sql, params)
+
+        rows = cur.fetchall()
+        products = [
+            {
+                "codigo": r[0],
+                "nombre": r[1],
+                "base": r[2],
+                "ubicacion": r[3],
+            }
+            for r in rows
+        ]
+
         requester_sucursal_slug = _resolve_sucursal_slug(
             db,
             username=username,
             usuario_id=usuario_id,
             sucursal_text=sucursal,
         )
-        cache_key = (
-            requester_sucursal_slug,
-            query.lower(),
-            int(safe_limit or 0),
-        )
-        cached = _products_cache_get(cache_key)
-        if cached is not None:
-            return cached
+        _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
+        personalized = _list_personalized_products_for_sucursal(db, requester_sucursal_slug)
+        existing = {str(p.get("codigo") or "").strip().lower() for p in products}
+        for item in personalized:
+            code = (item.get("codigo") or "").strip()
+            if not code or code.lower() in existing:
+                continue
+            products.append({
+                "codigo": code,
+                "nombre": (item.get("nombre") or "").strip(),
+                "base": (item.get("base") or "").strip(),
+                "ubicacion": (item.get("ubicacion") or "").strip(),
+                "personalizado": True,
+            })
+            existing.add(code.lower())
 
-        with _get_products_fetch_lock(cache_key):
-            cached = _products_cache_get(cache_key)
-            if cached is not None:
-                return cached
+        if query:
+            qn = query.lower()
+            products = [p for p in products if qn in str(p.get("codigo") or "").lower() or qn in str(p.get("nombre") or "").lower()]
 
-            cur = db.cursor()
-            # Time-budget por request: si por alguna razon falta el indice trigram, evita
-            # que un ILIKE secuencial se coma 7 minutos y bloquee al resto.
-            try:
-                cur.execute("SET LOCAL statement_timeout = '8s'")
-            except Exception:
-                pass
-            if query:
-                params = (f"%{query}%", f"%{query}%")
-                sql = """
-                    SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
-                    FROM ProductSW
-                    WHERE (activo = TRUE OR activo IS NULL)
-                      AND (codigo ILIKE %s OR nombre ILIKE %s)
-                    ORDER BY nombre
-                """
-                if safe_limit is not None:
-                    sql += "\n                    LIMIT %s"
-                    params = params + (safe_limit,)
-                cur.execute(sql, params)
-            else:
-                sql = """
-                    SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
-                    FROM ProductSW
-                    WHERE (activo = TRUE OR activo IS NULL)
-                    ORDER BY nombre
-                """
-                params = ()
-                if safe_limit is not None:
-                    sql += "\n                    LIMIT %s"
-                    params = (safe_limit,)
-                cur.execute(sql, params)
+        products.sort(key=lambda p: (str(p.get("nombre") or "").lower(), str(p.get("codigo") or "").lower()))
 
-            rows = cur.fetchall()
-            products = [
-                {
-                    "codigo": r[0],
-                    "nombre": r[1],
-                    "base": r[2],
-                    "ubicacion": r[3],
-                }
-                for r in rows
-            ]
-
-            personalized = _list_personalizados_for_sucursal(db, requester_sucursal_slug)
-            existing = {str(p.get("codigo") or "").strip().lower() for p in products}
-            for item in personalized:
-                code = (item.get("codigo") or "").strip()
-                if not code or code.lower() in existing:
-                    continue
-                products.append({
-                    "codigo": code,
-                    "nombre": (item.get("nombre") or "").strip(),
-                    "base": (item.get("base") or "").strip(),
-                    "ubicacion": (item.get("ubicacion") or "").strip(),
-                    "personalizado": True,
-                })
-                existing.add(code.lower())
-
-            if query:
-                qn = query.lower()
-                products = [
-                    p for p in products
-                    if qn in str(p.get("codigo") or "").lower() or qn in str(p.get("nombre") or "").lower()
-                ]
-
-            products.sort(key=lambda p: (str(p.get("nombre") or "").lower(), str(p.get("codigo") or "").lower()))
-
-            if safe_limit is not None:
-                products = products[:safe_limit]
-            response_data = {"total": len(products), "productos": products}
-            _products_cache_set(cache_key, response_data)
-            return response_data
+        if safe_limit is not None:
+            products = products[:safe_limit]
+        return {"total": len(products), "productos": products}
     except Exception as e:
         logger.error(f"Error listing labelsapp products: {e}")
         raise HTTPException(status_code=500, detail="Error listando productos")
@@ -3081,7 +2857,14 @@ async def labelsapp_product_by_code(
                 usuario_id=usuario_id,
                 sucursal_text=sucursal,
             )
-            personalized = _get_personalizado_by_codigo(db, requester_sucursal_slug, codigo)
+            _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
+            personalized = next(
+                (
+                    item for item in _list_personalized_products_for_sucursal(db, requester_sucursal_slug)
+                    if (item.get("codigo") or "").strip().lower() == (codigo or "").strip().lower()
+                ),
+                None,
+            )
             if personalized:
                 return personalized
             raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -3551,7 +3334,8 @@ async def labelsapp_personalized_products(
         usuario_id=usuario_id,
         sucursal_text=sucursal,
     )
-    items = _list_personalizados_for_sucursal(db, requester_sucursal_slug)
+    _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
+    items = _list_personalized_products_for_sucursal(db, requester_sucursal_slug)
     return {"items": items}
 
 
@@ -3586,13 +3370,24 @@ async def labelsapp_create_personalized_product(
         usuario_id=usuario_id,
         sucursal_text=sucursal,
     )
-
-    existing = _get_personalizado_by_codigo(db, requester_sucursal_slug, codigo)
-    if existing:
+    _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
+    table_name = _safe_personalizados_table_for_sucursal(requester_sucursal_slug)
+    _ensure_personalizados_table(db, table_name)
+    cur = db.cursor()
+    cur.execute(
+        f"SELECT 1 FROM {table_name} WHERE LOWER(TRIM(codigo)) = LOWER(TRIM(%s)) LIMIT 1",
+        (codigo,)
+    )
+    if cur.fetchone():
         raise HTTPException(status_code=409, detail="El código ya existe en productos personalizados")
 
-    _insert_personalizado(db, requester_sucursal_slug, codigo, nombre)
-    _products_cache_invalidate_sucursal(requester_sucursal_slug)
+    cur.execute(
+        f"""
+        INSERT INTO {table_name} (codigo, nombre, base, ubicacion, fecha_creacion)
+        VALUES (%s, %s, '', '', NOW())
+        """,
+        (codigo, nombre),
+    )
     db.commit()
     return {"message": "Producto personalizado guardado", "codigo": codigo, "nombre": nombre}
 
@@ -3612,10 +3407,16 @@ async def labelsapp_delete_personalized_product(
         sucursal_text=sucursal,
     )
 
-    deleted = _delete_personalizado(db, requester_sucursal_slug, codigo)
-    if deleted <= 0:
+    _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
+    table_name = _safe_personalizados_table_for_sucursal(requester_sucursal_slug)
+    _ensure_personalizados_table(db, table_name)
+    cur = db.cursor()
+    cur.execute(
+        f"DELETE FROM {table_name} WHERE LOWER(TRIM(codigo)) = LOWER(TRIM(%s))",
+        (codigo,),
+    )
+    if cur.rowcount == 0:
         raise HTTPException(status_code=404, detail="Código no encontrado en productos personalizados")
-    _products_cache_invalidate_sucursal(requester_sucursal_slug)
     db.commit()
     return {"message": "Producto personalizado eliminado", "codigo": codigo}
 
@@ -4482,9 +4283,6 @@ async def login(username: str, password: str, db=Depends(get_db)):
             "email": email,
             "rol": rol_normalizado,
             "sucursal_id": sucursal_id,
-            "sucursal_nombre": sucursal_nombre,
-            "sucursal": sucursal_nombre,
-            "sucursal_slug": _normalize_sucursal_slug(sucursal_nombre),
             "departamento": get_departamento(rol_normalizado),
             "ultima_actividad": time.time()
         }
@@ -4496,7 +4294,6 @@ async def login(username: str, password: str, db=Depends(get_db)):
             "email": email,
             "rol": rol_normalizado,
             "sucursal_id": sucursal_id,
-            "sucursal": sucursal_nombre,
             "telefono": telefono,
             "activo": activo
         }
