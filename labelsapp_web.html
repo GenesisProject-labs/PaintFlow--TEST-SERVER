@@ -3495,34 +3495,10 @@
         }
 
         function openLiveEventStream() {
-            const user = ensureSession();
-            if (!user || labelsAppTab !== "live") return;
-            if (liveEventSource) return;
-
-            try {
-                const params = new URLSearchParams();
-                if (user.username) params.set("username", user.username);
-                if (user.id) params.set("usuario_id", String(user.id));
-                if (user.sucursal || user.sucursal_nombre) params.set("sucursal", user.sucursal || user.sucursal_nombre);
-
-                const source = new EventSource(`${API}/api/v1/labelsapp/live-events?${params.toString()}`);
-                source.addEventListener("pedidos_actualizados", () => {
-                    if (labelsAppTab === "live") {
-                        loadLiveQueue();
-                    } else if (labelsAppTab === "hold") {
-                        loadPendingQueue();
-                    } else if (labelsAppTab === "clients") {
-                        loadKioskInbox();
-                    }
-                });
-                source.addEventListener("ping", () => {});
-                source.onerror = () => {
-                    closeLiveEventStream();
-                };
-                liveEventSource = source;
-            } catch {
-                closeLiveEventStream();
-            }
+            // Desactivado: cada pestaña en Tiempo real dejaba una conexión de Postgres
+            // ocupada vía LISTEN/SSE. Con más sucursales abiertas simultáneamente eso
+            // termina agotando el pool y genera 499/502 en endpoints normales.
+            closeLiveEventStream();
         }
 
         function renderHistory() {
@@ -3805,7 +3781,7 @@
                 } else if (labelsAppTab === "clients") {
                     loadKioskInbox();
                 }
-            }, 12000);
+            }, 20000);
 
             if (active) {
                 openLiveEventStream();
