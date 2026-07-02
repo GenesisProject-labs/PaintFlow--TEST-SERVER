@@ -1430,6 +1430,9 @@
         let productSuggestions = [];
         let activeProductSuggestionIndex = -1;
         let remoteSuggestTimer = null;
+        let remoteSuggestAbortController = null;
+        const remoteSuggestCache = new Map();
+        const REMOTE_SUGGEST_CACHE_TTL_MS = 90000;
         let liveQueueTimer = null;
         let liveEventSource = null;
         let liveQueueLoading = false;
@@ -2829,53 +2832,82 @@
             setProductSuggestions(localMatches);
         }
 
+        function mergeApiProductsIntoIndexes(rows) {
+            for (const p of (rows || [])) {
+                const code = (p.codigo || "").toString();
+                if (!code) continue;
+
+                const descriptionName = (p.nombre || "").toString().trim();
+                const productNameRaw = (p.producto || "").toString().trim();
+                const displayProduct = displayProductName(productNameRaw);
+                const normalizedProduct = {
+                    ...p,
+                    codigo: code,
+                    nombre: descriptionName,
+                    producto: displayProduct || productNameRaw || ""
+                };
+
+                productByCode.set(code, normalizedProduct);
+                if (!codeIndex.some(x => x.code === code)) {
+                    codeIndex.push({
+                        code,
+                        codeNorm: normalize(code),
+                        name: descriptionName,
+                        nameNorm: normalize(descriptionName),
+                    });
+                }
+                if (displayProduct && !productIndex.some(x => x.norm === normalize(displayProduct))) {
+                    productIndex.push({
+                        name: displayProduct,
+                        norm: normalize(displayProduct),
+                    });
+                }
+            }
+        }
+
         async function enrichSuggestionsFromApi(query) {
+            const qn = normalize(query);
+            if (!qn || qn.length < 4) return;
+
+            const cached = remoteSuggestCache.get(qn);
+            if (cached && (Date.now() - Number(cached.ts || 0)) <= REMOTE_SUGGEST_CACHE_TTL_MS) {
+                mergeApiProductsIntoIndexes(cached.rows || []);
+                if (normalize(document.getElementById("codigo").value) === qn) {
+                    const merged = getLocalCodeMatches(qn);
+                    setCodeSuggestions(merged);
+                }
+                return;
+            }
+
             try {
+                if (remoteSuggestAbortController) {
+                    try { remoteSuggestAbortController.abort(); } catch (_) {}
+                }
+                remoteSuggestAbortController = new AbortController();
+
                 const params = buildLabelsUserParams();
-                params.set("q", query);
+                params.set("q", qn);
                 params.set("limit", "120");
-                const res = await fetch(`${API}/api/v1/labelsapp/products?${params.toString()}`);
+                const res = await fetch(`${API}/api/v1/labelsapp/products?${params.toString()}`, {
+                    signal: remoteSuggestAbortController.signal
+                });
                 if (!res.ok) return;
 
                 const data = await res.json();
-                for (const p of (data.productos || [])) {
-                    const code = (p.codigo || "").toString();
-                    if (!code) continue;
-
-                    const descriptionName = (p.nombre || "").toString().trim();
-                    const productNameRaw = (p.producto || "").toString().trim();
-                    const displayProduct = displayProductName(productNameRaw);
-                    const normalizedProduct = {
-                        ...p,
-                        codigo: code,
-                        nombre: descriptionName,
-                        producto: displayProduct || productNameRaw || ""
-                    };
-
-                    productByCode.set(code, normalizedProduct);
-                    if (!codeIndex.some(x => x.code === code)) {
-                        codeIndex.push({
-                            code,
-                            codeNorm: normalize(code),
-                            name: descriptionName,
-                            nameNorm: normalize(descriptionName),
-                        });
-                    }
-                    if (displayProduct && !productIndex.some(x => x.norm === normalize(displayProduct))) {
-                        productIndex.push({
-                            name: displayProduct,
-                            norm: normalize(displayProduct),
-                        });
-                    }
-                }
+                const rows = Array.isArray(data.productos) ? data.productos : [];
+                remoteSuggestCache.set(qn, { ts: Date.now(), rows });
+                mergeApiProductsIntoIndexes(rows);
 
                 const currentQ = normalize(document.getElementById("codigo").value);
-                if (currentQ !== query) return;
+                if (currentQ !== qn) return;
 
-                const merged = getLocalCodeMatches(query);
+                const merged = getLocalCodeMatches(qn);
                 setCodeSuggestions(merged);
-            } catch {
+            } catch (err) {
+                if (err && err.name === "AbortError") return;
                 // Ignorar fallas del query incremental para no bloquear UX.
+            } finally {
+                remoteSuggestAbortController = null;
             }
         }
 
@@ -2920,13 +2952,13 @@
                 return aCode.localeCompare(bCode, "es");
             }));
 
-            if (!localOnly && q.length >= 2) {
+            if (!localOnly && q.length >= 4 && localMatches.length < 12) {
                 if (remoteSuggestTimer) {
                     clearTimeout(remoteSuggestTimer);
                 }
                 remoteSuggestTimer = setTimeout(() => {
                     enrichSuggestionsFromApi(q);
-                }, 180);
+                }, 420);
             }
         }
 

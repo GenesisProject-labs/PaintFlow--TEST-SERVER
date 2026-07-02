@@ -156,6 +156,11 @@ _labels_usage_metrics_cache: Dict[tuple, Dict[str, Any]] = {}
 _labels_usage_metrics_cache_lock = Lock()
 _labels_usage_metrics_fetch_locks: Dict[tuple, Lock] = {}
 _labels_usage_metrics_fetch_locks_guard = Lock()
+LABELSAPP_PRODUCTS_CACHE_TTL_SEC = 6.0
+_labelsapp_products_cache: Dict[tuple, Dict[str, Any]] = {}
+_labelsapp_products_cache_lock = Lock()
+_labelsapp_products_fetch_locks: Dict[tuple, Lock] = {}
+_labelsapp_products_fetch_locks_guard = Lock()
 # Locks por tabla: si dos requests piden la misma sucursal en paralelo solo uno
 # pega a la DB, pero requests para sucursales distintas no se serializan entre si.
 # Un solo Lock global hace que el dashboard de analistas (fanout a 13 sucursales)
@@ -234,6 +239,52 @@ def _get_usage_metrics_lock(key: tuple) -> Lock:
         if lock is None:
             lock = Lock()
             _labels_usage_metrics_fetch_locks[key] = lock
+        return lock
+
+
+def _products_cache_get(key: tuple):
+    now = time.time()
+    with _labelsapp_products_cache_lock:
+        entry = _labelsapp_products_cache.get(key)
+        if not entry:
+            return None
+        if (now - float(entry.get("ts", 0))) > LABELSAPP_PRODUCTS_CACHE_TTL_SEC:
+            try:
+                del _labelsapp_products_cache[key]
+            except Exception:
+                pass
+            return None
+        return entry.get("data")
+
+
+def _products_cache_set(key: tuple, data: dict) -> None:
+    with _labelsapp_products_cache_lock:
+        _labelsapp_products_cache[key] = {
+            "ts": time.time(),
+            "data": data,
+        }
+
+
+def _products_cache_invalidate_sucursal(sucursal_slug: str) -> None:
+    target = _normalize_sucursal_slug(sucursal_slug or "principal")
+    with _labelsapp_products_cache_lock:
+        stale_keys = [k for k in _labelsapp_products_cache.keys() if k and k[0] == target]
+        for key in stale_keys:
+            try:
+                del _labelsapp_products_cache[key]
+            except Exception:
+                pass
+
+
+def _get_products_fetch_lock(key: tuple) -> Lock:
+    lock = _labelsapp_products_fetch_locks.get(key)
+    if lock is not None:
+        return lock
+    with _labelsapp_products_fetch_locks_guard:
+        lock = _labelsapp_products_fetch_locks.get(key)
+        if lock is None:
+            lock = Lock()
+            _labelsapp_products_fetch_locks[key] = lock
         return lock
 
 
@@ -969,6 +1020,32 @@ def _resolve_sucursal_slug(db, username: Optional[str] = None, usuario_id: Optio
         return _normalize_sucursal_slug(sucursal_text)
 
     try:
+        if usuario_id is not None and usuario_id in ACTIVE_SESSIONS:
+            session_data = ACTIVE_SESSIONS.get(usuario_id) or {}
+            session_slug = (
+                session_data.get("sucursal_slug")
+                or session_data.get("sucursal")
+                or session_data.get("sucursal_nombre")
+            )
+            if session_slug:
+                return _normalize_sucursal_slug(str(session_slug))
+
+        if username:
+            username_norm = (username or "").strip().lower()
+            for session_data in ACTIVE_SESSIONS.values():
+                s_user = str(session_data.get("username") or "").strip().lower()
+                if s_user and s_user == username_norm:
+                    session_slug = (
+                        session_data.get("sucursal_slug")
+                        or session_data.get("sucursal")
+                        or session_data.get("sucursal_nombre")
+                    )
+                    if session_slug:
+                        return _normalize_sucursal_slug(str(session_slug))
+    except Exception:
+        pass
+
+    try:
         cur = db.cursor()
         if username:
             cur.execute(
@@ -1015,7 +1092,19 @@ def _resolve_operador_label(db, username: Optional[str] = None, usuario_id: Opti
 
 
 def _normalize_role_key(role: Optional[str]) -> str:
-    return (role or "").strip().lower()
+    role_key = (role or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "admin": "administrador",
+        "tecnico": "tecnicos",
+        "tecnico_mantenimiento": "tecnicos",
+        "activo_fijo": "activos_fijos",
+        "activofijo": "activos_fijos",
+        "activos_fijo": "activos_fijos",
+        "activosfijos": "activos_fijos",
+        "activosfijo": "activos_fijos",
+        "activos_fijos": "activos_fijos",
+    }
+    return aliases.get(role_key, role_key)
 
 
 def _can_view_all_labelsapp_history(role: Optional[str]) -> bool:
@@ -2866,83 +2955,99 @@ async def labelsapp_products(
         # mate el pool. 2000 es mas que suficiente para autocomplete.
         safe_limit = None if limit <= 0 else max(1, min(limit, 2000))
         query = (q or "").strip()
-        cur = db.cursor()
-        # Time-budget por request: si por alguna razon falta el indice trigram, evita
-        # que un ILIKE secuencial se coma 7 minutos y bloquee al resto.
-        try:
-            cur.execute("SET LOCAL statement_timeout = '8s'")
-        except Exception:
-            pass
-        if query:
-            params = (f"%{query}%", f"%{query}%")
-            sql = """
-                SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
-                FROM ProductSW
-                WHERE (activo = TRUE OR activo IS NULL)
-                  AND (codigo ILIKE %s OR nombre ILIKE %s)
-                ORDER BY nombre
-            """
-            if safe_limit is not None:
-                sql += "\n                LIMIT %s"
-                params = params + (safe_limit,)
-            cur.execute(
-                sql,
-                params
-            )
-        else:
-            sql = """
-                SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
-                FROM ProductSW
-                WHERE (activo = TRUE OR activo IS NULL)
-                ORDER BY nombre
-            """
-            params = ()
-            if safe_limit is not None:
-                sql += "\n                LIMIT %s"
-                params = (safe_limit,)
-            cur.execute(sql, params)
-
-        rows = cur.fetchall()
-        products = [
-            {
-                "codigo": r[0],
-                "nombre": r[1],
-                "base": r[2],
-                "ubicacion": r[3],
-            }
-            for r in rows
-        ]
-
         requester_sucursal_slug = _resolve_sucursal_slug(
             db,
             username=username,
             usuario_id=usuario_id,
             sucursal_text=sucursal,
         )
-        personalized = _list_personalizados_for_sucursal(db, requester_sucursal_slug)
-        existing = {str(p.get("codigo") or "").strip().lower() for p in products}
-        for item in personalized:
-            code = (item.get("codigo") or "").strip()
-            if not code or code.lower() in existing:
-                continue
-            products.append({
-                "codigo": code,
-                "nombre": (item.get("nombre") or "").strip(),
-                "base": (item.get("base") or "").strip(),
-                "ubicacion": (item.get("ubicacion") or "").strip(),
-                "personalizado": True,
-            })
-            existing.add(code.lower())
+        cache_key = (
+            requester_sucursal_slug,
+            query.lower(),
+            int(safe_limit or 0),
+        )
+        cached = _products_cache_get(cache_key)
+        if cached is not None:
+            return cached
 
-        if query:
-            qn = query.lower()
-            products = [p for p in products if qn in str(p.get("codigo") or "").lower() or qn in str(p.get("nombre") or "").lower()]
+        with _get_products_fetch_lock(cache_key):
+            cached = _products_cache_get(cache_key)
+            if cached is not None:
+                return cached
 
-        products.sort(key=lambda p: (str(p.get("nombre") or "").lower(), str(p.get("codigo") or "").lower()))
+            cur = db.cursor()
+            # Time-budget por request: si por alguna razon falta el indice trigram, evita
+            # que un ILIKE secuencial se coma 7 minutos y bloquee al resto.
+            try:
+                cur.execute("SET LOCAL statement_timeout = '8s'")
+            except Exception:
+                pass
+            if query:
+                params = (f"%{query}%", f"%{query}%")
+                sql = """
+                    SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
+                    FROM ProductSW
+                    WHERE (activo = TRUE OR activo IS NULL)
+                      AND (codigo ILIKE %s OR nombre ILIKE %s)
+                    ORDER BY nombre
+                """
+                if safe_limit is not None:
+                    sql += "\n                    LIMIT %s"
+                    params = params + (safe_limit,)
+                cur.execute(sql, params)
+            else:
+                sql = """
+                    SELECT codigo, nombre, COALESCE(base, ''), COALESCE(ubicacion, '')
+                    FROM ProductSW
+                    WHERE (activo = TRUE OR activo IS NULL)
+                    ORDER BY nombre
+                """
+                params = ()
+                if safe_limit is not None:
+                    sql += "\n                    LIMIT %s"
+                    params = (safe_limit,)
+                cur.execute(sql, params)
 
-        if safe_limit is not None:
-            products = products[:safe_limit]
-        return {"total": len(products), "productos": products}
+            rows = cur.fetchall()
+            products = [
+                {
+                    "codigo": r[0],
+                    "nombre": r[1],
+                    "base": r[2],
+                    "ubicacion": r[3],
+                }
+                for r in rows
+            ]
+
+            personalized = _list_personalizados_for_sucursal(db, requester_sucursal_slug)
+            existing = {str(p.get("codigo") or "").strip().lower() for p in products}
+            for item in personalized:
+                code = (item.get("codigo") or "").strip()
+                if not code or code.lower() in existing:
+                    continue
+                products.append({
+                    "codigo": code,
+                    "nombre": (item.get("nombre") or "").strip(),
+                    "base": (item.get("base") or "").strip(),
+                    "ubicacion": (item.get("ubicacion") or "").strip(),
+                    "personalizado": True,
+                })
+                existing.add(code.lower())
+
+            if query:
+                qn = query.lower()
+                products = [
+                    p for p in products
+                    if qn in str(p.get("codigo") or "").lower() or qn in str(p.get("nombre") or "").lower()
+                ]
+
+            products.sort(key=lambda p: (str(p.get("nombre") or "").lower(), str(p.get("codigo") or "").lower()))
+
+            if safe_limit is not None:
+                products = products[:safe_limit]
+            response_data = {"total": len(products), "productos": products}
+            _products_cache_set(cache_key, response_data)
+            return response_data
     except Exception as e:
         logger.error(f"Error listing labelsapp products: {e}")
         raise HTTPException(status_code=500, detail="Error listando productos")
@@ -3487,6 +3592,7 @@ async def labelsapp_create_personalized_product(
         raise HTTPException(status_code=409, detail="El código ya existe en productos personalizados")
 
     _insert_personalizado(db, requester_sucursal_slug, codigo, nombre)
+    _products_cache_invalidate_sucursal(requester_sucursal_slug)
     db.commit()
     return {"message": "Producto personalizado guardado", "codigo": codigo, "nombre": nombre}
 
@@ -3509,6 +3615,7 @@ async def labelsapp_delete_personalized_product(
     deleted = _delete_personalizado(db, requester_sucursal_slug, codigo)
     if deleted <= 0:
         raise HTTPException(status_code=404, detail="Código no encontrado en productos personalizados")
+    _products_cache_invalidate_sucursal(requester_sucursal_slug)
     db.commit()
     return {"message": "Producto personalizado eliminado", "codigo": codigo}
 
@@ -4375,6 +4482,9 @@ async def login(username: str, password: str, db=Depends(get_db)):
             "email": email,
             "rol": rol_normalizado,
             "sucursal_id": sucursal_id,
+            "sucursal_nombre": sucursal_nombre,
+            "sucursal": sucursal_nombre,
+            "sucursal_slug": _normalize_sucursal_slug(sucursal_nombre),
             "departamento": get_departamento(rol_normalizado),
             "ultima_actividad": time.time()
         }
@@ -4386,6 +4496,7 @@ async def login(username: str, password: str, db=Depends(get_db)):
             "email": email,
             "rol": rol_normalizado,
             "sucursal_id": sucursal_id,
+            "sucursal": sucursal_nombre,
             "telefono": telefono,
             "activo": activo
         }
