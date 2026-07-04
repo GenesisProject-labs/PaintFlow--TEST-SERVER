@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formulario de Adquisición de Activos Fijos</title>
+  <!-- Tailwind CSS CDN para un estilo moderno y fluido -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons para una iconografía ejecutiva limpia -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* Estilos personalizados para animaciones y firmas */
+    .fade-transition {
+      transition: all 0.4s ease-in-out;
+    }
+    canvas {
+      touch-action: none; /* Previene el scroll por defecto en dispositivos móviles mientras se firma */
+    }
+
+    /* CONFIGURACIÓN FLEXIBLE DE MÁRGENES (Sin fijar orientación para liberar el menú del navegador) */
+    @page {
+      margin: 1cm;
+    }
+    
+    /* Ocultar área de impresión en pantalla */
+    #print-area {
+      display: none;
+    }
+    
+    /* REGLAS EXCLUSIVAS DE IMPRESIÓN CORPORATIVA ADAPTATIVA */
+    @media print {
+      /* Ocultar elementos de interfaz e interacción */
+      .no-print {
+        display: none !important;
+      }
+      
+      body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        font-family: 'Calibri', 'Arial', sans-serif !important;
+        font-size: 11px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+
+      /* Por defecto, al imprimir el formulario activo de pantalla, ocultamos el print-area histórico */
+      #print-area {
+        display: none !important;
+      }
+
+      /* CONTROL DE COMPORTAMIENTO PARA IMPRESIÓN DE HISTORIAL */
+      body.printing-history .max-w-4xl {
+        display: none !important;
+      }
+      body.printing-history #print-area {
+        display: block !important;
+      }
+
+      /* Eliminar sombras y bordes pesados en la tarjeta principal para impresión */
+      .max-w-4xl {
+        max-width: 100% !important;
+        width: 100% !important;
+        box-shadow: none !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      /* Cabecera limpia y nítida */
+      header {
+        background-color: #1F497D !important;
+        color: #ffffff !important;
+        padding: 12px 16px !important;
+        border-radius: 6px !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      /* Secciones optimizadas para aprovechar el espacio */
+      section {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        margin-bottom: 16px !important;
+      }
+
+      /* Distribución en cuadrícula para aprovechar la anchura */
+      .grid {
+        display: grid !important;
+      }
+      
+      /* Convertir campos de formulario en líneas de escritura limpias */
+      input[type="text"], 
+      input[type="date"], 
+      input[type="number"], 
+      select {
+        border: none !important;
+        border-bottom: 1px dashed #475569 !important;
+        background: transparent !important;
+        color: #000000 !important;
+        box-shadow: none !important;
+        padding-bottom: 2px !important;
+        border-radius: 0 !important;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+      }
+
+      textarea {
+        border: 1px solid #94a3b8 !important;
+        background: transparent !important;
+        color: #000000 !important;
+        box-shadow: none !important;
+        resize: none !important;
+        border-radius: 4px !important;
+      }
+
+      /* Forzar visibilidad de bordes de secciones */
+      .border-b-2 {
+        border-bottom-width: 2px !important;
+        border-color: #1F497D !important;
+      }
+
+      /* Cajas de firmas perfectas para impresión */
+      .bg-slate-50 {
+        background-color: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+
+      canvas {
+        border: 1px solid #94a3b8 !important;
+        background-color: #ffffff !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-slate-100 via-blue-50 to-slate-100 text-slate-800 min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+
+  <!-- Contenedor del sistema de notificaciones flotantes (Toast) -->
+  <div id="toast" class="hidden fixed top-4 right-4 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow-xl z-50 flex items-center gap-2 transition-all duration-300 transform translate-y-[-20px] opacity-0 no-print">
+    <i data-lucide="check-circle" class="w-5 h-5"></i>
+    <span id="toast-message" class="text-sm font-medium"></span>
+  </div>
+
+  <!-- INPUT OCULTO PARA IMPORTAR HISTORIAL -->
+  <input type="file" id="import-input" accept=".json" class="hidden no-print" onchange="importarHistorial(event)">
+
+  <!-- CONTENEDOR PRINCIPAL -->
+  <div class="max-w-4xl mx-auto space-y-6">
+    
+    <div class="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+      <!-- Encabezado Principal -->
+      <header class="bg-[#1F497D] text-white py-6 px-8 flex flex-col sm:flex-row justify-between items-center gap-4 relative overflow-hidden">
+        <div class="absolute inset-0 opacity-20" style="background: radial-gradient(circle at top right, #60a5fa, transparent 55%);"></div>
+        <div class="flex items-center gap-3">
+          <img src="/static/logo.png" alt="Logo Acabados" class="h-12 w-auto rounded bg-white/95 px-2 py-1 shadow-sm border border-white/30" onerror="this.style.display='none'">
+          <div>
+            <h1 class="text-xl sm:text-2xl font-bold tracking-tight">SOLICITUD DE ADQUISICIÓN</h1>
+            <p class="text-xs text-blue-100 uppercase tracking-wider font-semibold">Proceso de Gestión de Activos Fijos</p>
+          </div>
+        </div>
+        <div class="bg-blue-900/40 border border-blue-400/30 rounded-lg px-4 py-2 text-right text-xs">
+          <span class="block text-blue-200">ID Solicitud:</span>
+          <span class="font-mono font-bold text-sm tracking-wider" id="solicitud-id">AF-2026-0001</span>
+        </div>
+      </header>
+
+      <!-- Formulario Principal -->
+      <form id="fixed-assets-form" class="p-6 sm:p-8 space-y-8" onsubmit="handleFormSubmit(event)">
+
+        <!-- SECCIÓN 1: INFORMACIÓN GENERAL -->
+        <section class="space-y-4">
+          <div class="flex items-center gap-2 border-b-2 border-[#1F497D] pb-2">
+            <span class="bg-[#1F497D] text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">1</span>
+            <h2 class="text-lg font-bold text-[#1F497D]">INFORMACIÓN GENERAL</h2>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fecha de Solicitud *</label>
+              <input type="date" id="fecha-solicitud" required class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+            </div>
+            <div class="space-y-2">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Departamento / Área *</label>
+                <select id="departamento" required class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm" onchange="checkCustomDepartment(this)">
+                  <option value="" disabled selected>Seleccione un departamento...</option>
+                  <option value="Operaciones">Operaciones</option>
+                  <option value="Administración y Finanzas">Administración y Finanzas</option>
+                  <option value="Tecnología e Información">Tecnología e Información (TI)</option>
+                  <option value="Recursos Humanos">Recursos Humanos</option>
+                  <option value="Ventas y Mercadeo">Ventas y Mercadeo</option>
+                  <option value="Producción / Planta">Producción / Planta</option>
+                  <option value="Logística">Logística</option>
+                  <option value="Otro">Otro (Especificar...)</option>
+                </select>
+              </div>
+              <!-- Campo oculto por defecto para especificar un departamento no listado -->
+              <div id="departamento-otro-container" class="hidden fade-transition">
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Especificar Departamento *</label>
+                <input type="text" id="departamento-otro" placeholder="Escriba el nombre del nuevo departamento" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Solicitado por *</label>
+              <input type="text" id="solicitante-nombre" required placeholder="Nombre completo del colaborador" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cargo del Solicitante *</label>
+              <input type="text" id="solicitante-cargo" required placeholder="Puesto que desempeña" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Aprobado por (Jefe Inmediato de Área) *</label>
+              <input type="text" id="aprobador-jefe" required placeholder="Nombre de la jefatura directa" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+            </div>
+          </div>
+        </section>
+
+        <!-- SECCIÓN 2: DETALLES DEL ACTIVO SOLICITADO -->
+        <section class="space-y-4">
+          <div class="flex items-center gap-2 border-b-2 border-[#1F497D] pb-2">
+            <span class="bg-[#1F497D] text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">2</span>
+            <h2 class="text-lg font-bold text-[#1F497D]">DETALLES DEL ACTIVO SOLICITADO</h2>
+          </div>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Descripción Detallada del Activo *</label>
+              <textarea id="activo-descripcion" required rows="3" placeholder="Escriba especificaciones técnicas, marca, modelo, requerimientos de instalación, etc." class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm"></textarea>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cantidad Solicitada *</label>
+                <input type="number" id="activo-cantidad" required min="1" value="1" step="1" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Ubicación Prevista de Uso *</label>
+                <input type="text" id="activo-ubicacion" required placeholder="Ej: Planta de Producción, Oficina Principal" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">¿Reemplaza a un activo existente? *</label>
+                <div class="flex items-center gap-4 mt-2">
+                  <label class="inline-flex items-center">
+                    <input type="radio" name="reemplazo-opcion" value="si" class="form-radio h-4 w-4 text-[#1F497D] focus:ring-[#1F497D]" onchange="toggleReemplazoSection(true)">
+                    <span class="ml-2 text-sm text-slate-700">Sí, requiere reemplazo</span>
+                  </label>
+                  <label class="inline-flex items-center">
+                    <input type="radio" name="reemplazo-opcion" value="no" checked class="form-radio h-4 w-4 text-[#1F497D] focus:ring-[#1F497D]" onchange="toggleReemplazoSection(false)">
+                    <span class="ml-2 text-sm text-slate-700">No (Activo nuevo)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Justificación del Activo *</label>
+              <textarea id="activo-justificacion" required rows="3" placeholder="Describa el beneficio esperado (reducción de costos, incremento de capacidad, modernización tecnológica, normativas de seguridad, etc.)" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm"></textarea>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECCIÓN 3: DETALLES DEL ACTIVO A REEMPLAZAR (Sección Condicional) -->
+        <section id="seccion-reemplazo" class="hidden fade-transition space-y-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg p-5">
+          <div class="flex items-center gap-2 border-b border-slate-300 pb-2">
+            <i data-lucide="refresh-cw" class="w-5 h-5 text-orange-600"></i>
+            <h2 class="text-md font-bold text-slate-700">3. DETALLES DEL ACTIVO A REEMPLAZAR</h2>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Descripción del Activo Obsoleto *</label>
+              <input type="text" id="reemplazo-desc" placeholder="Marca, modelo, número de serie o código de placa" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Antigüedad del Activo *</label>
+              <input type="text" id="reemplazo-antiguedad" placeholder="Años de uso o fecha de adquisición aproximada" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Motivo del Reemplazo *</label>
+              <input type="text" id="reemplazo-motivo" placeholder="Ej: Falla mecánica recurrente, obsolescencia de software" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Disposición Planeada del Activo Actual *</label>
+              <select id="reemplazo-disposicion" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+                <option value="" disabled selected>Seleccione método de baja...</option>
+                <option value="Venta">Venta a terceros</option>
+                <option value="Desecho">Desecho / Chatarrización / Reciclaje</option>
+                <option value="Reubicación">Reubicación a otra sucursal / departamento</option>
+                <option value="Donación">Donación</option>
+                <option value="Otro">Otro (Especificar en notas)</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECCIÓN 4: INFORMACIÓN FINANCIERA (No obligatoria) -->
+        <section class="space-y-4">
+          <div class="flex items-center gap-2 border-b-2 border-[#1F497D] pb-2">
+            <span class="bg-[#1F497D] text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">4</span>
+            <h2 class="text-lg font-bold text-[#1F497D]">INFORMACIÓN FINANCIERA</h2>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="md:col-span-2">
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Proveedor Sugerido</label>
+              <input type="text" id="finanzas-proveedor" placeholder="Razón social o nombre comercial del proveedor propuesto" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+            </div>
+            <div class="space-y-2">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo de Activo</label>
+                <select id="finanzas-tipo-activo" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm" onchange="checkCustomAssetType(this)">
+                  <option value="" disabled selected>Seleccione tipo...</option>
+                  <option value="Terrenos">Terrenos</option>
+                  <option value="Edificaciones e Instalaciones">Edificaciones e Instalaciones</option>
+                  <option value="Maquinaria y Equipo Industrial">Maquinaria y Equipo Industrial</option>
+                  <option value="Equipo de Cómputo y Tecnología">Equipo de Cómputo y Tecnología</option>
+                  <option value="Vehículos y Equipo de Transporte">Vehículos y Equipo de Transporte</option>
+                  <option value="Muebles y Enseres de Oficina">Muebles y Enseres de Oficina</option>
+                  <option value="Herramientas y Equipos Auxiliares">Herramientas y Equipos Auxiliares</option>
+                  <option value="Licencias y Software (Intangibles)">Licencias y Software (Intangibles)</option>
+                  <option value="Otro">Otro (Especificar...)</option>
+                </select>
+              </div>
+              <!-- Campo oculto para especificar tipo de activo personalizado si se selecciona "Otro" -->
+              <div id="finanzas-tipo-otro-container" class="hidden fade-transition">
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Especificar Tipo de Activo</label>
+                <input type="text" id="finanzas-tipo-otro" placeholder="Escriba el tipo de activo" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Costo Estimado Unitario</label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span class="text-slate-500 text-sm">$</span>
+                </div>
+                <input type="number" id="finanzas-costo-unitario" min="0.01" step="0.01" placeholder="0.00" class="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm" oninput="calcularTotal()">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Costo Total Estimado (Calculado)</label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span class="text-slate-500 text-sm font-semibold">$</span>
+                </div>
+                <input type="text" id="finanzas-costo-total" readonly class="w-full pl-7 pr-3 py-2 border border-slate-200 bg-slate-100 rounded-md font-bold text-[#1F497D] text-sm focus:outline-none cursor-not-allowed">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Fuente de Financiamiento</label>
+              <select id="finanzas-fuente" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1F497D] focus:border-transparent text-sm">
+                <option value="" disabled selected>Seleccione fuente...</option>
+                <option value="Presupuesto Anual">Presupuesto Anual de Operación (OPEX)</option>
+                <option value="Proyecto Específico">Presupuesto de Proyecto de Capital (CAPEX)</option>
+                <option value="Fondo Extraordinario">Fondo de Contingencia / Extraordinario</option>
+                <option value="Crédito o Leasing">Financiamiento Externo / Leasing</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECCIÓN 5: PRIORIDAD DE LA SOLICITUD (Selección única) -->
+        <section class="space-y-4">
+          <div class="flex items-center gap-2 border-b-2 border-[#1F497D] pb-2">
+            <span class="bg-[#1F497D] text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">5</span>
+            <h2 class="text-lg font-bold text-[#1F497D]">PRIORIDAD DE LA SOLICITUD</h2>
+          </div>
+          <p class="text-xs text-slate-500 mb-2">Seleccione una única prioridad de entrega o ejecución:</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <label class="relative flex flex-col p-4 border rounded-lg cursor-pointer hover:bg-slate-50 focus:outline-none border-red-200 bg-red-50/50">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-red-700 uppercase">Urgente</span>
+                <input type="radio" name="prioridad" value="Urgente" required class="h-4 w-4 text-[#1F497D] focus:ring-[#1F497D]">
+              </div>
+              <span class="text-[11px] text-red-600">Requiere aprobación inmediata. Afecta severamente la producción.</span>
+            </label>
+            
+            <label class="relative flex flex-col p-4 border rounded-lg cursor-pointer hover:bg-slate-50 focus:outline-none border-slate-200">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-slate-700 uppercase">Corto Plazo</span>
+                <input type="radio" name="prioridad" value="Corto Plazo" class="h-4 w-4 text-[#1F497D] focus:ring-[#1F497D]">
+              </div>
+              <span class="text-[11px] text-slate-500">Adquisición necesaria dentro de 1 a 3 meses para sostener planes de área.</span>
+            </label>
+
+            <label class="relative flex flex-col p-4 border rounded-lg cursor-pointer hover:bg-slate-50 focus:outline-none border-slate-200">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-slate-700 uppercase">Mediano Plazo</span>
+                <input type="radio" name="prioridad" value="Mediano Plazo" class="h-4 w-4 text-[#1F497D] focus:ring-[#1F497D]">
+              </div>
+              <span class="text-[11px] text-slate-500">Adquisición requerida entre 3 y 6 meses. No crítico a corto plazo.</span>
+            </label>
+
+            <label class="relative flex flex-col p-4 border rounded-lg cursor-pointer hover:bg-slate-50 focus:outline-none border-slate-200">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-slate-700 uppercase">Largo Plazo</span>
+                <input type="radio" name="prioridad" value="Largo Plazo" class="h-4 w-4 text-[#1F497D] focus:ring-[#1F497D]">
+              </div>
+              <span class="text-[11px] text-slate-500">Planificado para ejecución mayor a 6 meses o presupuesto del próximo ciclo.</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- SECCIÓN 6: DOCUMENTOS ADJUNTOS -->
+        <section class="space-y-4">
+          <div class="flex items-center gap-2 border-b-2 border-[#1F497D] pb-2">
+            <span class="bg-[#1F497D] text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">6</span>
+            <h2 class="text-lg font-bold text-[#1F497D]">DOCUMENTOS ADJUNTOS</h2>
+          </div>
+          <div class="overflow-x-auto border border-slate-200 rounded-lg">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="bg-slate-100 border-b border-slate-200 text-xs uppercase font-bold text-slate-600">
+                  <th class="py-3 px-4 w-12 text-center">Selección</th>
+                  <th class="py-3 px-4 w-1/3">Documento Requerido</th>
+                  <th class="py-3 px-4">Observaciones / Detalles Técnicos Adicionales</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr>
+                  <td class="py-3 px-4 text-center">
+                    <input type="checkbox" id="doc-cotizacion" class="w-4 h-4 text-[#1F497D] focus:ring-[#1F497D] rounded">
+                  </td>
+                  <td class="py-3 px-4 font-semibold text-slate-700">Cotizaciones de Proveedores</td>
+                  <td class="py-2 px-4">
+                    <input type="text" id="doc-cotizacion-obs" placeholder="Ej: Cotización N° 459 - Empresa Provedora ACME" class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-[#1F497D] focus:outline-none">
+                  </td>
+                </tr>
+                <tr>
+                  <td class="py-3 px-4 text-center">
+                    <input type="checkbox" id="doc-especificaciones" class="w-4 h-4 text-[#1F497D] focus:ring-[#1F497D] rounded">
+                  </td>
+                  <td class="py-3 px-4 font-semibold text-slate-700">Especificaciones Técnicas</td>
+                  <td class="py-2 px-4">
+                    <input type="text" id="doc-especificaciones-obs" placeholder="Folleto adjunto, requerimientos de energía eléctrica, etc." class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-[#1F497D] focus:outline-none">
+                  </td>
+                </tr>
+                <tr>
+                  <td class="py-3 px-4 text-center">
+                    <input type="checkbox" id="doc-otros" class="w-4 h-4 text-[#1F497D] focus:ring-[#1F497D] rounded">
+                  </td>
+                  <td class="py-3 px-4 font-semibold text-slate-700">Otros adjuntos</td>
+                  <td class="py-2 px-4">
+                    <input type="text" id="doc-otros-obs" placeholder="Por favor especifique qué tipo de documento añade" class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-[#1F497D] focus:outline-none">
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- SECCIÓN 7: APROBACIONES DIGITALES (Canvas Interactivos y Nombres Escritos) -->
+        <section class="space-y-4">
+          <div class="flex items-center gap-2 border-b-2 border-[#1F497D] pb-2">
+            <span class="bg-[#1F497D] text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">7</span>
+            <h2 class="text-lg font-bold text-[#1F497D]">PROCESO DE APROBACIONES</h2>
+          </div>
+          <p class="text-xs text-slate-500">Por favor firme digitalmente e introduzca su nombre completo abajo de su recuadro de firma:</p>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Firma Solicitante -->
+            <div class="flex flex-col border border-slate-200 rounded-lg p-4 bg-slate-50 justify-between">
+              <div>
+                <span class="text-xs font-bold text-slate-700 uppercase mb-2 block text-center">1. Firma del Solicitante *</span>
+                <div class="bg-white border border-slate-300 rounded relative mb-2">
+                  <canvas id="canvas-solicitante" class="w-full h-32"></canvas>
+                  <button type="button" onclick="clearCanvas('canvas-solicitante')" class="absolute right-2 bottom-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded border border-red-200 flex items-center gap-1 no-print">
+                    <i data-lucide="trash-2" class="w-3 h-3"></i> Limpiar
+                  </button>
+                </div>
+                <span class="text-[11px] block text-center text-slate-400 mb-3 no-print">Dibuje con el puntero o pantalla táctil</span>
+              </div>
+              <div class="mt-2 border-t border-slate-200 pt-3">
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Nombre Completo (Escrito) *</label>
+                <input type="text" id="nombre-written-solicitante" required placeholder="Escriba su nombre y apellido" class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-[#1F497D] focus:outline-none">
+              </div>
+            </div>
+
+            <!-- Firma Gerencia de Área -->
+            <div class="flex flex-col border border-slate-200 rounded-lg p-4 bg-slate-50 justify-between">
+              <div>
+                <span class="text-xs font-bold text-slate-700 uppercase mb-2 block text-center">2. Firma Gerencia de Área</span>
+                <div class="bg-white border border-slate-300 rounded relative mb-2">
+                  <canvas id="canvas-gerencia" class="w-full h-32"></canvas>
+                  <button type="button" onclick="clearCanvas('canvas-gerencia')" class="absolute right-2 bottom-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded border border-red-200 flex items-center gap-1 no-print">
+                    <i data-lucide="trash-2" class="w-3 h-3"></i> Limpiar
+                  </button>
+                </div>
+                <span class="text-[11px] block text-center text-slate-400 mb-3 no-print">Dibuje con el puntero o pantalla táctil</span>
+              </div>
+              <div class="mt-2 border-t border-slate-200 pt-3">
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Nombre Completo (Escrito)</label>
+                <input type="text" id="nombre-written-gerencia" placeholder="Escriba el nombre del Gerente" class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-[#1F497D] focus:outline-none">
+              </div>
+            </div>
+
+            <!-- Firma Consejo Administrativo -->
+            <div class="flex flex-col border border-slate-200 rounded-lg p-4 bg-slate-50 justify-between">
+              <div>
+                <span class="text-xs font-bold text-slate-700 uppercase mb-2 block text-center">3. Firma Consejo Administrativo</span>
+                <div class="bg-white border border-slate-300 rounded relative mb-2">
+                  <canvas id="canvas-consejo" class="w-full h-32"></canvas>
+                  <button type="button" onclick="clearCanvas('canvas-consejo')" class="absolute right-2 bottom-2 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded border border-red-200 flex items-center gap-1 no-print">
+                    <i data-lucide="trash-2" class="w-3 h-3"></i> Limpiar
+                  </button>
+                </div>
+                <span class="text-[11px] block text-center text-slate-400 mb-3 no-print">Dibuje con el puntero o pantalla táctil</span>
+              </div>
+              <div class="mt-2 border-t border-slate-200 pt-3">
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Nombre Completo (Escrito)</label>
+                <input type="text" id="nombre-written-consejo" placeholder="Escriba el nombre del Representante" class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-[#1F497D] focus:outline-none">
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Botón de Envío y Acciones (no-print para evitar imprimir botones) -->
+        <div class="flex flex-col sm:flex-row gap-4 pt-6 justify-end items-center border-t border-slate-200 no-print">
+          <button type="button" onclick="iniciarNuevaSolicitud()" class="w-full sm:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-lg shadow-sm flex items-center justify-center gap-2">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i> Nueva Solicitud (Limpiar)
+          </button>
+          <button type="button" onclick="window.print()" class="w-full sm:w-auto px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm rounded-lg border border-slate-300 flex items-center justify-center gap-2">
+            <i data-lucide="printer" class="w-4 h-4"></i> Imprimir Borrador / Guardar PDF
+          </button>
+          <button id="btn-guardar-solicitud" type="submit" class="w-full sm:w-auto px-8 py-2.5 bg-[#1F497D] hover:bg-blue-800 text-white font-bold text-sm rounded-lg shadow-md flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+            <i data-lucide="check-circle" class="w-4 h-4"></i> Guardar Solicitud
+          </button>
+        </div>
+
+      </form>
+    </div>
+
+    <!-- HISTORIAL DE SOLICITUDES EN LA SESIÓN (no-print para que no salga en la impresión física) -->
+    <div class="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden no-print">
+      <div class="bg-slate-800 text-white py-4 px-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-2">
+          <i data-lucide="archive" class="w-5 h-5 text-slate-300"></i>
+          <h2 class="font-bold text-sm sm:text-base">HISTORIAL DE SOLICITUDES GUARDADAS</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <!-- Botones de Importación y Exportación del Historial Completo -->
+          <button type="button" onclick="exportarHistorialCompleto()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-bold rounded flex items-center gap-1.5 text-white transition-all">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Exportar Todo (.json)
+          </button>
+          <button type="button" onclick="document.getElementById('import-input').click()" class="px-3 py-1.5 bg-[#1F497D] hover:bg-blue-800 text-xs font-bold rounded flex items-center gap-1.5 text-white transition-all">
+            <i data-lucide="upload" class="w-3.5 h-3.5"></i> Importar Copia (.json)
+          </button>
+          <span class="bg-slate-900 px-3 py-1.5 rounded text-xs font-mono text-slate-300" id="historial-contador">0 Solicitudes</span>
+        </div>
+      </div>
+      <div class="p-4 sm:p-6">
+        <div class="overflow-x-auto border border-slate-200 rounded-lg">
+          <table class="w-full text-left border-collapse text-xs sm:text-sm">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
+                <th class="py-3 px-4">ID</th>
+                <th class="py-3 px-4">Fecha</th>
+                <th class="py-3 px-4">Área</th>
+                <th class="py-3 px-4">Solicitante</th>
+                <th class="py-3 px-4">Tipo de Activo</th>
+                <th class="py-3 px-4 text-right">Inversión Total</th>
+                <th class="py-3 px-4 text-center">Prioridad</th>
+                <th class="py-3 px-4 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="historial-body" class="divide-y divide-slate-200">
+              <tr>
+                <td colspan="8" class="py-8 text-center text-slate-400 italic">No hay solicitudes guardadas en esta sesión. Completa y guarda el formulario de arriba para iniciar el registro.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE DETALLE HISTÓRICO (Audit / Re-imprimir / Copiar Datos) -->
+  <div id="modal-detalle" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex justify-center items-center p-4 z-50 overflow-y-auto no-print">
+    <div class="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-4xl w-full my-8 overflow-hidden">
+      <header class="bg-[#1F497D] text-white py-4 px-6 flex justify-between items-center">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i data-lucide="search" class="w-5 h-5"></i> Vista de Auditoría de Solicitud
+        </h3>
+        <button onclick="closeDetailModal()" class="text-white/80 hover:text-white">
+          <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+      </header>
+      <div id="detalle-modal-content" class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+        <!-- Render dinámico del detalle de la solicitud -->
+      </div>
+      <footer class="bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-wrap justify-end gap-3">
+        <button onclick="closeDetailModal()" class="px-4 py-2 border border-slate-300 text-slate-600 rounded-md hover:bg-slate-100 text-xs font-semibold">Cerrar Visor</button>
+        <button onclick="copiarDatosAlPortapapeles(historialSolicitudes.find(s => s.id === idParaImprimir))" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-bold flex items-center gap-1.5" title="Copiar reporte formateado al portapapeles">
+          <i data-lucide="copy" class="w-4 h-4"></i> Copiar Datos de la Solicitud
+        </button>
+        <button onclick="imprimirRegistroDetalle()" class="px-4 py-2 bg-[#1F497D] hover:bg-blue-800 text-white rounded-md text-xs font-bold flex items-center gap-1">
+          <i data-lucide="printer" class="w-4 h-4"></i> Imprimir esta Solicitud
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- MODAL DE CONFIRMACIÓN DE ENVÍO DIRECTO Y COPIADO AL PORTAPAPELES -->
+  <div id="modal-confirmacion" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex justify-center items-center p-4 z-50 no-print">
+    <div class="bg-white rounded-xl shadow-2xl border border-slate-200 p-6 max-w-md w-full text-center space-y-4">
+      <div class="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+        <i data-lucide="check" class="w-6 h-6 text-green-600 animate-pulse"></i>
+      </div>
+      <h3 class="text-lg font-bold text-slate-800">¡Formulario Guardado y Enviado!</h3>
+      <p class="text-xs text-slate-500">La información fue enviada a jleonardo@acabados.com.do. Puede copiarla o continuar editando.</p>
+      
+      <!-- Ficha de Datos Resumen -->
+      <div class="border border-slate-150 rounded-lg p-3 text-left space-y-1.5 text-xs text-slate-600 bg-slate-50">
+        <p><strong>ID de Solicitud:</strong> <span id="modal-id" class="font-mono font-bold text-blue-900"></span></p>
+        <p><strong>Departamento:</strong> <span id="modal-departamento"></span></p>
+        <p><strong>Tipo de Activo:</strong> <span id="modal-tipo"></span></p>
+        <p><strong>Costo Total Estimado:</strong> <span id="modal-total" class="font-bold text-[#1F497D]"></span></p>
+        <p><strong>Prioridad:</strong> <span id="modal-prioridad" class="font-bold"></span></p>
+        <p><strong>Firma Solicitante:</strong> <span id="modal-firma-solicitante"></span></p>
+      </div>
+
+      <!-- BOTONES DE ACCIÓN RÁPIDA -->
+      <div class="space-y-2 pt-2">
+        <button type="button" onclick="copiarDatosAlPortapapeles(solicitudTemporal)" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all">
+          <i data-lucide="copy" class="w-4 h-4"></i> Copiar Datos de la Solicitud
+        </button>
+        <div class="border-t border-slate-200 my-2 pt-2">
+          <button type="button" onclick="closeModal()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition-all">
+            Cerrar y Seguir Editando
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FORMATO EXCLUSIVO DE IMPRESIÓN (Oculto en pantalla normal) -->
+  <div id="print-area" class="hidden print-only max-w-4xl mx-auto p-4 space-y-6 text-slate-900">
+    <!-- El script llenará esto cuando se requiera imprimir un registro histórico -->
+  </div>
+
+  <script>
+    // Inicializar Lucide Icons
+    lucide.createIcons();
+
+    // Memoria interna para guardar solicitudes en la sesión actual
+    let historialSolicitudes = [];
+    
+    // Objeto temporal que guarda la última solicitud ingresada para acciones rápidas en el modal
+    let solicitudTemporal = null;
+
+    // Establecer fecha por defecto de hoy y mínimo hoy
+    document.addEventListener("DOMContentLoaded", () => {
+      const today = new Date().toISOString().split('T')[0];
+      const dateInput = document.getElementById("fecha-solicitud");
+      if(dateInput) {
+        dateInput.value = today;
+        dateInput.min = today;
+      }
+
+      // Inicializar Canvases de Firma
+      initSignatures();
+    });
+
+    // 1. Mostrar u ocultar sección de reemplazo dinámicamente
+    function toggleReemplazoSection(show) {
+      const section = document.getElementById("seccion-reemplazo");
+      const inputs = section.querySelectorAll("input, select");
+
+      if (show) {
+        section.classList.remove("hidden");
+        // Habilitar y requerir campos dinámicamente
+        inputs.forEach(input => {
+          input.required = true;
+          input.disabled = false;
+        });
+      } else {
+        section.classList.add("hidden");
+        // Deshabilitar requerimiento para evitar errores en envío
+        inputs.forEach(input => {
+          input.required = false;
+          input.disabled = true;
+          input.value = ""; // Limpiar campos al ocultar
+        });
+      }
+    }
+
+    // Comprobar si se ha seleccionado "Otro" departamento para desplegar el input
+    function checkCustomDepartment(select) {
+      const container = document.getElementById("departamento-otro-container");
+      const input = document.getElementById("departamento-otro");
+      if (select.value === "Otro") {
+        container.classList.remove("hidden");
+        input.required = true;
+        input.focus();
+      } else {
+        container.classList.add("hidden");
+        input.required = false;
+        input.value = "";
+      }
+    }
+
+    // Comprobar si se ha seleccionado "Otro" tipo de activo para desplegar el input
+    function checkCustomAssetType(select) {
+      const container = document.getElementById("finanzas-tipo-otro-container");
+      const input = document.getElementById("finanzas-tipo-otro");
+      if (select.value === "Otro") {
+        container.classList.remove("hidden");
+        input.required = true;
+        input.focus();
+      } else {
+        container.classList.add("hidden");
+        input.required = false;
+        input.value = "";
+      }
+    }
+
+    // 2. Cálculo automático del costo total
+    function calcularTotal() {
+      const cantidad = parseFloat(document.getElementById("activo-cantidad").value) || 0;
+      const costoUnitario = parseFloat(document.getElementById("finanzas-costo-unitario").value) || 0;
+      const total = cantidad * costoUnitario;
+
+      const totalField = document.getElementById("finanzas-costo-total");
+      totalField.value = total > 0 ? total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00";
+    }
+
+    // Registrar observador de cambio en cantidad solicitado para actualizar costo total
+    document.getElementById("activo-cantidad").addEventListener("input", calcularTotal);
+
+    // 3. Manejo e Inicialización de Firmas
+    const canvases = {};
+    const contexts = {};
+    let drawing = false;
+
+    // AUXILIAR: Detectar si el lienzo de firma está vacío
+    function isCanvasBlank(canvas) {
+      if (!canvas) return true;
+      const blank = document.createElement('canvas');
+      blank.width = canvas.width;
+      blank.height = canvas.height;
+      return canvas.toDataURL() === blank.toDataURL();
+    }
+
+    function initSignatures() {
+      const ids = ["canvas-solicitante", "canvas-gerencia", "canvas-consejo"];
+      
+      ids.forEach(id => {
+        const canvas = document.getElementById(id);
+        if(!canvas) return;
+        const ctx = canvas.getContext("2d");
+        
+        // Ajustar dimensiones internas del canvas a las físicas de renderizado
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight || 128;
+        
+        ctx.strokeStyle = "#1F497D"; // Color ejecutivo de firma
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        
+        canvases[id] = canvas;
+        contexts[id] = ctx;
+
+        // Eventos táctiles y de ratón unificados
+        canvas.addEventListener("mousedown", (e) => startDrawing(e, id));
+        canvas.addEventListener("mousemove", (e) => draw(e, id));
+        canvas.addEventListener("mouseup", () => stopDrawing());
+        canvas.addEventListener("mouseleave", () => stopDrawing());
+
+        canvas.addEventListener("touchstart", (e) => startDrawing(e, id));
+        canvas.addEventListener("touchmove", (e) => draw(e, id));
+        canvas.addEventListener("touchend", () => stopDrawing());
+      });
+    }
+
+    function getCoordinates(e, canvas) {
+      const rect = canvas.getBoundingClientRect();
+      if (e.touches && e.touches.length > 0) {
+        return {
+          x: e.touches[0].clientX - rect.left,
+          y: e.touches[0].clientY - rect.top
+        };
+      }
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    }
+
+    function startDrawing(e, id) {
+      drawing = true;
+      const coords = getCoordinates(e, canvases[id]);
+      contexts[id].beginPath();
+      contexts[id].moveTo(coords.x, coords.y);
+      e.preventDefault();
+    }
+
+    // Dibujo en el lienzo
+    function draw(e, id) {
+      if (!drawing) return;
+      const coords = getCoordinates(e, canvases[id]);
+      contexts[id].lineTo(coords.x, coords.y);
+      contexts[id].stroke();
+      e.preventDefault();
+    }
+
+    function stopDrawing() {
+      drawing = false;
+    }
+
+    // Limpiar canvas de firma
+    function clearCanvas(id) {
+      const canvas = canvases[id];
+      const ctx = contexts[id];
+      if(canvas && ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    // Función auxiliar para notificaciones Toast elegantes
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      const msgSpan = document.getElementById("toast-message");
+      msgSpan.textContent = message;
+      toast.classList.remove("hidden");
+      
+      setTimeout(() => {
+        toast.classList.remove("translate-y-[-20px]", "opacity-0");
+      }, 50);
+      
+      setTimeout(() => {
+        toast.classList.add("translate-y-[-20px]", "opacity-0");
+        setTimeout(() => {
+          toast.classList.add("hidden");
+        }, 300);
+      }, 4000);
+    }
+
+    // 4. Copiado de Reporte Formateado al Portapapeles
+    function copiarDatosAlPortapapeles(sol) {
+      if (!sol) return;
+      
+      const textoReporte = `SOLICITUD DE COMPRA DE ACTIVO FIJO [${sol.id}]
+--------------------------------------------------
+DATOS GENERALES DE LA SOLICITUD
+--------------------------------------------------
+Fecha de Solicitud: ${sol.fecha}
+Departamento / Área: ${sol.departamento}
+Solicitado por: ${sol.solicitanteNombre}
+Cargo: ${sol.solicitanteCargo}
+Jefe que autoriza: ${sol.aprobadorJefe}
+
+--------------------------------------------------
+DETALLES DEL ACTIVO SOLICITADO
+--------------------------------------------------
+Tipo de Activo: ${sol.tipoActivo}
+Descripción del Activo: ${sol.activoDesc}
+Cantidad Solicitada: ${sol.activoCantidad} unidad(es)
+Ubicación Prevista de Uso: ${sol.activoUbicacion}
+Justificación: ${sol.activoJustificacion}
+¿Sustituye a un activo existente?: ${sol.reemplazaActivo}
+
+${sol.reemplazaActivo === 'Sí' ? `--------------------------------------------------
+DETALLES DEL ACTIVO A REEMPLAZAR
+--------------------------------------------------
+Descripción del Activo Saliente: ${sol.reemplazoDesc}
+Antigüedad / Años de uso: ${sol.reemplazoAntiguedad}
+Motivo del Reemplazo: ${sol.reemplazoMotivo}
+Disposición Final Planeada: ${sol.reemplazoDisposicion}
+` : ''}--------------------------------------------------
+PLANIFICACIÓN FINANCIERA Y PRIORIDAD
+--------------------------------------------------
+Proveedor Sugerido: ${sol.proveedor}
+Costo Unitario Estimado: $${sol.costoUnitario.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD
+COSTO TOTAL ESTIMADO: $${sol.costoTotal} USD
+Fuente de Financiamiento: ${sol.fuenteFinanciamiento}
+Prioridad del Requerimiento: ${sol.prioridad}
+
+--------------------------------------------------
+ESTADO DE FIRMAS DIGITALES
+--------------------------------------------------
+Firma Solicitante: Registrada [Aclaración: ${sol.nombreEscritoSolicitante}]
+Firma Gerencia de Área: ${sol.firmaGerencia ? 'Aprobada' : 'Pendiente'} [Aclaración: ${sol.nombreEscritoGerencia}]
+Firma Consejo Administrativo: ${sol.firmaConsejo ? 'Aprobada' : 'Pendiente'} [Aclaración: ${sol.nombreEscritoConsejo}]
+
+*Nota: Datos copiados directamente desde la plataforma interna de Gestión de Activos Fijos.*`;
+
+      const tempTextArea = document.createElement("textarea");
+      tempTextArea.value = textoReporte;
+      tempTextArea.style.top = "0";
+      tempTextArea.style.left = "0";
+      tempTextArea.style.position = "fixed";
+      document.body.appendChild(tempTextArea);
+      tempTextArea.focus();
+      tempTextArea.select();
+      
+      try {
+        const copiadoCorrecto = document.execCommand('copy');
+        if (copiadoCorrecto) {
+          showToast("¡Datos copiados! Presiona Ctrl+V en tu correo para pegarlos.");
+        } else {
+          showToast("No se pudo copiar automáticamente. Por favor, selecciona y copia manualmente.");
+        }
+      } catch (err) {
+        showToast("Error en el portapapeles. Copie manualmente desde la vista de auditoría.");
+      }
+      
+      document.body.removeChild(tempTextArea);
+    }
+
+    const FIXED_ASSETS_EMAIL_ENDPOINT = "/api/v1/fixed-assets/send-email";
+
+    async function enviarSolicitudPorCorreo(solicitud) {
+      const response = await fetch(FIXED_ASSETS_EMAIL_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(solicitud)
+      });
+
+      let body = {};
+      try {
+        body = await response.json();
+      } catch (_) {
+        body = {};
+      }
+
+      if (!response.ok) {
+        const msg = body.detail || "No se pudo enviar el correo.";
+        throw new Error(msg);
+      }
+
+      return body;
+    }
+
+    // 5. Envío y confirmación del Formulario
+    async function handleFormSubmit(event) {
+      event.preventDefault();
+
+      const submitBtn = document.getElementById("btn-guardar-solicitud");
+      const originalBtnHtml = submitBtn ? submitBtn.innerHTML : "";
+
+      // Validación extra: Verificar que se haya seleccionado prioridad
+      const prioridadSeleccionada = document.querySelector('input[name="prioridad"]:checked');
+      if (!prioridadSeleccionada) {
+        showToast("Por favor seleccione una prioridad en la Sección 5.");
+        return;
+      }
+
+      // Validar que al menos se haya firmado el campo del solicitante
+      const solicitanteCanvas = document.getElementById("canvas-solicitante");
+      if (isCanvasBlank(solicitanteCanvas)) {
+        showToast("El solicitante debe registrar su firma digital en la Sección 7.");
+        return;
+      }
+
+      const depSelect = document.getElementById("departamento");
+      const depValue = depSelect.value === "Otro" ? document.getElementById("departamento-otro").value : depSelect.value;
+      const assetSelect = document.getElementById("finanzas-tipo-activo");
+      const assetValue = assetSelect.value === "Otro" ? document.getElementById("finanzas-tipo-otro").value : (assetSelect.value || "No especificado");
+
+      solicitudTemporal = {
+        id: document.getElementById("solicitud-id").textContent,
+        fecha: document.getElementById("fecha-solicitud").value,
+        departamento: depValue,
+        solicitanteNombre: document.getElementById("solicitante-nombre").value,
+        solicitanteCargo: document.getElementById("solicitante-cargo").value,
+        aprobadorJefe: document.getElementById("aprobador-jefe").value,
+        activoDesc: document.getElementById("activo-descripcion").value,
+        activoCantidad: document.getElementById("activo-cantidad").value,
+        activoUbicacion: document.getElementById("activo-ubicacion").value,
+        reemplazaActivo: document.querySelector('input[name="reemplazo-opcion"]:checked').value === "si" ? "Sí" : "No",
+        
+        reemplazoDesc: document.getElementById("reemplazo-desc").value || "N/A",
+        reemplazoAntiguedad: document.getElementById("reemplazo-antiguedad").value || "N/A",
+        reemplazoMotivo: document.getElementById("reemplazo-motivo").value || "N/A",
+        reemplazoDisposicion: document.getElementById("reemplazo-disposicion").value || "N/A",
+
+        proveedor: document.getElementById("finanzas-proveedor").value || "No especificado",
+        tipoActivo: assetValue,
+        costoUnitario: parseFloat(document.getElementById("finanzas-costo-unitario").value) || 0,
+        costoTotal: document.getElementById("finanzas-costo-total").value || "0.00",
+        fuenteFinanciamiento: document.getElementById("finanzas-fuente").value || "No especificado",
+        prioridad: prioridadSeleccionada.value,
+
+        docCotizacion: document.getElementById("doc-cotizacion").checked,
+        docCotizacionObs: document.getElementById("doc-cotizacion-obs").value,
+        docEspecificaciones: document.getElementById("doc-especificaciones").checked,
+        docEspecificacionesObs: document.getElementById("doc-especificaciones-obs").value,
+        docOtros: document.getElementById("doc-otros").checked,
+        docOtrosObs: document.getElementById("doc-otros-obs").value,
+
+        firmaSolicitante: document.getElementById("canvas-solicitante").toDataURL(),
+        nombreEscritoSolicitante: document.getElementById("nombre-written-solicitante").value,
+        
+        firmaGerencia: isCanvasBlank(document.getElementById("canvas-gerencia")) ? null : document.getElementById("canvas-gerencia").toDataURL(),
+        nombreEscritoGerencia: document.getElementById("nombre-written-gerencia").value || "Pendiente",
+        
+        firmaConsejo: isCanvasBlank(document.getElementById("canvas-consejo")) ? null : document.getElementById("canvas-consejo").toDataURL(),
+        nombreEscritoConsejo: document.getElementById("nombre-written-consejo").value || "Pendiente"
+      };
+
+      try {
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Enviando...';
+          lucide.createIcons();
+        }
+
+        await enviarSolicitudPorCorreo(solicitudTemporal);
+
+        document.getElementById("modal-id").textContent = solicitudTemporal.id;
+        document.getElementById("modal-departamento").textContent = solicitudTemporal.departamento;
+        document.getElementById("modal-tipo").textContent = solicitudTemporal.tipoActivo;
+        document.getElementById("modal-total").textContent = "$" + solicitudTemporal.costoTotal + " USD";
+        document.getElementById("modal-prioridad").textContent = solicitudTemporal.prioridad;
+        document.getElementById("modal-firma-solicitante").textContent = solicitudTemporal.nombreEscritoSolicitante;
+
+        document.getElementById("modal-confirmacion").classList.remove("hidden");
+        showToast("Solicitud enviada a jleonardo@acabados.com.do");
+      } catch (error) {
+        showToast(`Error al enviar correo: ${error.message}`);
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnHtml;
+          lucide.createIcons();
+        }
+      }
+    }
+
+    // 6. Cierre definitivo de Modal y almacenamiento definitivo en historial SIN BORRAR FORMULARIO
+    function closeModal() {
+      if (!solicitudTemporal) return;
+
+      // Verificar si ya existe en el historial para evitar duplicar si se edita
+      const indexExistente = historialSolicitudes.findIndex(s => s.id === solicitudTemporal.id);
+      if (indexExistente > -1) {
+        historialSolicitudes[indexExistente] = solicitudTemporal;
+      } else {
+        historialSolicitudes.push(solicitudTemporal);
+      }
+      
+      solicitudTemporal = null;
+      renderHistorial();
+
+      document.getElementById("modal-confirmacion").classList.add("hidden");
+      showToast("Solicitud guardada con éxito en el historial.");
+    }
+
+    // 6.1. Nueva Solicitud (Limpia campos de forma manual e incrementa el ID)
+    function iniciarNuevaSolicitud() {
+      if (confirm("¿Desea crear una nueva solicitud? Se borrarán los datos actuales de la pantalla (el historial de guardados permanecerá a salvo).")) {
+        document.getElementById("fixed-assets-form").reset();
+        clearCanvas("canvas-solicitante");
+        clearCanvas("canvas-gerencia");
+        clearCanvas("canvas-consejo");
+        calcularTotal();
+        toggleReemplazoSection(false);
+        document.getElementById("departamento-otro-container").classList.add("hidden");
+        document.getElementById("finanzas-tipo-otro-container").classList.add("hidden");
+        
+        // Calcular el siguiente ID secuencial basándonos en la lista actual
+        calcularSiguienteID();
+        showToast("Formulario limpio. Nueva solicitud iniciada.");
+      }
+    }
+
+    // Función para calcular y renderizar el ID secuencial correcto
+    function calcularSiguienteID() {
+      let maxNum = 0;
+      historialSolicitudes.forEach(sol => {
+        const parts = sol.id.split("-");
+        if (parts.length === 3) {
+          const num = parseInt(parts[2]);
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num;
+          }
+        }
+      });
+      const nextNum = maxNum + 1;
+      const newId = `AF-2026-${String(nextNum).padStart(4, '0')}`;
+      document.getElementById("solicitud-id").textContent = newId;
+    }
+
+    // 6.2. Exportar Historial Completo a un archivo .json
+    function exportarHistorialCompleto() {
+      if (historialSolicitudes.length === 0) {
+        showToast("No hay registros en el historial para exportar.");
+        return;
+      }
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(historialSolicitudes, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `Historial_Solicitudes_Activos.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast("Historial exportado con éxito.");
+    }
+
+    // 6.3. Importar Historial de un archivo .json externo
+    function importarHistorial(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          if (Array.isArray(importedData)) {
+            historialSolicitudes = importedData;
+            renderHistorial();
+            calcularSiguienteID();
+            showToast("¡Historial importado correctamente!");
+          } else {
+            showToast("El archivo seleccionado no tiene un formato de historial válido.");
+          }
+        } catch (err) {
+          showToast("Error al procesar el archivo JSON.");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = ""; // Reset del file input
+    }
+
+    // 7. Renderizado Dinámico de Solicitudes en el Historial
+    function renderHistorial() {
+      const tbody = document.getElementById("historial-body");
+      const contador = document.getElementById("historial-contador");
+      
+      contador.textContent = `${historialSolicitudes.length} Solicitud(es)`;
+
+      if (historialSolicitudes.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="py-8 text-center text-slate-400 italic">No hay solicitudes guardadas en esta sesión. Completa y guarda el formulario de arriba para iniciar el registro.</td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = "";
+
+      historialSolicitudes.forEach((sol, index) => {
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-50 transition-colors duration-150";
+        
+        let badgeColor = "bg-slate-100 text-slate-700";
+        if (sol.prioridad === "Urgente") badgeColor = "bg-red-100 text-red-700 font-bold animate-pulse";
+        else if (sol.prioridad === "Corto Plazo") badgeColor = "bg-orange-100 text-orange-700";
+        else if (sol.prioridad === "Mediano Plazo") badgeColor = "bg-yellow-100 text-yellow-700";
+
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-mono font-bold text-blue-900">${sol.id}</td>
+          <td class="py-3 px-4 text-slate-500">${sol.fecha}</td>
+          <td class="py-3 px-4 font-semibold">${sol.departamento}</td>
+          <td class="py-3 px-4 text-slate-600">${sol.solicitanteNombre}</td>
+          <td class="py-3 px-4 font-medium text-slate-700">${sol.tipoActivo}</td>
+          <td class="py-3 px-4 text-right font-bold text-slate-900">$${sol.costoTotal}</td>
+          <td class="py-3 px-4 text-center">
+            <span class="px-2 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium ${badgeColor}">
+              ${sol.prioridad}
+            </span>
+          </td>
+          <td class="py-3 px-4 text-center">
+            <div class="flex items-center justify-center gap-2">
+              <button type="button" onclick="verDetalleSolicitud('${sol.id}')" class="p-1.5 bg-blue-50 hover:bg-blue-100 text-[#1F497D] rounded border border-blue-200 transition-colors" title="Ver Detalle / Auditar">
+                <i data-lucide="eye" class="w-4 h-4"></i>
+              </button>
+              <button type="button" onclick="eliminarDelHistorial(${index})" class="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded border border-red-200 transition-colors" title="Eliminar Registro">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      lucide.createIcons();
+    }
+
+    function eliminarDelHistorial(index) {
+      if (confirm(`¿Está seguro de que desea eliminar permanentemente este registro del historial?`)) {
+        historialSolicitudes.splice(index, 1);
+        renderHistorial();
+        calcularSiguienteID();
+        showToast("Registro de sesión eliminado.");
+      }
+    }
+
+    // 8. Visualizar Detalle de Solicitud Antigua
+    let idParaImprimir = null;
+    
+    function verDetalleSolicitud(id) {
+      const sol = historialSolicitudes.find(s => s.id === id);
+      if (!sol) return;
+
+      idParaImprimir = id;
+      const content = document.getElementById("detalle-modal-content");
+      
+      let bloqueReemplazoHTML = "";
+      if (sol.reemplazaActivo === "Sí") {
+        bloqueReemplazoHTML = `
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+            <h5 class="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i> Detalles del Activo Reemplazado
+            </h5>
+            <div class="grid grid-cols-2 gap-4 text-xs">
+              <p><strong>Descripción:</strong> ${sol.reemplazoDesc}</p>
+              <p><strong>Antigüedad:</strong> ${sol.reemplazoAntiguedad}</p>
+              <p><strong>Motivo del Reemplazo:</strong> ${sol.reemplazoMotivo}</p>
+              <p><strong>Disposición final:</strong> ${sol.reemplazoDisposicion}</p>
+            </div>
+          </div>
+        `;
+      } else {
+        bloqueReemplazoHTML = `<p class="text-xs text-slate-400 italic">No aplica (Adquisición de Activo Nuevo)</p>`;
+      }
+
+      const docsHTML = [];
+      if (sol.docCotizacion) docsHTML.push(`<li><strong>Cotización:</strong> ${sol.docCotizacionObs || "Sin observaciones adicionales"}</li>`);
+      if (sol.docEspecificaciones) docsHTML.push(`<li><strong>Especificaciones Técnicas:</strong> ${sol.docEspecificacionesObs || "Sin especificaciones técnicas"}</li>`);
+      if (sol.docOtros) docsHTML.push(`<li><strong>Otros:</strong> ${sol.docOtrosObs || "No especificado"}</li>`);
+      
+      const docsListHTML = docsHTML.length > 0 
+        ? `<ul class="list-disc pl-5 text-xs text-slate-600 space-y-1">${docsHTML.join("")}</ul>`
+        : `<p class="text-xs text-slate-400 italic">Ningún documento adjunto registrado.</p>`;
+
+      content.innerHTML = `
+        <div class="border-b border-slate-200 pb-4 flex justify-between items-start">
+          <div>
+            <h4 class="text-lg font-bold text-slate-800 font-mono text-blue-900">${sol.id}</h4>
+            <p class="text-xs text-slate-500">Fecha de Registro: ${sol.fecha}</p>
+          </div>
+          <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+            sol.prioridad === 'Urgente' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+          }">${sol.prioridad}</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-4">
+            <div class="bg-slate-50 p-4 rounded-lg space-y-2 border border-slate-200">
+              <h5 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Información General</h5>
+              <div class="text-xs space-y-1">
+                <p><strong>Departamento / Área:</strong> ${sol.departamento}</p>
+                <p><strong>Solicitado por:</strong> ${sol.solicitanteNombre}</p>
+                <p><strong>Cargo:</strong> ${sol.solicitanteCargo}</p>
+                <p><strong>Autorizado por (Jefe):</strong> ${sol.aprobadorJefe}</p>
+              </div>
+            </div>
+
+            <div class="bg-slate-50 p-4 rounded-lg space-y-2 border border-slate-200">
+              <h5 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Detalles del Activo Solicitado</h5>
+              <div class="text-xs space-y-1">
+                <p><strong>Descripción:</strong> ${sol.activoDesc}</p>
+                <p><strong>Cantidad:</strong> ${sol.activoCantidad}</p>
+                <p><strong>Ubicación prevista:</strong> ${sol.activoUbicacion}</p>
+                <p class="mt-2"><strong>Justificación:</strong> ${sol.activoJustificacion}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div class="bg-slate-50 p-4 rounded-lg space-y-2 border border-slate-200">
+              <h5 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Información Financiera</h5>
+              <div class="text-xs space-y-1">
+                <p><strong>Tipo de Activo:</strong> ${sol.tipoActivo}</p>
+                <p><strong>Proveedor Sugerido:</strong> ${sol.proveedor}</p>
+                <p><strong>Costo Unitario:</strong> $${sol.costoUnitario > 0 ? sol.costoUnitario.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}</p>
+                <p class="text-sm text-blue-900 font-bold mt-1"><strong>Inversión Total Estimada:</strong> $${sol.costoTotal} USD</p>
+                <p><strong>Fuente de Financiamiento:</strong> ${sol.fuenteFinanciamiento}</p>
+              </div>
+            </div>
+
+            <div class="bg-slate-50 p-4 rounded-lg space-y-2 border border-slate-200">
+              <h5 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Documentos de Respaldo</h5>
+              ${docsListHTML}
+            </div>
+          </div>
+        </div>
+
+        ${bloqueReemplazoHTML}
+
+        <div class="border-t border-slate-200 pt-6">
+          <h5 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Firmas de Aprobación Digitalizadas</h5>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="border border-slate-200 p-3 rounded-lg text-center bg-white">
+              <div class="h-24 flex items-center justify-center bg-slate-50 border border-slate-100 rounded mb-2">
+                <img src="${sol.firmaSolicitante}" alt="Firma Solicitante" class="max-h-full max-w-full object-contain">
+              </div>
+              <p class="text-xs font-bold text-slate-700">${sol.nombreWrittenSolicitante}</p>
+              <p class="text-[10px] text-slate-400">Firma del Solicitante</p>
+            </div>
+
+            <div class="border border-slate-200 p-3 rounded-lg text-center bg-white">
+              <div class="h-24 flex items-center justify-center bg-slate-50 border border-slate-100 rounded mb-2">
+                ${sol.firmaGerencia ? `<img src="${sol.firmaGerencia}" alt="Firma Gerencia" class="max-h-full max-w-full object-contain">` : `<span class="text-xs text-slate-400 italic">Firma Pendiente</span>`}
+              </div>
+              <p class="text-xs font-bold text-slate-700">${sol.nombreWrittenGerencia}</p>
+              <p class="text-[10px] text-slate-400">Firma de Gerencia de Área</p>
+            </div>
+
+            <div class="border border-slate-200 p-3 rounded-lg text-center bg-white">
+              <div class="h-24 flex items-center justify-center bg-slate-50 border border-slate-100 rounded mb-2">
+                ${sol.firmaConsejo ? `<img src="${sol.firmaConsejo}" alt="Firma Consejo" class="max-h-full max-w-full object-contain">` : '<span class="text-[11px] text-slate-400 italic">Pendiente de Firma</span>'}
+              </div>
+              <p class="text-xs font-bold text-slate-700">${sol.nombreWrittenConsejo}</p>
+              <p class="text-[10px] text-slate-400">Firma Consejo Administrativo</p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById("modal-detalle").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function closeDetailModal() {
+      document.getElementById("modal-detalle").classList.add("hidden");
+    }
+
+    // 10. Imprimir un Registro Específico (Generar Maquetación para Print)
+    function imprimirRegistroDetalle() {
+      if (!idParaImprimir) return;
+      const sol = historialSolicitudes.find(s => s.id === idParaImprimir);
+      if (!sol) return;
+
+      const printArea = document.getElementById("print-area");
+      
+      printArea.innerHTML = `
+        <div class="border-2 border-slate-800 p-6 space-y-6">
+          <div class="flex justify-between items-center border-b-2 border-slate-800 pb-4">
+            <div>
+              <h1 class="text-2xl font-bold tracking-tight text-slate-900">FORMULARIO DE ADQUISICIÓN DE ACTIVOS</h1>
+              <p class="text-xs uppercase tracking-wider font-semibold text-slate-500">Documento Oficial de Registro de Activos Fijos</p>
+            </div>
+            <div class="border-2 border-slate-800 p-2 text-center bg-slate-50">
+              <span class="text-xs block font-bold">SOLICITUD ID</span>
+              <span class="font-mono font-bold text-lg">${sol.id}</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 border-b border-slate-300 pb-4 text-xs">
+            <div>
+              <p class="mb-1"><strong>Fecha de Solicitud:</strong> ${sol.fecha}</p>
+              <p class="mb-1"><strong>Departamento o Área:</strong> ${sol.departamento}</p>
+              <p class="mb-1"><strong>Prioridad de Compra:</strong> ${sol.prioridad}</p>
+            </div>
+            <div>
+              <p class="mb-1"><strong>Solicitado por:</strong> ${sol.solicitanteNombre}</p>
+              <p class="mb-1"><strong>Cargo:</strong> ${sol.solicitanteCargo}</p>
+              <p class="mb-1"><strong>Autorizador por Jefatura:</strong> ${sol.aprobadorJefe}</p>
+            </div>
+          </div>
+
+          <div class="space-y-2 border-b border-slate-300 pb-4">
+            <h2 class="text-sm font-bold bg-slate-100 p-1 uppercase">1. Especificaciones del Activo Fijo</h2>
+            <div class="text-xs space-y-1.5">
+              <p><strong>Descripción Detallada:</strong> ${sol.activoDesc}</p>
+              <p><strong>Cantidad Solicitada:</strong> ${sol.activoCantidad} unidades &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Ubicación de uso:</strong> ${sol.activoUbicacion}</p>
+              <p><strong>Justificación de Inversión:</strong> ${sol.activoJustificacion}</p>
+            </div>
+          </div>
+
+          <div class="space-y-2 border-b border-slate-300 pb-4">
+            <h2 class="text-sm font-bold bg-slate-100 p-1 uppercase">2. Sustitución de Activos (Retiro/Baja)</h2>
+            <div class="text-xs space-y-1.5">
+              <p><strong>¿Reemplaza a un activo existente?:</strong> ${sol.reemplazaActivo}</p>
+              ${sol.reemplazaActivo === 'Sí' ? `
+                <div class="grid grid-cols-2 gap-2 pl-4">
+                  <p><strong>Activo saliente:</strong> ${sol.reemplazoDesc}</p>
+                  <p><strong>Antigüedad / Uso:</strong> ${sol.reemplazoAntiguedad}</p>
+                  <p><strong>Motivo del cambio:</strong> ${sol.reemplazoMotivo}</p>
+                  <p><strong>Disposición planeada:</strong> ${sol.reemplazoDisposicion}</p>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+
+          <div class="space-y-2 border-b border-slate-300 pb-4">
+            <h2 class="text-sm font-bold bg-slate-100 p-1 uppercase">3. Resumen y Planificación Financiera</h2>
+            <div class="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <p class="mb-1"><strong>Tipo de Activo:</strong> ${sol.tipoActivo}</p>
+                <p class="mb-1"><strong>Proveedor Sugerido:</strong> ${sol.proveedor}</p>
+              </div>
+              <div>
+                <p class="mb-1"><strong>Costo Estimado Unitario:</strong> $${sol.costoUnitario > 0 ? sol.costoUnitario.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'} USD</p>
+                <p class="mb-1 font-bold"><strong>Costo Total Estimado:</strong> $${sol.costoTotal} USD</p>
+                <p class="mb-1"><strong>Fuente de Financiamiento:</strong> ${sol.fuenteFinanciamiento}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-2 pb-6">
+            <h2 class="text-sm font-bold bg-slate-100 p-1 uppercase">4. Firmas de Autorización Electrónica</h2>
+            <div class="grid grid-cols-3 gap-4 pt-4 text-center text-xs">
+              <div class="border border-slate-400 p-2 rounded">
+                <div class="h-20 flex items-center justify-center bg-white mb-1">
+                  <img src="${sol.firmaSolicitante}" class="max-h-full max-w-full object-contain">
+                </div>
+                <p class="font-bold border-t border-slate-300 pt-1">${sol.nombreWrittenSolicitante}</p>
+                <p class="text-[10px] text-slate-500">Firma del Solicitante</p>
+              </div>
+
+              <div class="border border-slate-400 p-2 rounded">
+                <div class="h-20 flex items-center justify-center bg-white mb-1">
+                  ${sol.firmaGerencia ? `<img src="${sol.firmaGerencia}" class="max-h-full max-w-full object-contain">` : '<span class="text-[11px] text-slate-400 italic">Pendiente de Firma</span>'}
+                </div>
+                <p class="font-bold border-t border-slate-300 pt-1">${sol.nombreWrittenGerencia}</p>
+                <p class="text-[10px] text-slate-500">Gerente de Área</p>
+              </div>
+
+              <div class="border border-slate-400 p-2 rounded">
+                <div class="h-20 flex items-center justify-center bg-white mb-1">
+                  ${sol.firmaConsejo ? `<img src="${sol.firmaConsejo}" class="max-h-full max-w-full object-contain">` : '<span class="text-[11px] text-slate-400 italic">Pendiente de Firma</span>'}
+                </div>
+                <p class="font-bold border-t border-slate-300 pt-1">${sol.nombreWrittenConsejo}</p>
+                <p class="text-[10px] text-slate-500">Consejo Administrativo</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Añadimos una clase al body para indicar que estamos imprimiendo el historial
+      document.body.classList.add("printing-history");
+
+      window.print();
+    }
+
+    // Escuchamos cuando termina el cuadro de diálogo de impresión para quitar la clase printing-history del body
+    window.addEventListener("afterprint", () => {
+      document.body.classList.remove("printing-history");
+    });
+
+    // Re-acomodar dimensiones del lienzo al cambiar tamaño de pantalla
+    window.addEventListener("resize", () => {
+      initSignatures();
+    });
+  </script>
+</body>
+</html>

@@ -18,6 +18,8 @@
             if (allowed.indexOf(rol) !== -1) return;
             var home = '/';
             if (rol === 'analista') home = '/employees';
+            else if (rol === 'tecnicos') home = '/maintenance';
+            else if (rol === 'activos_fijos') home = '/maintenance';
             else if (rol === 'facturador' || rol === 'cajero') home = '/labelsapp-web';
             else if (rol === 'cliente' || isKioskClient) home = '/cliente';
             window.location.replace(home);

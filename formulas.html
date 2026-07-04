@@ -1085,6 +1085,10 @@
                 
                 // Solo permitir acceso a administradores y analistas
                 if (userData.rol !== 'administrador' && userData.rol !== 'analista') {
+                    if (String(userData.rol || '').toLowerCase() === 'tecnicos' || String(userData.rol || '').toLowerCase() === 'activos_fijos') {
+                        window.location.href = '/maintenance';
+                        return false;
+                    }
                     alert('Acceso restringido a administradores y analistas');
                     window.location.href = '/';
                     return false;

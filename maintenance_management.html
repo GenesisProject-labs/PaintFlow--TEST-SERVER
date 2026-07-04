@@ -31,7 +31,7 @@
             background: radial-gradient(circle at top right, rgba(90, 87, 255, 0.08), transparent 28%), linear-gradient(180deg, #f8f9ff 0%, var(--app-bg) 100%);
             min-height: 100vh;
         }
-        .app-shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; }
+        .app-shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100vh; }
         .sidebar {
             background: linear-gradient(180deg, #141b33 0%, #10172d 100%);
             color: #fff;
@@ -39,24 +39,50 @@
             display: flex;
             flex-direction: column;
             gap: 18px;
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: min(320px, 88vw);
+            height: 100vh;
+            z-index: 90;
+            box-shadow: -24px 0 48px rgba(8, 12, 24, 0.26);
+            transform: translateX(100%);
+            transition: transform 0.24s ease;
+            overflow-y: auto;
+        }
+        .sidebar.mobile-open {
+            transform: translateX(0);
+        }
+        .page-heading {
+            display: none;
         }
         .brand { display: flex; align-items: center; gap: 12px; padding: 4px 10px 18px; }
         .mobile-nav-toggle {
-            display: none;
-            margin-left: auto;
-            width: 38px;
+            display: inline-flex;
             height: 38px;
             border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.08);
-            color: #fff;
+            border: none;
+            background: transparent;
+            color: var(--text);
             cursor: pointer;
-            align-items: center;
-            justify-content: center;
             font-size: 1.2rem;
             line-height: 1;
         }
-        .mobile-nav-toggle:hover { background: rgba(255,255,255,0.16); }
+        .mobile-nav-toggle:hover { background: transparent; }
+        .menu-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(9, 15, 31, 0.42);
+            backdrop-filter: blur(2px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.22s ease;
+            z-index: 80;
+        }
+        .menu-backdrop.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
         .brand-mark {
             width: 36px;
             height: 36px;
@@ -82,19 +108,30 @@
             color: #fff; box-shadow: inset 0 0 0 1px rgba(118, 116, 255, 0.26);
         }
         .nav-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: 0.75; }
-        .side-user {
-            margin-top: auto; border-top: 1px solid rgba(255,255,255,0.08); padding: 16px 8px 4px; display: flex; align-items: center; gap: 12px;
-        }
-        .side-user-avatar {
-            width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.18); display: grid; place-items: center; font-weight: 800;
-        }
-        .side-user-copy strong { display: block; font-size: 0.92rem; }
-        .side-user-copy span { display: block; margin-top: 3px; color: rgba(255,255,255,0.56); font-size: 0.75rem; }
         .content-area { padding: 18px 18px 24px; }
         .topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+        .topbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+        .topbar-brand .brand-mark {
+            background: #ffffff;
+            box-shadow: var(--shadow);
+        }
+        .topbar-brand .brand-copy p {
+            color: var(--muted);
+        }
         .page-heading h2 { margin: 0; font-family: Space Grotesk, sans-serif; font-size: 1.9rem; }
         .page-heading p { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
-        .topbar-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-left: auto;
+        }
         .search-box {
             min-width: 320px; display: flex; align-items: center; gap: 10px; background: var(--panel-bg); border: 1px solid var(--line); border-radius: 16px;
             padding: 0 14px; box-shadow: var(--shadow);
@@ -119,10 +156,22 @@
             font-weight: 700;
             white-space: nowrap;
         }
-        .user-dropdown { position: relative; }
+        .user-dropdown {
+            position: relative;
+            margin-top: auto;
+            width: 100%;
+        }
         .menu-btn {
             display: flex; align-items: center; gap: 10px; padding: 7px 10px 7px 7px; border-radius: 16px; background: var(--panel-bg); border: 1px solid var(--line); box-shadow: var(--shadow);
             color: var(--text); font-weight: 700;
+        }
+        .sidebar .menu-btn {
+            width: 100%;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #fff;
+            box-shadow: none;
         }
         .menu-avatar {
             width: 34px; height: 34px; border-radius: 12px; background: #eef2ff; display: grid; place-items: center; color: var(--nav-accent); font-weight: 800;
@@ -130,6 +179,14 @@
         .dropdown {
             position: absolute; top: calc(100% + 8px); right: 0; min-width: 220px; border-radius: 18px; background: var(--panel-bg); border: 1px solid var(--line); box-shadow: var(--shadow);
             overflow: hidden; display: none; z-index: 20;
+        }
+        .sidebar .dropdown {
+            top: auto;
+            right: 0;
+            left: auto;
+            bottom: calc(100% + 8px);
+            min-width: 220px;
+            max-width: min(260px, calc(100vw - 48px));
         }
         .dropdown.active { display: block; }
         .dropdown button {
@@ -163,7 +220,99 @@
         .card-header span, .card-header button {
             color: var(--nav-accent); font-size: 0.8rem; font-weight: 700; border: none; background: transparent; cursor: pointer;
         }
+        .card-header .inventory-register-btn {
+            color: #fff;
+            background: linear-gradient(135deg, #2fbe63 0%, #1fa750 100%);
+            box-shadow: 0 14px 28px rgba(41,195,106,0.24);
+            padding: 12px 16px;
+        }
+        .card-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
         .card-body { padding: 0 18px 18px; }
+        .assets-inventory-layout {
+            display: grid;
+            grid-template-columns: 220px minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+        }
+        .asset-filter-panel {
+            border: 1px solid rgba(90, 87, 255, 0.08);
+            border-radius: 20px;
+            background: linear-gradient(180deg, #fcfdff 0%, #f7f9ff 100%);
+            padding: 16px;
+            display: grid;
+            gap: 12px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+        }
+        .asset-filter-list {
+            display: grid;
+            gap: 8px;
+        }
+        .asset-filter-btn {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: #fff;
+            padding: 12px 13px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            color: var(--text);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+        .asset-filter-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 22px rgba(20, 38, 84, 0.08);
+            border-color: rgba(90,87,255,0.2);
+        }
+        .asset-filter-btn.active {
+            background: linear-gradient(135deg, rgba(90,87,255,0.14) 0%, rgba(74,125,255,0.1) 100%);
+            border-color: rgba(90,87,255,0.34);
+            color: #23336a;
+            box-shadow: 0 14px 28px rgba(90,87,255,0.14);
+        }
+        .asset-filter-btn-label {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+        .asset-filter-btn-label strong {
+            font-size: 0.87rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .asset-filter-count {
+            flex: 0 0 auto;
+            min-width: 36px;
+            padding: 6px 8px;
+            border-radius: 999px;
+            background: #eef2fb;
+            color: #61708e;
+            font-size: 0.74rem;
+            font-weight: 800;
+            text-align: center;
+        }
+        .asset-filter-btn.active .asset-filter-count {
+            background: rgba(90,87,255,0.16);
+            color: #3246a8;
+        }
+        .asset-filter-summary {
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+            padding-top: 2px;
+        }
         .data-table { width: 100%; border-collapse: collapse; }
         .data-table th, .data-table td {
             padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 0.86rem; vertical-align: top;
@@ -271,11 +420,74 @@
             border-radius: 14px; padding: 12px 16px; background: linear-gradient(135deg, #625dff 0%, #4f49ff 100%); color: #fff; font-weight: 800;
             box-shadow: 0 14px 28px rgba(90,87,255,0.24);
         }
+        .inventory-register-btn {
+            background: linear-gradient(135deg, #2fbe63 0%, #1fa750 100%);
+            box-shadow: 0 14px 28px rgba(41,195,106,0.24);
+        }
         .ghost-btn {
             border-radius: 14px; padding: 12px 16px; background: #eef1fd; color: var(--text); font-weight: 800;
         }
         .mini-btn {
             border-radius: 12px; padding: 8px 10px; background: #f1f4fb; color: var(--text); font-size: 0.76rem; font-weight: 800; margin-right: 6px; margin-bottom: 6px;
+        }
+        .action-menu-wrap {
+            position: relative;
+            display: inline-block;
+        }
+        .mini-btn.action-trigger-btn {
+            background: rgba(74,125,255,0.14);
+            color: var(--info);
+            border: 1px solid rgba(74,125,255,0.18);
+        }
+        .mini-btn.action-trigger-btn:hover {
+            background: rgba(74,125,255,0.2);
+        }
+        .action-menu-panel {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            min-width: 154px;
+            padding: 8px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            background: #fff;
+            box-shadow: 0 18px 34px rgba(20, 38, 84, 0.14);
+            display: none;
+            z-index: 25;
+        }
+        .action-menu-panel.active {
+            display: grid;
+            gap: 6px;
+        }
+        .action-menu-option {
+            width: 100%;
+            border: none;
+            border-radius: 12px;
+            background: #f4f7ff;
+            color: var(--text);
+            padding: 9px 10px;
+            text-align: left;
+            font: inherit;
+            font-size: 0.76rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .action-menu-option:hover {
+            background: #e9eefc;
+        }
+        .action-menu-option.process-option {
+            background: rgba(74,125,255,0.12);
+            color: var(--info);
+        }
+        .action-menu-option.process-option:hover {
+            background: rgba(74,125,255,0.18);
+        }
+        .action-menu-option.complete-option {
+            background: rgba(41,195,106,0.14);
+            color: var(--success);
+        }
+        .action-menu-option.complete-option:hover {
+            background: rgba(41,195,106,0.2);
         }
         .status-line { min-height: 20px; color: var(--muted); font-size: 0.82rem; font-weight: 600; }
         .empty { color: var(--muted); text-align: center; padding: 18px 0; font-size: 0.86rem; }
@@ -545,45 +757,58 @@
             .dashboard-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 1080px) {
-            .app-shell { grid-template-columns: 1fr; }
             .sidebar {
-                position: sticky;
-                top: 0;
-                z-index: 80;
-                padding: 12px 12px 10px;
-                gap: 10px;
-                border-bottom: 1px solid rgba(255,255,255,0.12);
+                width: min(320px, 92vw);
+                padding: 18px 14px 14px;
+                gap: 12px;
             }
-            .brand { padding: 2px 2px 4px; }
+            .brand { padding: 2px 2px 8px; }
             .brand-copy h1 { font-size: 1.02rem; }
             .brand-copy p { font-size: 0.72rem; margin-top: 2px; }
-            .mobile-nav-toggle { display: inline-flex; }
+            .topbar-brand .brand-copy h1 { font-size: 1.02rem; }
+            .topbar-brand .brand-copy p { font-size: 0.72rem; margin-top: 2px; }
             .side-section-label { display: none; }
             .side-nav {
-                display: none;
-                overflow-x: auto;
+                display: grid;
                 gap: 8px;
                 padding-bottom: 2px;
-                scrollbar-width: thin;
             }
-            .side-nav.mobile-open { display: flex; }
             .side-nav button {
-                flex: 0 0 auto;
-                white-space: nowrap;
                 padding: 10px 12px;
                 border-radius: 12px;
             }
-            .side-user { display: none; }
             .content-area { padding: 14px 14px 20px; }
+            .sidebar .dropdown {
+                top: calc(100% + 8px);
+                right: 0;
+                left: auto;
+                bottom: auto;
+                min-width: 220px;
+                max-width: calc(100vw - 24px);
+            }
         }
         @media (max-width: 860px) {
             .cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .search-box { min-width: 0; width: 100%; }
-            .topbar { flex-direction: column; align-items: stretch; }
-            .topbar-actions { width: 100%; }
+            .topbar {
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+            }
+            .topbar-brand {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+            .topbar-actions {
+                width: auto;
+                padding-right: 0;
+                margin-left: auto;
+                flex: 0 0 auto;
+            }
             .refresh-btn, .primary-btn { min-height: 42px; }
             .user-dropdown { width: 100%; }
             .menu-btn { width: 100%; justify-content: space-between; }
+            .assets-inventory-layout { grid-template-columns: 1fr; }
             .donut-wrap, .form-grid { grid-template-columns: 1fr; }
             .calendar-shell { grid-template-columns: 1fr; }
         }
@@ -592,14 +817,20 @@
             .content-area { padding: 14px; }
             .page-heading h2 { font-size: 1.42rem; }
             .page-heading p { font-size: 0.82rem; }
-            .topbar-actions {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
+            .topbar-brand {
                 gap: 10px;
             }
-            .search-box { grid-column: 1 / -1; }
-            .user-dropdown { grid-column: 1 / -1; }
-            .refresh-btn, .primary-btn, .menu-btn { width: 100%; }
+            .topbar-brand .brand-mark {
+                width: 32px;
+                height: 32px;
+            }
+            .topbar-actions {
+                display: flex;
+                gap: 8px;
+            }
+            .refresh-btn, .primary-btn { width: 100%; }
+            .menu-btn { width: auto; }
+            .mobile-nav-toggle { width: 42px; padding: 0; justify-content: center; }
             .section-panel { padding: 12px; border-radius: 18px; }
             .panel-card { border-radius: 18px; }
             .card-header { padding: 14px 14px 10px; align-items: flex-start; flex-wrap: wrap; }
@@ -634,7 +865,6 @@
                     <h1>PaintFlow</h1>
                     <p>Modulo de Mantenimiento</p>
                 </div>
-                <button type="button" class="mobile-nav-toggle" id="mobileNavToggle" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false">☰</button>
             </div>
             <div class="side-section-label">Menu principal</div>
             <div class="side-nav" id="sideNav">
@@ -647,35 +877,26 @@
                 <button data-panel="reports" onclick="showPanel('reports', event)"><span class="nav-dot"></span>Reportes</button>
                 <button data-panel="settings" onclick="showPanel('settings', event)"><span class="nav-dot"></span>Configuracion</button>
             </div>
-            <div class="side-user">
-                <div class="side-user-avatar" id="sideUserAvatar">U</div>
-                <div class="side-user-copy">
-                    <strong id="sideUserName">Usuario</strong>
-                    <span id="sideUserRole">Rol</span>
-                </div>
+            <div class="user-dropdown">
+                <button type="button" class="menu-btn" id="userMenuBtn" onclick="toggleUserDropdown()">
+                    <div class="menu-avatar" id="topUserAvatar">U</div>
+                    <span id="topUserName">Usuario</span>
+                </button>
+                <div class="dropdown" id="userDropdown"></div>
             </div>
         </aside>
 
         <main class="content-area">
             <div class="topbar">
-                <div class="page-heading">
-                    <h2 id="pageTitle">Dashboard de Mantenimiento</h2>
-                    <p id="pageSubtitle">Resumen y estado de los equipos</p>
+                <div class="topbar-brand">
+                    <img class="brand-mark" src="/logo.png" alt="PaintFlow Logo">
+                    <div class="brand-copy">
+                        <h1>PaintFlow</h1>
+                        <p>Modulo de Mantenimiento</p>
+                    </div>
                 </div>
                 <div class="topbar-actions">
-                    <div class="search-box">
-                        <span>Buscar</span>
-                        <input id="dashboardSearch" type="text" placeholder="Buscar equipo, ubicacion, codigo..." oninput="renderDashboard()">
-                    </div>
-                    <button type="button" class="refresh-btn" onclick="refreshModule()">Refrescar</button>
-                    <button type="button" class="primary-btn" onclick="openAssetForm()">+ Registrar Equipo</button>
-                    <div class="user-dropdown">
-                        <button type="button" class="menu-btn" id="userMenuBtn" onclick="toggleUserDropdown()">
-                            <div class="menu-avatar" id="topUserAvatar">U</div>
-                            <span id="topUserName">Usuario</span>
-                        </button>
-                        <div class="dropdown" id="userDropdown"></div>
-                    </div>
+                    <button type="button" class="mobile-nav-toggle" id="mobileNavToggle" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false">☰</button>
                 </div>
             </div>
 
@@ -733,14 +954,20 @@
 
             <section class="panel" id="panel-assets">
                 <div class="section-panel">
-                    <div class="toolbar-row"><div><h3>Equipos</h3><p>Alta y seguimiento de activos reutilizando sucursales y responsables existentes.</p></div><div style="display:flex; gap:10px; flex-wrap:wrap;"><button type="button" class="primary-btn" onclick="openAssetForm()">Registrar Equipo</button></div></div>
+                    <div class="toolbar-row"><div><h3>Equipos</h3><p>Alta y seguimiento de activos reutilizando sucursales y responsables existentes.</p></div><div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"><div class="search-box" style="min-width: 280px;"><span>Buscar</span><input id="assetSearch" type="text" placeholder="Buscar equipo, codigo, area o responsable..." oninput="renderAssetsTable()"></div><button type="button" class="primary-btn inventory-register-btn" onclick="openAssetForm()">Registrar Equipo</button></div></div>
                     <div class="panel-card" style="margin-top: 18px; border-radius: 20px;">
-                        <div class="card-header"><h3>Inventario de equipos</h3><span id="assetsCount">0 equipos</span></div>
+                        <div class="card-header"><h3>Inventario de equipos</h3><div class="card-header-actions"><span id="assetsCount">0 equipos</span></div></div>
                         <div class="card-body">
-                            <table class="data-table">
-                                <thead><tr><th>Equipo</th><th>Codigo</th><th>Sucursal</th><th>Responsable</th><th>Proximo mantenimiento</th><th>Estado</th><th>Acciones</th></tr></thead>
-                                <tbody id="assetsTableBody"><tr><td colspan="7" class="empty">Cargando equipos...</td></tr></tbody>
-                            </table>
+                            <div class="assets-inventory-layout">
+                                <div class="asset-filter-panel">
+                                    <div id="assetCategoryFilter" class="asset-filter-list"></div>
+                                    <div class="asset-filter-summary" id="assetFilterSummary">Mostrando todos los equipos</div>
+                                </div>
+                                <table class="data-table">
+                                    <thead><tr><th>Equipo</th><th>Codigo</th><th>Area</th><th>Responsable</th><th>Proximo mantenimiento</th><th>Estado</th><th>Acciones</th></tr></thead>
+                                    <tbody id="assetsTableBody"><tr><td colspan="7" class="empty">Cargando equipos...</td></tr></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -754,6 +981,7 @@
             <section class="panel" id="panel-settings"><div class="section-panel"><h3>Configuracion</h3><p style="margin: 0 0 14px; color: var(--muted); font-size: 0.86rem;">Acciones rapidas para refrescar datos, regresar al portal y cerrar sesion.</p><div style="display: flex; gap: 10px; flex-wrap: wrap;"><button type="button" class="primary-btn" onclick="refreshModule()">Actualizar datos</button><button type="button" class="ghost-btn" onclick="goHome()">Ir a PaintFlow</button><button type="button" class="ghost-btn" onclick="handleLogout()">Cerrar sesion</button></div></div></section>
         </main>
     </div>
+    <div id="menuBackdrop" class="menu-backdrop" onclick="toggleMobileNav(false)"></div>
 
     <div id="assetFormModal" class="asset-modal" role="dialog" aria-modal="true" aria-labelledby="assetModalTitle" onclick="handleAssetModalBackdrop(event)">
         <div class="asset-modal-card">
@@ -847,9 +1075,9 @@
             'Fabrica',
             'Mantenimiento',
         ];
-        const state = { user: null, lookups: { sucursales: [], usuarios: [] }, assets: [], workOrders: [], summary: null, alerts: [], calendarCursor: new Date(), calendarSelectedDate: null, assigningAssetId: null };
+        const state = { user: null, lookups: { sucursales: [], usuarios: [] }, assets: [], workOrders: [], summary: null, alerts: [], calendarCursor: new Date(), calendarSelectedDate: null, assigningAssetId: null, assetCategoryFilter: 'ALL', openWorkOrderActionsId: null };
         const panelMeta = {
-            dashboard: ['Dashboard de Mantenimiento', 'Resumen y estado de los equipos'],
+            dashboard: ['', ''],
             assets: ['Gestion de Equipos', 'Alta y seguimiento del inventario de mantenimiento'],
             history: ['Historial de Mantenimiento', 'Registro de trabajos realizados y resultados'],
             calendar: ['Calendario', 'Vista de vencimientos y proximos mantenimientos'],
@@ -858,7 +1086,20 @@
             reports: ['Reportes', 'Consolidado general del modulo de mantenimiento'],
             settings: ['Configuracion', 'Acciones rapidas del modulo y sesion actual'],
         };
-        function normalizeRole(role) { return (role || '').toString().trim().toLowerCase(); }
+        function normalizeRole(role) {
+            const roleKey = (role || '').toString().trim().toLowerCase().replace(/[-\s]+/g, '_');
+            const aliases = {
+                admin: 'administrador',
+                tecnico: 'tecnicos',
+                tecnico_mantenimiento: 'tecnicos',
+                activo_fijo: 'activos_fijos',
+                activofijo: 'activos_fijos',
+                activos_fijo: 'activos_fijos',
+                activosfijos: 'activos_fijos',
+                activosfijo: 'activos_fijos',
+            };
+            return aliases[roleKey] || roleKey;
+        }
         function getSessionParams() {
             const user = state.user || {};
             const params = new URLSearchParams();
@@ -871,11 +1112,13 @@
         function goHome() { if (normalizeRole(state.user && state.user.rol) === 'administrador') { window.location.href = '/'; return; } window.location.href = '/maintenance'; }
         function handleLogout() { clearSession(); window.location.href = '/'; }
         function toggleMobileNav(forceOpen) {
-            const nav = document.getElementById('sideNav');
+            const nav = document.querySelector('.sidebar');
             const toggle = document.getElementById('mobileNavToggle');
+            const backdrop = document.getElementById('menuBackdrop');
             if (!nav || !toggle) return;
             const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !nav.classList.contains('mobile-open');
             nav.classList.toggle('mobile-open', shouldOpen);
+            if (backdrop) backdrop.classList.toggle('active', shouldOpen);
             toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
             toggle.textContent = shouldOpen ? '✕' : '☰';
         }
@@ -884,6 +1127,11 @@
             const button = document.getElementById('userMenuBtn');
             const menu = document.getElementById('userDropdown');
             if (button && menu && !button.contains(event.target) && !menu.contains(event.target)) menu.classList.remove('active');
+            const actionWrap = event.target && event.target.closest ? event.target.closest('.action-menu-wrap') : null;
+            if (!actionWrap && state.openWorkOrderActionsId != null) {
+                state.openWorkOrderActionsId = null;
+                renderOrdersTable();
+            }
         });
         function updateUserChrome() {
             const user = state.user || {};
@@ -891,10 +1139,7 @@
             const role = normalizeRole(user.rol) || 'usuario';
             const initials = name.split(' ').filter(Boolean).slice(0, 2).map(piece => piece[0].toUpperCase()).join('') || 'U';
             document.getElementById('topUserName').textContent = name;
-            document.getElementById('sideUserName').textContent = name;
-            document.getElementById('sideUserRole').textContent = role.replace('_', ' ');
             document.getElementById('topUserAvatar').textContent = initials;
-            document.getElementById('sideUserAvatar').textContent = initials;
             const dropdown = document.getElementById('userDropdown');
             const rows = [];
             if (role === 'administrador') rows.push('<button type="button" onclick="window.location.href=\'/\'">Dashboard PaintFlow</button>');
@@ -1066,6 +1311,37 @@
             });
             select.innerHTML = options.join('');
         }
+        function populateAssetCategoryFilter() {
+            const container = document.getElementById('assetCategoryFilter');
+            if (!container) return;
+            const categories = Array.from(new Set(state.assets.map(item => (item.categoria || 'General').trim() || 'General')));
+            const counts = state.assets.reduce((memo, item) => {
+                const category = (item.categoria || 'General').trim() || 'General';
+                memo[category] = (memo[category] || 0) + 1;
+                return memo;
+            }, {});
+            const categoryOrder = ['ALL'].concat(EQUIPMENT_TYPES, 'General');
+            const sortedCategories = categories.sort((left, right) => {
+                const leftIndex = categoryOrder.indexOf(left);
+                const rightIndex = categoryOrder.indexOf(right);
+                if (leftIndex === -1 && rightIndex === -1) return left.localeCompare(right);
+                if (leftIndex === -1) return 1;
+                if (rightIndex === -1) return -1;
+                return leftIndex - rightIndex;
+            });
+            if (!sortedCategories.includes(state.assetCategoryFilter) && state.assetCategoryFilter !== 'ALL') state.assetCategoryFilter = 'ALL';
+            const buttons = [`<button type="button" class="asset-filter-btn${state.assetCategoryFilter === 'ALL' ? ' active' : ''}" onclick="setAssetCategoryFilter('ALL')"><span class="asset-filter-btn-label"><strong>Todos</strong></span><span class="asset-filter-count">${state.assets.length}</span></button>`];
+            sortedCategories.forEach(category => {
+                const count = counts[category] || 0;
+                const active = state.assetCategoryFilter === category ? ' active' : '';
+                buttons.push(`<button type="button" class="asset-filter-btn${active}" onclick="setAssetCategoryFilter(${JSON.stringify(category).replace(/"/g, '&quot;')})"><span class="asset-filter-btn-label"><strong>${escapeHtml(category)}</strong></span><span class="asset-filter-count">${count}</span></button>`);
+            });
+            container.innerHTML = buttons.join('');
+        }
+        function setAssetCategoryFilter(category) {
+            state.assetCategoryFilter = category || 'ALL';
+            renderAssetsTable();
+        }
         function populateAreaSelect(selectedValue) {
             const select = document.getElementById('assetSucursal');
             if (!select) return;
@@ -1087,7 +1363,8 @@
             state.summary = data.summary || {}; state.alerts = data.alerts || []; state.assets = data.assets || []; state.workOrders = data.work_orders || [];
         }
         function filteredAssets() {
-            const term = (document.getElementById('dashboardSearch').value || '').trim().toLowerCase();
+            const searchInput = document.getElementById('dashboardSearch');
+            const term = ((searchInput && searchInput.value) || '').trim().toLowerCase();
             if (!term) return state.assets.slice();
             return state.assets.filter(item => [item.nombre, item.codigo, item.sucursal_nombre, item.ubicacion_detalle, item.categoria].join(' ').toLowerCase().includes(term));
         }
@@ -1157,14 +1434,49 @@
             nextList.innerHTML = nextRows.map(item => { const due = dueMeta(item.proximo_mantenimiento); return `<div class="next-item"><div class="date">${formatShortDate(item.proximo_mantenimiento)}</div><div>${escapeHtml(item.nombre)}</div><div><span class="row-badge ${due.tone}">${escapeHtml(due.text)}</span></div></div>`; }).join('');
         }
         function renderAssetsTable() {
-            const tbody = document.getElementById('assetsTableBody'); document.getElementById('assetsCount').textContent = `${state.assets.length} equipos`;
-            if (!state.assets.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay equipos registrados.</td></tr>'; return; }
-            tbody.innerHTML = state.assets.map(item => { const due = dueMeta(item.proximo_mantenimiento); return `<tr><td>${assetThumbHtml(item, item.categoria || 'Equipo')}</td><td>${escapeHtml(item.codigo)}</td><td>${escapeHtml(item.sucursal_nombre || 'Sin sucursal')}</td><td>${escapeHtml(item.responsable_nombre || 'Sin responsable')}</td><td><span class="row-badge ${due.tone}">${escapeHtml(due.text)}</span></td><td><span class="row-badge ${item.activo === false ? 'warning' : 'success'}">${item.activo === false ? 'Inactivo' : escapeHtml(item.estado_operativo || 'Operativo')}</span></td><td><button type="button" class="mini-btn" onclick="openAssignAssetModal(${item.id})">Asignar</button><button type="button" class="mini-btn" onclick="showPanel('tracking'); prefillOrderForAsset(${item.id})">Nueva orden</button><button type="button" class="mini-btn" onclick="toggleAssetState(${item.id}, ${item.activo === false ? 'true' : 'false'})">${item.activo === false ? 'Reactivar' : 'Inactivar'}</button></td></tr>`; }).join('');
+            const tbody = document.getElementById('assetsTableBody');
+            const summary = document.getElementById('assetFilterSummary');
+            const searchInput = document.getElementById('assetSearch');
+            const searchTerm = ((searchInput && searchInput.value) || '').trim().toLowerCase();
+            populateAssetCategoryFilter();
+            const categoryRows = state.assetCategoryFilter === 'ALL'
+                ? state.assets.slice()
+                : state.assets.filter(item => ((item.categoria || 'General').trim() || 'General') === state.assetCategoryFilter);
+            const filteredRows = !searchTerm
+                ? categoryRows
+                : categoryRows.filter(item => [
+                    item.nombre,
+                    item.codigo,
+                    item.ubicacion_detalle,
+                    item.sucursal_nombre,
+                    item.responsable_nombre,
+                    item.categoria,
+                ].join(' ').toLowerCase().includes(searchTerm));
+            document.getElementById('assetsCount').textContent = `${filteredRows.length} equipos`;
+            if (summary) summary.textContent = state.assetCategoryFilter === 'ALL' ? 'Mostrando todos los equipos' : `Filtrando por ${state.assetCategoryFilter}`;
+            if (!filteredRows.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No hay equipos para este filtro.</td></tr>'; return; }
+            tbody.innerHTML = filteredRows.map(item => {
+                const due = dueMeta(item.proximo_mantenimiento);
+                return `<tr><td>${assetThumbHtml(item, item.categoria || 'Equipo')}</td><td>${escapeHtml(item.codigo)}</td><td>${escapeHtml(item.ubicacion_detalle || item.sucursal_nombre || 'Sin ubicacion')}</td><td>${escapeHtml(item.responsable_nombre || 'Sin responsable')}</td><td><span class="row-badge ${due.tone}">${escapeHtml(due.text)}</span></td><td><span class="row-badge ${item.activo === false ? 'warning' : 'success'}">${item.activo === false ? 'Inactivo' : escapeHtml(item.estado_operativo || 'Operativo')}</span></td><td><button type="button" class="mini-btn" onclick="openAssignAssetModal(${item.id})">Asignar</button><button type="button" class="mini-btn" onclick="showPanel('tracking'); prefillOrderForAsset(${item.id})">Nueva orden</button><button type="button" class="mini-btn" onclick="toggleAssetState(${item.id}, ${item.activo === false ? 'true' : 'false'})">${item.activo === false ? 'Reactivar' : 'Inactivar'}</button></td></tr>`;
+            }).join('');
         }
         function renderOrdersTable() {
             const tbody = document.getElementById('ordersTableBody');
             if (!state.workOrders.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No hay ordenes registradas.</td></tr>'; return; }
-            tbody.innerHTML = state.workOrders.map(item => { const priority = priorityMeta(item.prioridad); const status = statusMeta(item.estado); return `<tr><td>${assetThumbHtml({ nombre: item.activo_nombre, categoria: item.tipo }, item.activo_codigo)}</td><td>${escapeHtml(item.titulo)}</td><td>${escapeHtml(item.tipo)}</td><td><span class="row-badge ${priority.tone}">${priority.label}</span></td><td><span class="row-badge ${status.tone}">${status.label}</span></td><td>${formatDate(item.programado_para)}</td><td>${escapeHtml(item.asignado_nombre || 'Sin asignar')}</td><td><button type="button" class="mini-btn" onclick="updateWorkOrderStatus(${item.id}, 'En proceso')">En proceso</button><button type="button" class="mini-btn" onclick="updateWorkOrderStatus(${item.id}, 'Completado')">Completar</button></td></tr>`; }).join('');
+            tbody.innerHTML = state.workOrders.map(item => {
+                const priority = priorityMeta(item.prioridad);
+                const status = statusMeta(item.estado);
+                const menuActive = state.openWorkOrderActionsId === item.id ? ' active' : '';
+                return `<tr><td>${assetThumbHtml({ nombre: item.activo_nombre, categoria: item.tipo }, item.activo_codigo)}</td><td>${escapeHtml(item.titulo)}</td><td>${escapeHtml(item.tipo)}</td><td><span class="row-badge ${priority.tone}">${priority.label}</span></td><td><span class="row-badge ${status.tone}">${status.label}</span></td><td>${formatDate(item.programado_para)}</td><td>${escapeHtml(item.asignado_nombre || 'Sin asignar')}</td><td><div class="action-menu-wrap"><button type="button" class="mini-btn action-trigger-btn" onclick="toggleWorkOrderActions(${item.id})">En proceso</button><div class="action-menu-panel${menuActive}"><button type="button" class="action-menu-option process-option" onclick="applyWorkOrderStatus(${item.id}, 'En proceso')">En proceso</button><button type="button" class="action-menu-option complete-option" onclick="applyWorkOrderStatus(${item.id}, 'Completado')">Completar</button></div></div></td></tr>`;
+            }).join('');
+        }
+        function toggleWorkOrderActions(workOrderId) {
+            state.openWorkOrderActionsId = state.openWorkOrderActionsId === workOrderId ? null : workOrderId;
+            renderOrdersTable();
+        }
+        async function applyWorkOrderStatus(workOrderId, status) {
+            state.openWorkOrderActionsId = null;
+            await updateWorkOrderStatus(workOrderId, status);
         }
         function toDateKey(date) {
             const year = date.getFullYear();
@@ -1415,17 +1727,21 @@
             const panelName = name || 'dashboard';
             document.querySelectorAll('.panel').forEach(panel => panel.classList.toggle('active', panel.id === `panel-${panelName}`));
             document.querySelectorAll('#sideNav button').forEach(button => button.classList.toggle('active', button.dataset.panel === panelName));
-            const meta = panelMeta[panelName] || panelMeta.dashboard;
-            document.getElementById('pageTitle').textContent = meta[0];
-            document.getElementById('pageSubtitle').textContent = meta[1];
             if (panelName !== 'assets') closeAssetForm();
             if (panelName !== 'calendar') closeCalendarDayModal();
             if (panelName !== 'assets') closeAssignAssetModal();
             if (panelName === 'calendar') renderCalendarPanel();
-            if (window.matchMedia('(max-width: 1080px)').matches) toggleMobileNav(false);
+            toggleMobileNav(false);
             if (event && typeof event.preventDefault === 'function') event.preventDefault();
         }
-        function focusSearch(mode) { const input = document.getElementById('dashboardSearch'); input.value = mode === 'vencidos' ? 'COMP' : ''; input.focus(); renderDashboard(); }
+        function focusSearch(mode) {
+            const input = document.getElementById('dashboardSearch');
+            if (input) {
+                input.value = mode === 'vencidos' ? 'COMP' : '';
+                input.focus();
+            }
+            renderDashboard();
+        }
         async function refreshModule() { await Promise.all([loadLookups(), loadDashboard()]); renderDashboard(); }
         async function submitAsset(event) {
             event.preventDefault(); setStatus('assetStatus', 'Guardando equipo...', false);
@@ -1450,8 +1766,6 @@
         }
         function prefillOrderForAsset(assetId) {
             const match = state.assets.find(item => item.id === assetId); if (!match) return;
-            document.getElementById('pageTitle').textContent = 'Seguimiento de Mantenimientos';
-            document.getElementById('pageSubtitle').textContent = `Orden rapida para ${match.nombre}`;
         }
         async function toggleAssetState(assetId, nextState) {
             try {
