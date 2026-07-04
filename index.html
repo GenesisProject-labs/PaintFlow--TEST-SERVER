@@ -5052,82 +5052,111 @@ document.addEventListener('DOMContentLoaded', async function() {
             window.location.href = '/maintenance';
         }
 
+        function renderMenuButtons(items) {
+            return (items || []).map(item => `<button type="button" onclick="${item.action}">${item.label}</button>`).join('');
+        }
+
+        function renderNavbarTabs(items) {
+            const navbarTabs = document.getElementById('navbarTabs');
+            if (!navbarTabs) return;
+            navbarTabs.innerHTML = (items || []).map(item => {
+                const activeClass = item.active ? ' active' : '';
+                return `<button type="button" class="tab-btn${activeClass}" onclick="${item.action}">${item.label}</button>`;
+            }).join('');
+        }
+
         function updateUserMenu(userRole) {
             const dropdown = document.getElementById('userDropdown');
-            const navbarTabs = document.getElementById('navbarTabs');
             userRole = normalizeRole(userRole);
-            
             if (!dropdown) return;
-            
-            const baseButtons = `
-                <button onclick="abrirModalPerfil()">Perfil</button>
-                <button onclick="handleLogout()">Cerrar Sesión</button>
-            `;
-            
-            if (userRole === 'administrador') {
-                // Menú completo para administradores
-                dropdown.innerHTML = `
-                    <button onclick="window.location.href='/'" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Dashboard</button>
-                    <button onclick="goToMaintenance()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Maintenance Management</button>
-                    <button onclick="goToAnalystView()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Gestión Empleados</button>
-                    <button onclick="goToFormulas()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Gestión Fórmulas</button>
-                    ${baseButtons}
-                `;
-                
-                // Barra de navegación completa para administradores
-                if (navbarTabs) {
-                    navbarTabs.innerHTML = `
-                        <button class="tab-btn active" onclick="switchTab(event, 'dashboard')">DASHBOARD</button>
-                        <button class="tab-btn" onclick="switchTab(event, 'sucursales')">SUCURSALES</button>
-                        <button class="tab-btn" onclick="switchTab(event, 'usuarios')">USUARIOS</button>
-                        <button class="tab-btn" onclick="goToMaintenance()">MAINTENANCE</button>
-                    `;
-                }
-            } else if (userRole === 'activos_fijos' || userRole === 'tecnicos') {
-                dropdown.innerHTML = `
-                    <button onclick="goToMaintenance()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Maintenance Management</button>
-                    ${baseButtons}
-                `;
 
-                if (navbarTabs) {
-                    navbarTabs.innerHTML = `
-                        <button class="tab-btn" onclick="goToMaintenance()">MAINTENANCE</button>
-                    `;
-                }
-            } else if (userRole === 'analista') {
-                // Solo fórmulas para analistas
-                dropdown.innerHTML = `
-                    <button onclick="goToAnalystView()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Gestión Empleados</button>
-                    <button onclick="goToFormulas()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Gestión Fórmulas</button>
-                    <button onclick="goToLabelsAppWeb()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">LabelsApp Web</button>
-                    ${baseButtons}
-                `;
-                
-                // Solo botón de fórmulas para analistas
-                if (navbarTabs) {
-                    navbarTabs.innerHTML = `
-                        <button class="tab-btn" onclick="goToFormulas()">FÓRMULAS</button>
-                        <button class="tab-btn" onclick="goToLabelsAppWeb()">LABELSAPP</button>
-                    `;
-                }
-            } else if (userRole === 'facturador' || userRole === 'cajero' || userRole === 'cliente') {
-                // Menú de operación para tienda
-                dropdown.innerHTML = `
-                    <button onclick="goToLabelsAppWeb()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">LabelsApp Web</button>
-                    ${baseButtons}
-                `;
+            const baseButtons = [
+                { label: 'Perfil', action: 'abrirModalPerfil()' },
+                { label: 'Cerrar Sesión', action: 'handleLogout()' }
+            ];
 
-                if (navbarTabs) {
-                    navbarTabs.innerHTML = `
-                        <button class="tab-btn" onclick="goToLabelsAppWeb()">LABELSAPP</button>
-                    `;
+            const configByRole = {
+                administrador: {
+                    dropdown: [
+                        { label: 'Dashboard', action: "window.location.href='/'" },
+                        { label: 'Maintenance Management', action: 'goToMaintenance()' },
+                        { label: 'Gestión Empleados', action: 'goToAnalystView()' },
+                        { label: 'Gestión Fórmulas', action: 'goToFormulas()' },
+                        ...baseButtons
+                    ],
+                    tabs: [
+                        { label: 'DASHBOARD', action: "switchTab(event, 'dashboard')", active: true },
+                        { label: 'SUCURSALES', action: "switchTab(event, 'sucursales')" },
+                        { label: 'USUARIOS', action: "switchTab(event, 'usuarios')" },
+                        { label: 'MAINTENANCE', action: 'goToMaintenance()' }
+                    ]
+                },
+                activos_fijos: {
+                    dropdown: [
+                        { label: 'Maintenance Management', action: 'goToMaintenance()' },
+                        ...baseButtons
+                    ],
+                    tabs: [
+                        { label: 'MAINTENANCE', action: 'goToMaintenance()' }
+                    ]
+                },
+                tecnicos: {
+                    dropdown: [
+                        { label: 'Maintenance Management', action: 'goToMaintenance()' },
+                        ...baseButtons
+                    ],
+                    tabs: [
+                        { label: 'MAINTENANCE', action: 'goToMaintenance()' }
+                    ]
+                },
+                analista: {
+                    dropdown: [
+                        { label: 'Gestión Empleados', action: 'goToAnalystView()' },
+                        { label: 'Gestión Fórmulas', action: 'goToFormulas()' },
+                        { label: 'LabelsApp Web', action: 'goToLabelsAppWeb()' },
+                        ...baseButtons
+                    ],
+                    tabs: [
+                        { label: 'FÓRMULAS', action: 'goToFormulas()' },
+                        { label: 'LABELSAPP', action: 'goToLabelsAppWeb()' }
+                    ]
+                },
+                facturador: {
+                    dropdown: [
+                        { label: 'LabelsApp Web', action: 'goToLabelsAppWeb()' },
+                        ...baseButtons
+                    ],
+                    tabs: [
+                        { label: 'LABELSAPP', action: 'goToLabelsAppWeb()' }
+                    ]
+                },
+                cajero: {
+                    dropdown: [
+                        { label: 'LabelsApp Web', action: 'goToLabelsAppWeb()' },
+                        ...baseButtons
+                    ],
+                    tabs: [
+                        { label: 'LABELSAPP', action: 'goToLabelsAppWeb()' }
+                    ]
+                },
+                cliente: {
+                    dropdown: [
+                        { label: 'LabelsApp Web', action: 'goToLabelsAppWeb()' },
+                        ...baseButtons
+                    ],
+                    tabs: [
+                        { label: 'LABELSAPP', action: 'goToLabelsAppWeb()' }
+                    ]
+                },
+                default: {
+                    dropdown: baseButtons,
+                    tabs: []
                 }
-            } else {
-                dropdown.innerHTML = baseButtons;
-                if (navbarTabs) {
-                    navbarTabs.innerHTML = '';
-                }
-            }
+            };
+
+            const roleConfig = configByRole[userRole] || configByRole.default;
+            dropdown.innerHTML = renderMenuButtons(roleConfig.dropdown);
+            renderNavbarTabs(roleConfig.tabs);
         }
 
 

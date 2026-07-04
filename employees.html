@@ -3280,42 +3280,88 @@
             }
         });
         
+        function normalizeRole(role) {
+            const normalized = (role || '').toString().trim().toLowerCase().replace(/[-\s]+/g, '_');
+            const aliases = {
+                admin: 'administrador',
+                tecnico: 'tecnicos',
+                tecnico_mantenimiento: 'tecnicos',
+                activo_fijo: 'activos_fijos',
+                activos_fijo: 'activos_fijos',
+                activosfijo: 'activos_fijos',
+                activosfijos: 'activos_fijos'
+            };
+            return aliases[normalized] || normalized;
+        }
+
+        function renderMenuButtons(items) {
+            return (items || []).map(item => `<button type="button" onclick="${item.action}">${item.label}</button>`).join('');
+        }
+
+        function renderMainTabsByRole(role) {
+            const container = document.getElementById('mainTabsContainer');
+            if (!container) return;
+
+            const normalizedRole = normalizeRole(role);
+            const activeLocalTab = isAnalystDashboardOpen() ? 'dashboard' : 'empleados';
+            const localTabs = [
+                { tab: 'dashboard', label: 'Dashboard' },
+                { tab: 'empleados', label: 'Empleados' }
+            ];
+            const roleLinks = [];
+
+            if (normalizedRole === 'administrador') {
+                roleLinks.push({ label: 'Maintenance', action: "window.location.href='/maintenance'" });
+            }
+            if (normalizedRole === 'analista') {
+                roleLinks.push({ label: 'Fórmulas', action: "window.location.href='/formulas?role=analista'" });
+            }
+            if (normalizedRole === 'analista' || normalizedRole === 'administrador' || normalizedRole === 'facturador' || normalizedRole === 'cajero' || normalizedRole === 'cliente') {
+                roleLinks.push({ label: 'LabelsApp', action: "window.location.href='/labelsapp-web'" });
+            }
+
+            const localHtml = localTabs.map(item => {
+                const active = item.tab === activeLocalTab ? ' active' : '';
+                const id = item.tab === 'dashboard' ? 'mainTabDashboard' : 'mainTabEmpleados';
+                return `<button type="button" class="main-tab-btn${active}" id="${id}" onclick="openMainTab('${item.tab}')">${item.label}</button>`;
+            }).join('');
+
+            const linksHtml = roleLinks.map(item => `<button type="button" class="main-tab-btn" onclick="${item.action}">${item.label}</button>`).join('');
+            container.innerHTML = localHtml + linksHtml;
+        }
+
         // Update user name in header
         function updateUserDropdown() {
             try {
                 const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
-                const userRole = userData.rol;
+                const userRole = normalizeRole(userData.rol);
                 const dropdown = document.getElementById('userDropdown');
-                
                 if (!dropdown) return;
-                
-                let dropdownContent = '';
-                
-                if (userRole === 'administrador') {
-                    // Administrador con navegación de dashboard y empleados
-                    dropdownContent = `
-                        <button onclick="window.location.href='/'" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Dashboard</button>
-                        <button onclick="window.location.href='/employees'" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Gestión Empleados</button>
-                        <button onclick="abrirModalPerfil()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Perfil</button>
-                        <button onclick="handleLogout()" style="color: #111; background: none; padding: 12px 16px; border-top: 1px solid #eee; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Cerrar Sesión</button>
-                    `;
-                } else if (userRole === 'analista') {
-                    // Analista solo maneja dashboard y empleados en esta vista
-                    dropdownContent = `
-                        <button onclick="window.location.href='/'" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Dashboard</button>
-                        <button onclick="window.location.href='/employees'" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Gestión Empleados</button>
-                        <button onclick="abrirModalPerfil()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Perfil</button>
-                        <button onclick="handleLogout()" style="color: #111; background: none; padding: 12px 16px; border-top: 1px solid #eee; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Cerrar Sesión</button>
-                    `;
-                } else {
-                    // Rol por defecto
-                    dropdownContent = `
-                        <button onclick="abrirModalPerfil()" style="color: #111; background: none; padding: 12px 16px; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Perfil</button>
-                        <button onclick="handleLogout()" style="color: #111; background: none; padding: 12px 16px; border-top: 1px solid #eee; border: none; text-align: left; cursor: pointer; font-size: 0.9em;">Cerrar Sesión</button>
-                    `;
-                }
-                
-                dropdown.innerHTML = dropdownContent;
+
+                const roleActions = {
+                    administrador: [
+                        { label: 'Dashboard', action: "window.location.href='/'" },
+                        { label: 'Gestión Empleados', action: "window.location.href='/employees'" },
+                        { label: 'Maintenance Management', action: "window.location.href='/maintenance'" },
+                        { label: 'Perfil', action: 'abrirModalPerfil()' },
+                        { label: 'Cerrar Sesión', action: 'handleLogout()' }
+                    ],
+                    analista: [
+                        { label: 'Dashboard', action: "window.location.href='/'" },
+                        { label: 'Gestión Empleados', action: "window.location.href='/employees'" },
+                        { label: 'Gestión Fórmulas', action: "window.location.href='/formulas?role=analista'" },
+                        { label: 'LabelsApp Web', action: "window.location.href='/labelsapp-web'" },
+                        { label: 'Perfil', action: 'abrirModalPerfil()' },
+                        { label: 'Cerrar Sesión', action: 'handleLogout()' }
+                    ],
+                    default: [
+                        { label: 'Perfil', action: 'abrirModalPerfil()' },
+                        { label: 'Cerrar Sesión', action: 'handleLogout()' }
+                    ]
+                };
+
+                dropdown.innerHTML = renderMenuButtons(roleActions[userRole] || roleActions.default);
+                renderMainTabsByRole(userRole);
             } catch(e) {
                 console.error('Error al actualizar dropdown:', e);
             }
