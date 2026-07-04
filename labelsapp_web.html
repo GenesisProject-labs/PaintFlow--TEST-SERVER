@@ -1430,9 +1430,6 @@
         let productSuggestions = [];
         let activeProductSuggestionIndex = -1;
         let remoteSuggestTimer = null;
-        let remoteSuggestAbortController = null;
-        const remoteSuggestCache = new Map();
-        const REMOTE_SUGGEST_CACHE_TTL_MS = 90000;
         let liveQueueTimer = null;
         let liveEventSource = null;
         let liveQueueLoading = false;
@@ -2832,82 +2829,53 @@
             setProductSuggestions(localMatches);
         }
 
-        function mergeApiProductsIntoIndexes(rows) {
-            for (const p of (rows || [])) {
-                const code = (p.codigo || "").toString();
-                if (!code) continue;
-
-                const descriptionName = (p.nombre || "").toString().trim();
-                const productNameRaw = (p.producto || "").toString().trim();
-                const displayProduct = displayProductName(productNameRaw);
-                const normalizedProduct = {
-                    ...p,
-                    codigo: code,
-                    nombre: descriptionName,
-                    producto: displayProduct || productNameRaw || ""
-                };
-
-                productByCode.set(code, normalizedProduct);
-                if (!codeIndex.some(x => x.code === code)) {
-                    codeIndex.push({
-                        code,
-                        codeNorm: normalize(code),
-                        name: descriptionName,
-                        nameNorm: normalize(descriptionName),
-                    });
-                }
-                if (displayProduct && !productIndex.some(x => x.norm === normalize(displayProduct))) {
-                    productIndex.push({
-                        name: displayProduct,
-                        norm: normalize(displayProduct),
-                    });
-                }
-            }
-        }
-
         async function enrichSuggestionsFromApi(query) {
-            const qn = normalize(query);
-            if (!qn || qn.length < 4) return;
-
-            const cached = remoteSuggestCache.get(qn);
-            if (cached && (Date.now() - Number(cached.ts || 0)) <= REMOTE_SUGGEST_CACHE_TTL_MS) {
-                mergeApiProductsIntoIndexes(cached.rows || []);
-                if (normalize(document.getElementById("codigo").value) === qn) {
-                    const merged = getLocalCodeMatches(qn);
-                    setCodeSuggestions(merged);
-                }
-                return;
-            }
-
             try {
-                if (remoteSuggestAbortController) {
-                    try { remoteSuggestAbortController.abort(); } catch (_) {}
-                }
-                remoteSuggestAbortController = new AbortController();
-
                 const params = buildLabelsUserParams();
-                params.set("q", qn);
+                params.set("q", query);
                 params.set("limit", "120");
-                const res = await fetch(`${API}/api/v1/labelsapp/products?${params.toString()}`, {
-                    signal: remoteSuggestAbortController.signal
-                });
+                const res = await fetch(`${API}/api/v1/labelsapp/products?${params.toString()}`);
                 if (!res.ok) return;
 
                 const data = await res.json();
-                const rows = Array.isArray(data.productos) ? data.productos : [];
-                remoteSuggestCache.set(qn, { ts: Date.now(), rows });
-                mergeApiProductsIntoIndexes(rows);
+                for (const p of (data.productos || [])) {
+                    const code = (p.codigo || "").toString();
+                    if (!code) continue;
+
+                    const descriptionName = (p.nombre || "").toString().trim();
+                    const productNameRaw = (p.producto || "").toString().trim();
+                    const displayProduct = displayProductName(productNameRaw);
+                    const normalizedProduct = {
+                        ...p,
+                        codigo: code,
+                        nombre: descriptionName,
+                        producto: displayProduct || productNameRaw || ""
+                    };
+
+                    productByCode.set(code, normalizedProduct);
+                    if (!codeIndex.some(x => x.code === code)) {
+                        codeIndex.push({
+                            code,
+                            codeNorm: normalize(code),
+                            name: descriptionName,
+                            nameNorm: normalize(descriptionName),
+                        });
+                    }
+                    if (displayProduct && !productIndex.some(x => x.norm === normalize(displayProduct))) {
+                        productIndex.push({
+                            name: displayProduct,
+                            norm: normalize(displayProduct),
+                        });
+                    }
+                }
 
                 const currentQ = normalize(document.getElementById("codigo").value);
-                if (currentQ !== qn) return;
+                if (currentQ !== query) return;
 
-                const merged = getLocalCodeMatches(qn);
+                const merged = getLocalCodeMatches(query);
                 setCodeSuggestions(merged);
-            } catch (err) {
-                if (err && err.name === "AbortError") return;
+            } catch {
                 // Ignorar fallas del query incremental para no bloquear UX.
-            } finally {
-                remoteSuggestAbortController = null;
             }
         }
 
@@ -2952,13 +2920,13 @@
                 return aCode.localeCompare(bCode, "es");
             }));
 
-            if (!localOnly && q.length >= 4 && localMatches.length < 12) {
+            if (!localOnly && q.length >= 2) {
                 if (remoteSuggestTimer) {
                     clearTimeout(remoteSuggestTimer);
                 }
                 remoteSuggestTimer = setTimeout(() => {
                     enrichSuggestionsFromApi(q);
-                }, 420);
+                }, 180);
             }
         }
 
@@ -3701,7 +3669,11 @@
             }
         }
 
-        function clearHistoryFilters() {
+        function clearHistoryFilters(options = {}) {
+            const {
+                refresh = true,
+                loadInbox = true,
+            } = options;
             const searchEl = document.getElementById("historySearch");
             const fromEl = document.getElementById("historyDateFrom");
             const toEl = document.getElementById("historyDateTo");
@@ -3710,8 +3682,12 @@
             if (searchEl) searchEl.value = "";
             if (fromEl) fromEl.value = dateKey;
             if (toEl) toEl.value = dateKey;
-            refreshHistory();
-            loadKioskInbox();
+            if (refresh) {
+                refreshHistory();
+            }
+            if (loadInbox) {
+                loadKioskInbox();
+            }
         }
 
         async function updateLivePriority(factura, prioridad) {
@@ -3852,7 +3828,7 @@
                 loadKioskInbox();
             }
             if (labelsAppTab === "history") {
-                renderHistory();
+                refreshHistory();
             }
 
             if (evt && evt.preventDefault) {
@@ -4299,17 +4275,19 @@
             renderQueue();
             renderHeldLists();
             renderKioskInbox();
-            clearHistoryFilters();
+            // Evitar rafaga de requests al iniciar sesion en todas las tiendas.
+            clearHistoryFilters({ refresh: false, loadInbox: false });
             switchLabelsAppTab(null, "queue");
-            loadLiveQueue();
             switchProductTab(null, "capture");
             if (hasSeenWorkflow()) {
                 const el = document.getElementById("workflowHint");
                 if (el) el.classList.add("workflow-hidden");
             }
             updateWorkflowHint();
-            reloadProducts();
-            refreshCustomProducts();
+            const bootstrapDelayMs = 250 + Math.floor(Math.random() * 900);
+            setTimeout(() => {
+                reloadProducts();
+            }, bootstrapDelayMs);
 
             document.addEventListener("visibilitychange", () => {
                 if (!document.hidden) {
