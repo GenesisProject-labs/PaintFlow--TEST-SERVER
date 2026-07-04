@@ -1389,6 +1389,460 @@
             color: #111 !important;
         }
 
+        .analyst-side-toggle {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid #d8e2ef;
+            background: #fff;
+            color: #17395d;
+            font-size: 1.2rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .analyst-side-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(7, 15, 27, 0.45);
+            backdrop-filter: blur(2px);
+            z-index: 4098;
+            display: none;
+        }
+
+        .analyst-side-backdrop.active {
+            display: block;
+        }
+
+        .analyst-side-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: min(420px, calc(100vw - 16px));
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(175deg, #0b1734 0%, #0f2a66 52%, #132d5f 100%);
+            border-left: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: -10px 0 32px rgba(7, 15, 27, 0.35);
+            z-index: 4099;
+            transform: translateX(102%);
+            transition: transform 0.22s ease-out;
+            color: #eef3ff;
+            overflow: hidden;
+            padding: 18px 16px 34px;
+        }
+
+        #analystSideNav {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 2px;
+        }
+
+        .analyst-side-panel.active {
+            transform: translateX(0);
+        }
+
+        .analyst-side-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 2px 6px 4px;
+        }
+
+        .analyst-side-title h1 {
+            margin: 0;
+            font-family: Space Grotesk, sans-serif;
+            font-size: 2rem;
+            line-height: 1.08;
+            color: #ffffff !important;
+            letter-spacing: 0.01em;
+        }
+
+        .analyst-side-title p {
+            margin: 6px 0 0;
+            color: #ffffff !important;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .analyst-brand-mark {
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            object-fit: contain;
+            background: rgba(255, 255, 255, 0.92);
+            padding: 4px;
+            box-shadow: 0 8px 22px rgba(8, 12, 24, 0.3);
+        }
+
+        .analyst-side-close {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-left: auto;
+        }
+
+        .analyst-side-group {
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .analyst-side-group:last-child {
+            border-bottom: none;
+        }
+
+        .analyst-side-label {
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: #9fb0da;
+            margin: 0 0 8px;
+            font-weight: 700;
+        }
+
+        .analyst-side-list {
+            display: grid;
+            gap: 6px;
+        }
+
+        .analyst-side-item {
+            width: 100%;
+            text-align: left;
+            border: 1px solid transparent;
+            background: transparent;
+            color: #eaf0ff;
+            border-radius: 18px;
+            padding: 13px 15px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .analyst-side-item:hover {
+            background: rgba(255, 255, 255, 0.09);
+        }
+
+        .analyst-side-item.active {
+            background: rgba(91, 124, 255, 0.32);
+            border-color: rgba(255, 255, 255, 0.22);
+            font-weight: 700;
+        }
+
+        .analyst-nav-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0.75;
+            flex: 0 0 auto;
+        }
+
+        .analyst-user-wrap {
+            margin-top: auto;
+            margin-bottom: 34px;
+            align-self: center;
+            width: min(360px, calc(100% - 18px));
+            position: relative;
+        }
+
+        .analyst-user-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            width: 100%;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px 12px;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .analyst-user-dropdown {
+            display: none;
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(100% + 12px);
+            width: 100%;
+            border-radius: 24px;
+            border: 1px solid rgba(219, 224, 236, 0.95);
+            background: #ffffff;
+            box-shadow: 0 20px 42px rgba(14, 22, 42, 0.28);
+            overflow: hidden;
+            z-index: 5;
+        }
+
+        .analyst-user-dropdown.active {
+            display: block;
+        }
+
+        .analyst-user-dropdown button {
+            width: 100%;
+            border: none;
+            background: transparent;
+            color: #26324d;
+            text-align: left;
+            padding: 14px 20px;
+            font: inherit;
+            font-weight: 700;
+            font-size: 1.03rem;
+            cursor: pointer;
+        }
+
+        .analyst-user-dropdown button:hover {
+            background: #f6f7fb;
+        }
+
+        .analyst-user-dropdown button:first-child {
+            background: #f0f2f7;
+        }
+
+        .user-menu .user-menu-container {
+            display: none;
+        }
+
+        .analyst-user-avatar {
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            background: #eef2ff;
+            color: #5a57ff;
+            font-weight: 800;
+            font-size: 1.55rem;
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+        }
+
+        .analyst-user-name {
+            font-size: 1.08rem;
+            font-weight: 700;
+            text-align: center;
+            flex: 1;
+        }
+
+        #mainTabsContainer {
+            display: none;
+        }
+
+        .container {
+            max-width: none;
+            width: 100%;
+            margin: 0;
+            padding: 10px 14px 16px;
+        }
+
+        .content-card {
+            min-height: 0;
+        }
+
+        .controls {
+            padding: 16px 18px;
+            min-height: 0;
+        }
+
+        #zoneTabsContainer,
+        #subtabsContainer {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        #mainPanelEmpleados {
+            display: grid;
+            gap: 14px;
+            min-height: 0;
+        }
+
+        .empleados-layout {
+            display: grid;
+            grid-template-columns: 260px minmax(0, 1fr);
+            gap: 14px;
+            align-items: start;
+            min-height: 0;
+        }
+
+        .empleados-main-column {
+            min-width: 0;
+            display: grid;
+            gap: 12px;
+            align-content: start;
+        }
+
+        #zoneTabsContainer {
+            flex-direction: column;
+            flex-wrap: nowrap;
+            max-height: calc(100vh - 290px);
+            overflow: auto;
+            gap: 8px;
+            align-content: flex-start;
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid #dbe4f0;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 10px 24px rgba(15, 52, 95, 0.08);
+        }
+
+        #zoneTabsContainer .subtab-btn {
+            width: 100%;
+            text-align: left;
+            justify-content: flex-start;
+            margin: 0;
+            padding: 10px 12px;
+            border-radius: 12px !important;
+            border: 1px solid #e1e8f3 !important;
+            background: #ffffff !important;
+            color: #324a66 !important;
+            border-bottom-color: #e1e8f3 !important;
+            font-weight: 700;
+        }
+
+        #zoneTabsContainer .subtab-btn:hover {
+            border-color: #b8c9df !important;
+            background: #f6faff !important;
+            color: #1a3e67 !important;
+            transform: translateY(-1px);
+        }
+
+        #zoneTabsContainer .subtab-btn.active {
+            background: linear-gradient(135deg, #1f6fff 0%, #1558d0 100%) !important;
+            border-color: #1b62ea !important;
+            border-bottom-color: #1b62ea !important;
+            color: #fff !important;
+            box-shadow: 0 8px 18px rgba(31, 111, 255, 0.22) !important;
+        }
+
+        #zoneTabsContainer .inactive-btn {
+            border-color: #f7d5a8 !important;
+            background: #fff6e9 !important;
+            color: #9a4f00 !important;
+        }
+
+        #zoneTabsContainer .inactive-btn.active {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+            border-color: #d97706 !important;
+            border-bottom-color: #d97706 !important;
+            color: #fff !important;
+            box-shadow: 0 8px 18px rgba(245, 158, 11, 0.22) !important;
+        }
+
+        #subtabsContainer {
+            flex-direction: row;
+            flex-wrap: wrap;
+            max-height: none;
+            overflow: visible;
+            gap: 10px;
+            align-content: center;
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid #dbe4f0;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 10px 24px rgba(15, 52, 95, 0.08);
+        }
+
+        #subtabsContainer .subtab-btn {
+            width: auto;
+            text-align: center;
+            justify-content: center;
+            margin: 0;
+            padding: 10px 14px;
+            border-radius: 12px !important;
+            border: 1px solid #e1e8f3 !important;
+            background: #ffffff !important;
+            color: #324a66 !important;
+            border-bottom-color: #e1e8f3 !important;
+            font-weight: 700;
+        }
+
+        #subtabsContainer .subtab-btn:hover {
+            border-color: #b8c9df !important;
+            background: #f6faff !important;
+            color: #1a3e67 !important;
+            transform: translateY(-1px);
+        }
+
+        #subtabsContainer .subtab-btn.active {
+            background: linear-gradient(135deg, #1f6fff 0%, #1558d0 100%) !important;
+            border-color: #1b62ea !important;
+            border-bottom-color: #1b62ea !important;
+            color: #fff !important;
+            box-shadow: 0 8px 18px rgba(31, 111, 255, 0.22) !important;
+        }
+
+        #subtabsContainer .inactive-btn {
+            margin-left: auto !important;
+            margin-top: 0;
+        }
+
+        #tablasContainer {
+            min-width: 0;
+            border: 1px solid #dbe4f0;
+            border-radius: 16px;
+            background: #fff;
+            box-shadow: 0 10px 24px rgba(15, 52, 95, 0.08);
+            padding: 10px;
+        }
+
+        #tablasContainer .subtab-content {
+            margin: 0;
+        }
+
+        #tablasContainer table {
+            width: 100%;
+            box-shadow: none;
+        }
+
+        @media (max-width: 980px) {
+            .empleados-layout {
+                grid-template-columns: 1fr;
+                min-height: auto;
+            }
+
+            #zoneTabsContainer {
+                flex-direction: row;
+                flex-wrap: wrap;
+                max-height: none;
+            }
+
+            #zoneTabsContainer .subtab-btn {
+                width: auto;
+                text-align: center;
+            }
+
+            #subtabsContainer {
+                flex-direction: row;
+                flex-wrap: wrap;
+                max-height: none;
+            }
+
+            #subtabsContainer .subtab-btn {
+                width: auto;
+                text-align: center;
+            }
+
+            .controls {
+                min-height: auto;
+            }
+
+            .content-card {
+                min-height: auto;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -1402,10 +1856,7 @@
                 </div>
             </div>
             <div class="user-menu">
-                <button class="catalog-share-btn" type="button" onclick="abrirCatalogoPublico()" title="Abre el catálogo del cliente y copia el link para enviar">
-                    <span aria-hidden="true">🎟️</span>
-                    <span>Catálogo</span>
-                </button>
+                <button type="button" class="analyst-side-toggle" id="analystSideToggle" onclick="toggleAnalystNav()" aria-label="Abrir menu" aria-expanded="false">☰</button>
                 <div class="user-menu-container">
                     <button class="user-dropdown-btn" id="userDropdownBtn" onclick="toggleUserDropdown()">
                         <div class="user-avatar" id="userAvatar">U</div>
@@ -1549,18 +2000,40 @@
 
                 <div id="mainPanelEmpleados" class="main-panel">
                     <div class="search-section">
-                        <div class="search-group">
-                            <input type="text" class="search-input" placeholder="Nombre o código del empleado..." id="searchInput" oninput="filterEmployees()">
-                            <button class="btn btn-secondary" onclick="clearSearch()">Limpiar</button>
-                        </div>
                         <button class="btn btn-success" onclick="abrirModalEmpleado()">Agregar Empleado</button>
                     </div>
-                    <div class="subtabs-container" id="subtabsContainer"></div>
-                    <div id="tablasContainer"></div>
+                    <div class="empleados-layout">
+                        <div class="subtabs-container" id="zoneTabsContainer"></div>
+                        <div class="empleados-main-column">
+                            <div class="subtabs-container" id="subtabsContainer"></div>
+                            <div id="tablasContainer"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <aside class="analyst-side-panel" id="analystSidePanel">
+        <div class="analyst-side-head">
+            <img class="analyst-brand-mark" src="/logo.png" alt="PaintFlow Logo">
+            <div class="analyst-side-title">
+                <h1>PaintFlow</h1>
+                <p>MODULO DE GESTION DE EMPLEADOS</p>
+            </div>
+            <button type="button" class="analyst-side-close" onclick="toggleAnalystNav(false)" aria-label="Cerrar menu">✕</button>
+        </div>
+        <div class="analyst-side-label" style="padding: 0 6px 8px;">Menu principal</div>
+        <div id="analystSideNav"></div>
+        <div class="analyst-user-wrap">
+            <button type="button" class="analyst-user-card" onclick="toggleAnalystSideUserMenu()">
+                <div class="analyst-user-avatar" id="analystSideAvatar">U</div>
+                <div class="analyst-user-name" id="analystSideName">Usuario</div>
+            </button>
+            <div class="analyst-user-dropdown" id="analystSideUserDropdown"></div>
+        </div>
+    </aside>
+    <div id="analystMenuBackdrop" class="analyst-side-backdrop" onclick="toggleAnalystNav(false)"></div>
     
     <div id="modalEmpleado" class="modal">
         <div class="modal-content">
@@ -1619,6 +2092,8 @@
         let allSucursales = [];
         let sucursalesUnicas = [];
         let activeSucursal = 'Alameda'; // Para guardar la pestaña activa
+        let activeZona = 'Santo_Domingo';
+        let empleadosPanelsNeedRender = true;
         let analystMetricsCache = null;
         let analystZoneUsageChart = null;
         let analystTopSucursalesChart = null;
@@ -1763,32 +2238,217 @@
                 sucursalesUnicas = Array.from(sucursalesSet).sort((a, b) => a.localeCompare(b, 'es'));
             }
         }
+
+        function getSucursalesByZona(zonaKey) {
+            return sucursalesUnicas.filter(sucursal => resolveAnalystZona(sucursal) === zonaKey);
+        }
+
+        function ensureEmpleadosPanels(sucursal = '') {
+            if (!empleadosPanelsNeedRender) {
+                if (!sucursal) return;
+                const targetId = 'sucursal-' + sucursal.replace(/\s+/g, '-');
+                if (document.getElementById(targetId)) return;
+            }
+            renderEmpleadosPorSucursal();
+        }
         
         function renderSubtabs() {
+            const zoneContainer = document.getElementById('zoneTabsContainer');
             const container = document.getElementById('subtabsContainer');
+            if (!zoneContainer || !container) return;
+
+            zoneContainer.innerHTML = '';
             container.innerHTML = '';
 
-            if (!sucursalesUnicas.includes(activeSucursal)) {
-                activeSucursal = sucursalesUnicas[0] || 'Alameda';
+            const zonasConSucursales = ANALYST_ZONE_KEYS.filter(zonaKey => getSucursalesByZona(zonaKey).length > 0);
+            const zonaRenderKeys = [...zonasConSucursales, 'Inactivos'];
+            const zonaFallback = zonasConSucursales[0] || 'Santo_Domingo';
+
+            if (activeSucursal !== 'Inactivos' && sucursalesUnicas.includes(activeSucursal)) {
+                activeZona = resolveAnalystZona(activeSucursal);
             }
-            
-            sucursalesUnicas.forEach((sucursal) => {
+
+            if (!zonaRenderKeys.includes(activeZona)) {
+                activeZona = zonaFallback;
+            }
+
+            zonaRenderKeys.forEach((zonaKey) => {
+                const btn = document.createElement('button');
+                const isInactivosZone = zonaKey === 'Inactivos';
+                btn.className = 'subtab-btn' + (activeZona === zonaKey ? ' active' : '');
+                if (isInactivosZone) btn.classList.add('inactive-btn');
+                btn.textContent = isInactivosZone ? 'Inactivos' : zoneKeyToLabel(zonaKey);
+                btn.onclick = (event) => switchZonaAnalyst(event, zonaKey);
+                zoneContainer.appendChild(btn);
+            });
+
+            if (activeZona === 'Inactivos') {
+                activeSucursal = 'Inactivos';
+                container.innerHTML = '<button type="button" class="subtab-btn active">Empleados Inactivos</button>';
+                renderAnalystSideMenu();
+                return;
+            }
+
+            const sucursalesZonaActiva = getSucursalesByZona(activeZona);
+            if (activeSucursal === 'Inactivos' || !sucursalesZonaActiva.includes(activeSucursal)) {
+                activeSucursal = sucursalesZonaActiva[0] || '';
+            }
+
+            sucursalesZonaActiva.forEach((sucursal) => {
                 const btn = document.createElement('button');
                 btn.className = 'subtab-btn' + (activeSucursal === sucursal ? ' active' : '');
                 btn.textContent = sucursal;
                 btn.onclick = (event) => switchSucursal(event, sucursal);
                 container.appendChild(btn);
             });
-            
-            // Agregar botón especial para Inactivos
-            const inactivosBtn = document.createElement('button');
-            inactivosBtn.className = 'subtab-btn inactive-btn';
-            inactivosBtn.textContent = 'Inactivos';
-            inactivosBtn.onclick = (event) => switchInactivos(event);
-            inactivosBtn.style.background = '#f57c00';
-            inactivosBtn.style.color = 'white';
-            inactivosBtn.style.marginLeft = '10px';
-            container.appendChild(inactivosBtn);
+
+            renderAnalystSideMenu();
+        }
+
+        function switchZonaAnalyst(event, zonaKey) {
+            if (event && typeof event.preventDefault === 'function') event.preventDefault();
+
+            if (zonaKey === 'Inactivos') {
+                activeZona = 'Inactivos';
+                activeSucursal = 'Inactivos';
+                renderSubtabs();
+                showInactivosContent();
+                setActiveAnalystMenuKey('inactivos');
+                return;
+            }
+
+            activeZona = zonaKey;
+            const sucursalesZona = sucursalesUnicas.filter(sucursal => resolveAnalystZona(sucursal) === zonaKey);
+            if (sucursalesZona.length > 0) {
+                activeSucursal = sucursalesZona[0];
+            }
+            renderSubtabs();
+            if (activeSucursal) {
+                showSucursalByName(activeSucursal);
+                setActiveAnalystMenuKey('empleados');
+            }
+        }
+
+        function toggleAnalystNav(forceOpen) {
+            const panel = document.getElementById('analystSidePanel');
+            const backdrop = document.getElementById('analystMenuBackdrop');
+            const toggle = document.getElementById('analystSideToggle');
+            if (!panel || !toggle) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !panel.classList.contains('active');
+            panel.classList.toggle('active', shouldOpen);
+            if (backdrop) backdrop.classList.toggle('active', shouldOpen);
+            toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+            toggle.textContent = shouldOpen ? '✕' : '☰';
+        }
+
+        function toggleAnalystSideUserMenu(forceOpen) {
+            const menu = document.getElementById('analystSideUserDropdown');
+            if (!menu) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !menu.classList.contains('active');
+            menu.classList.toggle('active', shouldOpen);
+        }
+
+        function setActiveAnalystMenuKey(key) {
+            document.querySelectorAll('#analystSideNav .analyst-side-item').forEach(item => {
+                item.classList.toggle('active', item.getAttribute('data-key') === key);
+            });
+        }
+
+        function renderAnalystSideMenu() {
+            const target = document.getElementById('analystSideNav');
+            if (!target) return;
+
+            target.innerHTML = `
+                <div class="analyst-side-group">
+                    <div class="analyst-side-label">Principal</div>
+                    <div class="analyst-side-list">
+                        <button type="button" class="analyst-side-item" data-key="dashboard" onclick="openDashboardFromAnalystMenu()"><span class="analyst-nav-dot"></span>Dashboard</button>
+                        <button type="button" class="analyst-side-item" data-key="empleados" onclick="openEmpleadosFromMenu()"><span class="analyst-nav-dot"></span>Gestion de Empleados</button>
+                        <button type="button" class="analyst-side-item" data-key="inactivos" onclick="openInactivosFromMenu()"><span class="analyst-nav-dot"></span>Inactivos</button>
+                    </div>
+                </div>
+            `;
+
+            updateAnalystSideIdentity();
+
+            if (isAnalystDashboardOpen()) {
+                setActiveAnalystMenuKey('dashboard');
+            } else if (activeZona === 'Inactivos' || activeSucursal === 'Inactivos') {
+                setActiveAnalystMenuKey('inactivos');
+            } else {
+                setActiveAnalystMenuKey('empleados');
+            }
+        }
+
+        function updateAnalystSideIdentity() {
+            try {
+                const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                const name = userData.nombre_completo || userData.username || 'Usuario';
+                const initials = String(name)
+                    .split(' ')
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map(part => part.charAt(0).toUpperCase())
+                    .join('') || 'U';
+                const avatar = document.getElementById('analystSideAvatar');
+                const userName = document.getElementById('analystSideName');
+                if (avatar) avatar.textContent = initials;
+                if (userName) userName.textContent = name;
+            } catch (_) {}
+        }
+
+        function openDashboardFromAnalystMenu() {
+            openMainTab('dashboard');
+            setActiveAnalystMenuKey('dashboard');
+            toggleAnalystNav(false);
+        }
+
+        function openEmpleadosFromMenu() {
+            openMainTab('empleados');
+            if (activeSucursal && activeSucursal !== 'Inactivos') {
+                renderSubtabs();
+                showSucursalByName(activeSucursal);
+                setActiveAnalystMenuKey('empleados');
+            } else {
+                if (!activeZona || activeZona === 'Inactivos') {
+                    activeZona = ANALYST_ZONE_KEYS[0] || 'Santo_Domingo';
+                }
+                const sucursalesZona = getSucursalesByZona(activeZona);
+                activeSucursal = sucursalesZona[0] || sucursalesUnicas[0] || '';
+                renderSubtabs();
+                if (activeSucursal) {
+                    showSucursalByName(activeSucursal);
+                }
+                setActiveAnalystMenuKey('empleados');
+            }
+            toggleAnalystNav(false);
+        }
+
+        function openSucursalFromMenu(sucursal) {
+            openMainTab('empleados');
+            showSucursalByName(sucursal);
+            setActiveAnalystMenuKey(`sucursal:${sucursal}`);
+            toggleAnalystNav(false);
+        }
+
+        function openInactivosFromMenu() {
+            openMainTab('empleados');
+            activeZona = 'Inactivos';
+            activeSucursal = 'Inactivos';
+            renderSubtabs();
+            showInactivosContent();
+            setActiveAnalystMenuKey('inactivos');
+            toggleAnalystNav(false);
+        }
+
+        function showSucursalByName(sucursal) {
+            activeSucursal = sucursal;
+            document.querySelectorAll('.subtab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            ensureEmpleadosPanels(sucursal);
+            let target = document.getElementById('sucursal-' + sucursal.replace(/\s+/g, '-'));
+            if (target) target.classList.add('active');
         }
         
         function renderEmpleadosPorSucursal() {
@@ -1808,7 +2468,7 @@
                 const thead = document.createElement('thead');
                 const headerRow = document.createElement('tr');
                 headerRow.style.background = '#f5f5f5';
-                ['Codigo', 'Nombre', 'Sucursal', 'Posición', 'Estado', 'Acciones']
+                ['# Codigo', '👤 Nombre', '🏢 Sucursal', '💼 Posición', 'ℹ Estado', '⚙ Acciones']
                     .forEach(col => {
                         const th = document.createElement('th');
                         th.style.padding = '12px';
@@ -1859,6 +2519,8 @@
                 div.appendChild(table);
                 container.appendChild(div);
             });
+
+            empleadosPanelsNeedRender = false;
         }
 
         function toSubtabZoneKey(zoneValue) {
@@ -2646,32 +3308,38 @@
         function openMainTab(tabName) {
             if (tabName === 'dashboard') {
                 abrirDashboardAnalista();
+                renderAnalystSideMenu();
                 return;
             }
 
             setMainTab('empleados');
             cerrarDashboardAnalista();
+            renderAnalystSideMenu();
         }
         
         function switchSucursal(event, sucursal) {
             activeSucursal = sucursal; // Guardar sucursal activa
-            document.querySelectorAll('.subtab-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-            
-            document.querySelectorAll('.subtab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById('sucursal-' + sucursal.replace(/\s+/g, '-')).classList.add('active');
+            activeZona = resolveAnalystZona(sucursal);
+            if (event && event.target) {
+                document.querySelectorAll('#subtabsContainer .subtab-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                event.target.classList.add('active');
+            }
+
+            showSucursalByName(sucursal);
+            setActiveAnalystMenuKey('empleados');
         }
         
         function switchInactivos(event) {
+            activeZona = 'Inactivos';
             activeSucursal = 'Inactivos'; // Marcar como inactivos
-            document.querySelectorAll('.subtab-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
+            if (event && event.target) {
+                document.querySelectorAll('#subtabsContainer .subtab-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                event.target.classList.add('active');
+            }
             
             // Ocultar todas las sucursales normales
             document.querySelectorAll('.subtab-content').forEach(content => {
@@ -2679,27 +3347,17 @@
             });
             
             // Mostrar contenido de inactivos
+            renderSubtabs();
             showInactivosContent();
+            setActiveAnalystMenuKey('inactivos');
         }
         
         function restoreSucursal() {
             // Restaurar la sucursal activa después de recargar datos
             if (activeSucursal && sucursalesUnicas.includes(activeSucursal)) {
-                document.querySelectorAll('.subtab-btn').forEach(btn => {
-                    if (btn.textContent === activeSucursal) {
-                        btn.classList.add('active');
-                    } else {
-                        btn.classList.remove('active');
-                    }
-                });
-                
-                document.querySelectorAll('.subtab-content').forEach(content => {
-                    if (content.id === 'sucursal-' + activeSucursal.replace(/\s+/g, '-')) {
-                        content.classList.add('active');
-                    } else {
-                        content.classList.remove('active');
-                    }
-                });
+                activeZona = resolveAnalystZona(activeSucursal);
+                renderSubtabs();
+                showSucursalByName(activeSucursal);
             }
         }
         
@@ -2861,6 +3519,7 @@
         function toggleUserDropdown() {
             const userDropdown = document.getElementById('userDropdown');
             const userDropdownBtn = document.getElementById('userDropdownBtn');
+            if (!userDropdown || !userDropdownBtn) return;
             userDropdown.classList.toggle('active');
             userDropdownBtn.classList.toggle('active');
         }
@@ -3274,9 +3933,15 @@
         document.addEventListener('click', (e) => {
             const userDropdown = document.getElementById('userDropdown');
             const userDropdownBtn = document.getElementById('userDropdownBtn');
-            if (!e.target.closest('.user-menu-container')) {
+            if (userDropdown && userDropdownBtn && !e.target.closest('.user-menu-container')) {
                 userDropdown.classList.remove('active');
                 userDropdownBtn.classList.remove('active');
+            }
+
+            const sideCard = document.querySelector('.analyst-user-card');
+            const sideDropdown = document.getElementById('analystSideUserDropdown');
+            if (sideCard && sideDropdown && !sideCard.contains(e.target) && !sideDropdown.contains(e.target)) {
+                sideDropdown.classList.remove('active');
             }
         });
         
@@ -3336,32 +4001,44 @@
                 const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
                 const userRole = normalizeRole(userData.rol);
                 const dropdown = document.getElementById('userDropdown');
+                const sideDropdown = document.getElementById('analystSideUserDropdown');
                 if (!dropdown) return;
 
                 const roleActions = {
                     administrador: [
-                        { label: 'Dashboard', action: "window.location.href='/'" },
-                        { label: 'Gestión Empleados', action: "window.location.href='/employees'" },
-                        { label: 'Maintenance Management', action: "window.location.href='/maintenance'" },
-                        { label: 'Perfil', action: 'abrirModalPerfil()' },
                         { label: 'Cerrar Sesión', action: 'handleLogout()' }
                     ],
                     analista: [
-                        { label: 'Dashboard', action: "window.location.href='/'" },
-                        { label: 'Gestión Empleados', action: "window.location.href='/employees'" },
-                        { label: 'Gestión Fórmulas', action: "window.location.href='/formulas?role=analista'" },
-                        { label: 'LabelsApp Web', action: "window.location.href='/labelsapp-web'" },
-                        { label: 'Perfil', action: 'abrirModalPerfil()' },
                         { label: 'Cerrar Sesión', action: 'handleLogout()' }
                     ],
                     default: [
-                        { label: 'Perfil', action: 'abrirModalPerfil()' },
                         { label: 'Cerrar Sesión', action: 'handleLogout()' }
                     ]
                 };
 
                 dropdown.innerHTML = renderMenuButtons(roleActions[userRole] || roleActions.default);
+                if (sideDropdown) {
+                    const sideOptionsByRole = {
+                        administrador: [
+                            { label: 'Actualizar datos', action: 'abrirModalPerfil(); toggleAnalystSideUserMenu(false);' },
+                            { label: 'Gestion de equipos', action: "window.location.href='/maintenance'" },
+                            { label: 'Cerrar sesion', action: 'handleLogout()' }
+                        ],
+                        analista: [
+                            { label: 'Actualizar datos', action: 'abrirModalPerfil(); toggleAnalystSideUserMenu(false);' },
+                            { label: 'Gestion de equipos', action: "window.location.href='/maintenance'" },
+                            { label: 'Cerrar sesion', action: 'handleLogout()' }
+                        ],
+                        default: [
+                            { label: 'Actualizar datos', action: 'abrirModalPerfil(); toggleAnalystSideUserMenu(false);' },
+                            { label: 'Cerrar sesion', action: 'handleLogout()' }
+                        ]
+                    };
+
+                    sideDropdown.innerHTML = renderMenuButtons(sideOptionsByRole[userRole] || sideOptionsByRole.default);
+                }
                 renderMainTabsByRole(userRole);
+                updateAnalystSideIdentity();
             } catch(e) {
                 console.error('Error al actualizar dropdown:', e);
             }
@@ -3403,9 +4080,12 @@
         function displaySearchResults(empleados, searchTerm) {
             const container = document.getElementById('tablasContainer');
             const subtabsContainer = document.getElementById('subtabsContainer');
+            const zoneTabsContainer = document.getElementById('zoneTabsContainer');
+            empleadosPanelsNeedRender = true;
             
             // Limpiar subtabs cuando se busca
             subtabsContainer.innerHTML = '';
+            if (zoneTabsContainer) zoneTabsContainer.innerHTML = '';
             
             if (empleados.length === 0) {
                 container.innerHTML = `
@@ -3431,12 +4111,12 @@
             // Encabezados
             thead.innerHTML = `
                 <tr>
-                    <th>Codigo</th>
-                    <th>Nombre</th>
-                    <th>Sucursal</th>
-                    <th>Posición</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
+                    <th># Codigo</th>
+                    <th>👤 Nombre</th>
+                    <th>🏢 Sucursal</th>
+                    <th>💼 Posición</th>
+                    <th>ℹ Estado</th>
+                    <th>⚙ Acciones</th>
                 </tr>
             `;
             
@@ -3526,6 +4206,7 @@
         async function showInactivosContent() {
             try {
                 const container = document.getElementById('tablasContainer');
+                empleadosPanelsNeedRender = true;
                 container.innerHTML = '<div style="text-align: center; padding: 20px;">Cargando empleados inactivos...</div>';
                 
                 const response = await fetch(API + '/api/v1/empleados?mostrar_inactivos=true', {
@@ -3563,12 +4244,12 @@
                     const thead = document.createElement('thead');
                     thead.innerHTML = `
                         <tr style="background: #f8f9fa;">
-                            <th style="border: 1px solid #ddd; padding: 12px;">Código</th>
-                            <th style="border: 1px solid #ddd; padding: 12px;">Nombre</th>
-                            <th style="border: 1px solid #ddd; padding: 12px;">Sucursal</th>
-                            <th style="border: 1px solid #ddd; padding: 12px;">Posición</th>
-                            <th style="border: 1px solid #ddd; padding: 12px;">Estado</th>
-                            <th style="border: 1px solid #ddd; padding: 12px;">Acciones</th>
+                            <th style="border: 1px solid #ddd; padding: 12px;"># Código</th>
+                            <th style="border: 1px solid #ddd; padding: 12px;">👤 Nombre</th>
+                            <th style="border: 1px solid #ddd; padding: 12px;">🏢 Sucursal</th>
+                            <th style="border: 1px solid #ddd; padding: 12px;">💼 Posición</th>
+                            <th style="border: 1px solid #ddd; padding: 12px;">ℹ Estado</th>
+                            <th style="border: 1px solid #ddd; padding: 12px;">⚙ Acciones</th>
                         </tr>
                     `;
                     
