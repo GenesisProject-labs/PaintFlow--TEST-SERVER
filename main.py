@@ -4625,7 +4625,7 @@ async def login(username: str, password: str, db=Depends(get_db)):
             raise HTTPException(status_code=401, detail="Usuario o contraseña inválida")
         
         usuario_id, db_username, nombre_completo, email, password_hash, rol, sucursal_id, telefono, activo, sucursal_nombre = usuario
-        rol_normalizado = (rol or "").strip().lower()
+        rol_normalizado = _normalize_role_key(rol)
         
         # Verificar contraseña con SHA256
         password_check = hashlib.sha256(password.encode()).hexdigest()
@@ -4637,7 +4637,17 @@ async def login(username: str, password: str, db=Depends(get_db)):
             raise HTTPException(status_code=403, detail="Esta cuenta está inactiva")
         
         # Verificar que tenga un rol permitido en el portal
-        allowed_roles = ['administrador', 'analista', 'facturador', 'cajero', 'cliente', 'activos_fijos', 'tecnicos']
+        allowed_roles = {
+            'administrador',
+            'analista',
+            'facturador',
+            'cajero',
+            'cliente',
+            'activos_fijos',
+            'tecnicos',
+            'gerente',
+            'contabilidad',
+        }
         if not rol_normalizado or rol_normalizado not in allowed_roles:
             raise HTTPException(status_code=403, detail="Acceso restringido para este rol")
         
