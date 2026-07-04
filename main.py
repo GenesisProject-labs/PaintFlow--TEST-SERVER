@@ -225,6 +225,19 @@ def _mark_ensure_once_key_done(key: str) -> None:
         _ddl_ensure_once_keys.add(key)
 
 
+def _clear_ensure_once_key(key: str) -> None:
+    with _ddl_ensure_once_lock:
+        _ddl_ensure_once_keys.discard(key)
+
+
+def _relation_exists(db, table_name: str) -> bool:
+    """Valida existencia real en DB; evita falsos positivos por cache en RAM."""
+    cur = db.cursor()
+    cur.execute("SELECT to_regclass(%s)", (f"public.{table_name}",))
+    row = cur.fetchone()
+    return bool(row and row[0])
+
+
 def _invalidate_table_columns_cache(table_name: str) -> None:
     with _table_columns_cache_lock:
         _table_columns_cache.pop((table_name or "").strip().lower(), None)
@@ -232,35 +245,41 @@ def _invalidate_table_columns_cache(table_name: str) -> None:
 
 def _ensure_pedidos_table_once(db, table_name: str) -> None:
     key = f"pedidos:{(table_name or '').strip().lower()}"
-    if _ensure_once_key_done(key):
+    if _ensure_once_key_done(key) and _relation_exists(db, table_name):
         return
     with _ddl_ensure_once_lock:
-        if key in _ddl_ensure_once_keys:
+        if key in _ddl_ensure_once_keys and _relation_exists(db, table_name):
             return
+        _ddl_ensure_once_keys.discard(key)
         _ensure_pedidos_table(db, table_name)
+        db.commit()
         _invalidate_table_columns_cache(table_name)
         _ddl_ensure_once_keys.add(key)
 
 
 def _ensure_personalizados_table_once(db, table_name: str) -> None:
     key = f"personalizados:{(table_name or '').strip().lower()}"
-    if _ensure_once_key_done(key):
+    if _ensure_once_key_done(key) and _relation_exists(db, table_name):
         return
     with _ddl_ensure_once_lock:
-        if key in _ddl_ensure_once_keys:
+        if key in _ddl_ensure_once_keys and _relation_exists(db, table_name):
             return
+        _ddl_ensure_once_keys.discard(key)
         _ensure_personalizados_table(db, table_name)
+        db.commit()
         _ddl_ensure_once_keys.add(key)
 
 
 def _ensure_labelsapp_history_table_once(db) -> None:
     key = "labelsapp_historial"
-    if _ensure_once_key_done(key):
+    if _ensure_once_key_done(key) and _relation_exists(db, "labelsapp_historial"):
         return
     with _ddl_ensure_once_lock:
-        if key in _ddl_ensure_once_keys:
+        if key in _ddl_ensure_once_keys and _relation_exists(db, "labelsapp_historial"):
             return
+        _ddl_ensure_once_keys.discard(key)
         _ensure_labelsapp_history_table(db)
+        db.commit()
         _ddl_ensure_once_keys.add(key)
 
 
