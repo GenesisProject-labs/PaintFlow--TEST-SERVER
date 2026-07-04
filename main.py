@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import select
+import smtplib
 
 from fastapi import FastAPI, HTTPException, Depends, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +23,7 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 from urllib.parse import urlencode, quote
 from urllib.request import Request as UrlRequest, urlopen
+from email.message import EmailMessage
 
 class FormulaNormalCreate(BaseModel):
     codigo_color: str
@@ -171,6 +173,11 @@ _labels_usage_metrics_fetch_locks_guard = Lock()
 _labelsapp_live_fetch_locks: Dict[str, Lock] = {}
 _labelsapp_pending_fetch_locks: Dict[str, Lock] = {}
 _labelsapp_fetch_locks_guard = Lock()
+TABLE_COLUMNS_CACHE_TTL_SEC = 300.0
+_table_columns_cache: Dict[str, Dict[str, Any]] = {}
+_table_columns_cache_lock = Lock()
+_ddl_ensure_once_keys: set = set()
+_ddl_ensure_once_lock = Lock()
 
 
 def _get_table_lock(registry: Dict[str, Lock], table_name: str) -> Lock:
@@ -183,6 +190,55 @@ def _get_table_lock(registry: Dict[str, Lock], table_name: str) -> Lock:
             lock = Lock()
             registry[table_name] = lock
         return lock
+
+
+def _ensure_once_key_done(key: str) -> bool:
+    with _ddl_ensure_once_lock:
+        return key in _ddl_ensure_once_keys
+
+
+def _mark_ensure_once_key_done(key: str) -> None:
+    with _ddl_ensure_once_lock:
+        _ddl_ensure_once_keys.add(key)
+
+
+def _invalidate_table_columns_cache(table_name: str) -> None:
+    with _table_columns_cache_lock:
+        _table_columns_cache.pop((table_name or "").strip().lower(), None)
+
+
+def _ensure_pedidos_table_once(db, table_name: str) -> None:
+    key = f"pedidos:{(table_name or '').strip().lower()}"
+    if _ensure_once_key_done(key):
+        return
+    with _ddl_ensure_once_lock:
+        if key in _ddl_ensure_once_keys:
+            return
+        _ensure_pedidos_table(db, table_name)
+        _invalidate_table_columns_cache(table_name)
+        _ddl_ensure_once_keys.add(key)
+
+
+def _ensure_personalizados_table_once(db, table_name: str) -> None:
+    key = f"personalizados:{(table_name or '').strip().lower()}"
+    if _ensure_once_key_done(key):
+        return
+    with _ddl_ensure_once_lock:
+        if key in _ddl_ensure_once_keys:
+            return
+        _ensure_personalizados_table(db, table_name)
+        _ddl_ensure_once_keys.add(key)
+
+
+def _ensure_labelsapp_history_table_once(db) -> None:
+    key = "labelsapp_historial"
+    if _ensure_once_key_done(key):
+        return
+    with _ddl_ensure_once_lock:
+        if key in _ddl_ensure_once_keys:
+            return
+        _ensure_labelsapp_history_table(db)
+        _ddl_ensure_once_keys.add(key)
 
 
 def _queue_cache_get(kind: str, key):
@@ -747,6 +803,20 @@ async def maintenance_management_page():
     """Alias comercial para el modulo de mantenimiento."""
     return RedirectResponse(url="/maintenance", status_code=307)
 
+@app.get("/fixed-assets-request")
+async def fixed_assets_request_page():
+    """Formulario de adquisicion de activos fijos."""
+    html_path = os.path.join(os.path.dirname(__file__), "formulario_de_adquisici_n_de_activos_fijos.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Fixed assets request page not found")
+
+
+@app.get("/fixed-assets-request.html")
+async def fixed_assets_request_html():
+    """Alias HTML para formulario de adquisicion de activos fijos."""
+    return RedirectResponse(url="/fixed-assets-request", status_code=307)
+
 
 @app.get("/clientes")
 async def clientes_page():
@@ -758,6 +828,111 @@ async def clientes_page():
 async def clientes_html():
     """Alias plural HTML hacia la ruta canonica de cliente."""
     return RedirectResponse(url="/cliente", status_code=307)
+
+
+def _smtp_env() -> Dict[str, Any]:
+    return {
+        "host": os.getenv("SMTP_HOST", "").strip(),
+        "port": int(os.getenv("SMTP_PORT", "587")),
+        "username": os.getenv("SMTP_USERNAME", "").strip(),
+        "password": os.getenv("SMTP_PASSWORD", ""),
+        "sender": os.getenv("SMTP_FROM", "").strip(),
+        "use_tls": os.getenv("SMTP_USE_TLS", "true").strip().lower() != "false",
+    }
+
+
+def _safe_text(value: Any, fallback: str = "No especificado") -> str:
+    text = str(value).strip() if value is not None else ""
+    return text if text else fallback
+
+
+def _build_fixed_assets_email_body(payload: Dict[str, Any]) -> str:
+    reemplaza_activo = _safe_text(payload.get("reemplazaActivo"), "No")
+    seccion_reemplazo = ""
+    if reemplaza_activo.lower() == "si" or reemplaza_activo.lower() == "sí":
+        seccion_reemplazo = (
+            "\nACTIVO A REEMPLAZAR\n"
+            f"- Descripcion: {_safe_text(payload.get('reemplazoDesc'))}\n"
+            f"- Antiguedad: {_safe_text(payload.get('reemplazoAntiguedad'))}\n"
+            f"- Motivo: {_safe_text(payload.get('reemplazoMotivo'))}\n"
+            f"- Disposicion: {_safe_text(payload.get('reemplazoDisposicion'))}\n"
+        )
+
+    return (
+        "Solicitud de Adquisicion de Activos Fijos\n"
+        "========================================\n\n"
+        f"ID Solicitud: {_safe_text(payload.get('id'))}\n"
+        f"Fecha: {_safe_text(payload.get('fecha'))}\n"
+        f"Departamento: {_safe_text(payload.get('departamento'))}\n"
+        f"Solicitante: {_safe_text(payload.get('solicitanteNombre'))}\n"
+        f"Cargo: {_safe_text(payload.get('solicitanteCargo'))}\n"
+        f"Aprobador Jefe: {_safe_text(payload.get('aprobadorJefe'))}\n\n"
+        "DETALLES DEL ACTIVO\n"
+        f"- Tipo: {_safe_text(payload.get('tipoActivo'))}\n"
+        f"- Descripcion: {_safe_text(payload.get('activoDesc'))}\n"
+        f"- Cantidad: {_safe_text(payload.get('activoCantidad'))}\n"
+        f"- Ubicacion: {_safe_text(payload.get('activoUbicacion'))}\n"
+        f"- Justificacion: {_safe_text(payload.get('activoJustificacion'))}\n"
+        f"- Reemplaza activo: {reemplaza_activo}\n"
+        f"{seccion_reemplazo}\n"
+        "INFORMACION FINANCIERA\n"
+        f"- Proveedor sugerido: {_safe_text(payload.get('proveedor'))}\n"
+        f"- Costo unitario estimado: {_safe_text(payload.get('costoUnitario'), '0')}\n"
+        f"- Costo total estimado: {_safe_text(payload.get('costoTotal'), '0.00')}\n"
+        f"- Fuente financiamiento: {_safe_text(payload.get('fuenteFinanciamiento'))}\n"
+        f"- Prioridad: {_safe_text(payload.get('prioridad'))}\n\n"
+        "FIRMAS\n"
+        f"- Solicitante: {_safe_text(payload.get('nombreEscritoSolicitante'))}\n"
+        f"- Gerencia: {_safe_text(payload.get('nombreEscritoGerencia'))}\n"
+        f"- Consejo: {_safe_text(payload.get('nombreEscritoConsejo'))}\n"
+    )
+
+
+@app.post("/api/v1/fixed-assets/send-email")
+async def send_fixed_assets_email(payload: Dict[str, Any]):
+    try:
+        smtp = _smtp_env()
+        required_missing = [
+            name
+            for name, value in (
+                ("SMTP_HOST", smtp["host"]),
+                ("SMTP_USERNAME", smtp["username"]),
+                ("SMTP_PASSWORD", smtp["password"]),
+                ("SMTP_FROM", smtp["sender"]),
+            )
+            if not value
+        ]
+
+        if required_missing:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Faltan variables SMTP: {', '.join(required_missing)}",
+            )
+
+        request_id = _safe_text(payload.get("id"), "SIN-ID")
+        subject = f"Solicitud Activo Fijo {request_id}"
+        body = _build_fixed_assets_email_body(payload)
+
+        message = EmailMessage()
+        message["From"] = smtp["sender"]
+        message["To"] = "jleonardo@acabados.com.do"
+        message["Subject"] = subject
+        message.set_content(body)
+
+        def _send_email_sync() -> None:
+            with smtplib.SMTP(smtp["host"], smtp["port"], timeout=20) as server:
+                if smtp["use_tls"]:
+                    server.starttls()
+                server.login(smtp["username"], smtp["password"])
+                server.send_message(message)
+
+        await asyncio.to_thread(_send_email_sync)
+        return {"ok": True, "message": "Correo enviado", "to": "jleonardo@acabados.com.do"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error enviando solicitud de activos por correo: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo enviar el correo")
 
 
 def _normalize_sucursal_slug(text: str) -> str:
@@ -854,7 +1029,7 @@ def _list_personalized_products_for_sucursal(db, sucursal_slug: str) -> List[dic
         return cached
     try:
         table_name = _safe_personalizados_table_for_sucursal(slug)
-        _ensure_personalizados_table(db, table_name)
+        _ensure_personalizados_table_once(db, table_name)
         cur = db.cursor()
         cur.execute(
             f"""
@@ -874,9 +1049,13 @@ def _list_personalized_products_for_sucursal(db, sucursal_slug: str) -> List[dic
                 "sucursal_slug": slug,
                 "personalizado": True,
             })
+
+
         _personalizados_cache_set(slug, items)
         return items
     except Exception as e:
+
+
         logger.warning(f"No se pudieron cargar personalizados DB para {slug}: {e}")
         return []
 
@@ -885,7 +1064,7 @@ def _get_personalized_product_by_code(db, sucursal_slug: str, codigo: str) -> Op
     slug = _normalize_sucursal_slug(sucursal_slug)
     try:
         table_name = _safe_personalizados_table_for_sucursal(slug)
-        _ensure_personalizados_table(db, table_name)
+        _ensure_personalizados_table_once(db, table_name)
         cur = db.cursor()
         cur.execute(
             f"""
@@ -918,8 +1097,10 @@ def _migrate_personalizados_csv_to_db_if_needed(db, sucursal_slug: str) -> None:
     if not os.path.exists(csv_path):
         return
 
+
+
     table_name = _safe_personalizados_table_for_sucursal(sucursal_slug)
-    _ensure_personalizados_table(db, table_name)
+    _ensure_personalizados_table_once(db, table_name)
     cur = db.cursor()
     cur.execute(f"SELECT COUNT(*) FROM {table_name}")
     existing = int((cur.fetchone() or [0])[0] or 0)
@@ -966,6 +1147,26 @@ def _resolve_sucursal_slug(db, username: Optional[str] = None, usuario_id: Optio
         return _normalize_sucursal_slug(sucursal_text)
 
     try:
+        if usuario_id is not None:
+            session_data = ACTIVE_SESSIONS.get(usuario_id)
+            if session_data:
+                session_slug = _normalize_sucursal_slug(str(session_data.get("sucursal_slug") or ""))
+                if session_slug and session_slug != "principal":
+                    return session_slug
+
+        if username:
+            user_cmp = (username or "").strip().lower()
+            for session_data in ACTIVE_SESSIONS.values():
+                session_user = str(session_data.get("username") or "").strip().lower()
+                if session_user != user_cmp:
+                    continue
+                session_slug = _normalize_sucursal_slug(str(session_data.get("sucursal_slug") or ""))
+                if session_slug and session_slug != "principal":
+                    return session_slug
+    except Exception:
+        pass
+
+    try:
         cur = db.cursor()
         if username:
             cur.execute(
@@ -980,7 +1181,10 @@ def _resolve_sucursal_slug(db, username: Optional[str] = None, usuario_id: Optio
             )
             row = cur.fetchone()
             if row and row[0]:
-                return _normalize_sucursal_slug(str(row[0]))
+                resolved = _normalize_sucursal_slug(str(row[0]))
+                if usuario_id is not None and usuario_id in ACTIVE_SESSIONS:
+                    ACTIVE_SESSIONS[usuario_id]["sucursal_slug"] = resolved
+                return resolved
 
         if usuario_id:
             cur.execute(
@@ -995,7 +1199,10 @@ def _resolve_sucursal_slug(db, username: Optional[str] = None, usuario_id: Optio
             )
             row = cur.fetchone()
             if row and row[0]:
-                return _normalize_sucursal_slug(str(row[0]))
+                resolved = _normalize_sucursal_slug(str(row[0]))
+                if usuario_id is not None and usuario_id in ACTIVE_SESSIONS:
+                    ACTIVE_SESSIONS[usuario_id]["sucursal_slug"] = resolved
+                return resolved
     except Exception:
         pass
 
@@ -1035,8 +1242,9 @@ def _resolve_requester_role(db, username: Optional[str] = None, usuario_id: Opti
         return _normalize_role_key(ACTIVE_SESSIONS[usuario_id].get("rol"))
 
     if username:
+        user_cmp = (username or "").strip().lower()
         for session_data in ACTIVE_SESSIONS.values():
-            if _normalize_role_key(session_data.get("username")) == _normalize_role_key(username):
+            if str(session_data.get("username") or "").strip().lower() == user_cmp:
                 return _normalize_role_key(session_data.get("rol"))
 
     try:
@@ -1232,6 +1440,13 @@ def _get_labelsapp_factura_items(db, table_name: str, factura: str, limit: int =
 
 
 def _get_table_columns(db, table_name: str) -> set:
+    cache_key = (table_name or "").strip().lower()
+    now = time.time()
+    with _table_columns_cache_lock:
+        entry = _table_columns_cache.get(cache_key)
+        if entry and (now - float(entry.get("ts") or 0)) <= TABLE_COLUMNS_CACHE_TTL_SEC:
+            return set(entry.get("columns") or set())
+
     cur = db.cursor()
     cur.execute(
         """
@@ -1241,7 +1456,13 @@ def _get_table_columns(db, table_name: str) -> set:
         """,
         (table_name,)
     )
-    return {r[0] for r in cur.fetchall()}
+    columns = {r[0] for r in cur.fetchall()}
+    with _table_columns_cache_lock:
+        _table_columns_cache[cache_key] = {
+            "ts": now,
+            "columns": columns,
+        }
+    return columns
 
 
 def _ensure_pedidos_table(db, table_name: str) -> None:
@@ -1279,6 +1500,9 @@ def _ensure_pedidos_table(db, table_name: str) -> None:
 
 
 def _pedidos_table_exists(db, table_name: str) -> bool:
+    ensure_key = f"pedidos:{(table_name or '').strip().lower()}"
+    if _ensure_once_key_done(ensure_key):
+        return True
     cur = db.cursor()
     cur.execute("SELECT to_regclass(%s)", (f"public.{table_name}",))
     row = cur.fetchone()
@@ -2106,7 +2330,7 @@ async def maintenance_work_orders_update(
 
 
 def _store_labelsapp_history(db, payload, sucursal_slug: str, operador_label: Optional[str], estado_envio: str = "Enviado") -> None:
-    _ensure_labelsapp_history_table(db)
+    _ensure_labelsapp_history_table_once(db)
     cur = db.cursor()
     total_items = len(payload.items or [])
     total_unidades = sum(max(1, int(item.cantidad or 1)) for item in (payload.items or []))
@@ -3499,7 +3723,7 @@ async def labelsapp_create_personalized_product(
     )
     _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
     table_name = _safe_personalizados_table_for_sucursal(requester_sucursal_slug)
-    _ensure_personalizados_table(db, table_name)
+    _ensure_personalizados_table_once(db, table_name)
     cur = db.cursor()
     cur.execute(
         f"SELECT 1 FROM {table_name} WHERE LOWER(TRIM(codigo)) = LOWER(TRIM(%s)) LIMIT 1",
@@ -3538,7 +3762,7 @@ async def labelsapp_delete_personalized_product(
 
     _migrate_personalizados_csv_to_db_if_needed(db, requester_sucursal_slug)
     table_name = _safe_personalizados_table_for_sucursal(requester_sucursal_slug)
-    _ensure_personalizados_table(db, table_name)
+    _ensure_personalizados_table_once(db, table_name)
     cur = db.cursor()
     cur.execute(
         f"DELETE FROM {table_name} WHERE LOWER(TRIM(codigo)) = LOWER(TRIM(%s))",
@@ -3658,7 +3882,7 @@ async def labelsapp_send(payload: LabelsAppSendRequest, db=Depends(get_db)):
         )
         table_name = _safe_table_for_sucursal(sucursal_slug)
 
-        _ensure_pedidos_table(db, table_name)
+        _ensure_pedidos_table_once(db, table_name)
         columns = _get_table_columns(db, table_name)
 
         inserted = 0
@@ -3936,7 +4160,7 @@ async def labelsapp_factura_items(
     try:
         sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
         table_name = _safe_table_for_sucursal(sucursal_slug)
-        _ensure_pedidos_table(db, table_name)
+        _ensure_pedidos_table_once(db, table_name)
         items = _get_labelsapp_factura_items(db, table_name, id_factura)
         return {
             "id_factura": id_factura,
@@ -3965,7 +4189,7 @@ async def labelsapp_factura_priority(
     try:
         sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
         table_name = _safe_table_for_sucursal(sucursal_slug)
-        _ensure_pedidos_table(db, table_name)
+        _ensure_pedidos_table_once(db, table_name)
         cur = db.cursor()
         cur.execute(
             f"""
@@ -4005,7 +4229,7 @@ async def labelsapp_factura_cancel(
     try:
         sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
         table_name = _safe_table_for_sucursal(sucursal_slug)
-        _ensure_pedidos_table(db, table_name)
+        _ensure_pedidos_table_once(db, table_name)
         cur = db.cursor()
         cur.execute(
             f"""
@@ -4051,7 +4275,7 @@ async def labelsapp_factura_replace_items(
 
         sucursal_slug = _resolve_sucursal_slug(db, username=username, usuario_id=usuario_id, sucursal_text=sucursal)
         table_name = _safe_table_for_sucursal(sucursal_slug)
-        _ensure_pedidos_table(db, table_name)
+        _ensure_pedidos_table_once(db, table_name)
         columns = _get_table_columns(db, table_name)
         cur = db.cursor()
 
@@ -4135,7 +4359,7 @@ async def labelsapp_history(
 ):
     """Obtener el historial de envíos de LabelsApp por día."""
     try:
-        _ensure_labelsapp_history_table(db)
+        _ensure_labelsapp_history_table_once(db)
         safe_limit = max(1, min(int(limit or 100), 500))
         cur = db.cursor()
         filters = []
@@ -4240,7 +4464,7 @@ async def labelsapp_mark_history_transfer(
 ):
     """Marcar un registro de historial como transferido desde Clientes/Kiosko."""
     try:
-        _ensure_labelsapp_history_table(db)
+        _ensure_labelsapp_history_table_once(db)
         cur = db.cursor()
 
         requester_role = _resolve_requester_role(db, username=username, usuario_id=usuario_id, role=role)
@@ -4375,10 +4599,22 @@ async def login(username: str, password: str, db=Depends(get_db)):
         cur = db.cursor()
         cur.execute(
             """
-            SELECT id, username, nombre_completo, email, password_hash, rol, sucursal_id, telefono, activo
+            SELECT
+                u.id,
+                u.username,
+                u.nombre_completo,
+                u.email,
+                u.password_hash,
+                u.rol,
+                u.sucursal_id,
+                u.telefono,
+                u.activo,
+                COALESCE(s.codigo, s.nombre, '') AS sucursal_nombre
             FROM usuarios
-            WHERE LOWER(TRIM(username)) = LOWER(TRIM(%s))
-            ORDER BY id DESC
+            u
+            LEFT JOIN sucursales s ON s.id = u.sucursal_id
+            WHERE LOWER(TRIM(u.username)) = LOWER(TRIM(%s))
+            ORDER BY u.id DESC
             LIMIT 1
             """,
             (username,)
@@ -4388,7 +4624,7 @@ async def login(username: str, password: str, db=Depends(get_db)):
         if not usuario:
             raise HTTPException(status_code=401, detail="Usuario o contraseña inválida")
         
-        usuario_id, db_username, nombre_completo, email, password_hash, rol, sucursal_id, telefono, activo = usuario
+        usuario_id, db_username, nombre_completo, email, password_hash, rol, sucursal_id, telefono, activo, sucursal_nombre = usuario
         rol_normalizado = (rol or "").strip().lower()
         
         # Verificar contraseña con SHA256
@@ -4407,12 +4643,6 @@ async def login(username: str, password: str, db=Depends(get_db)):
         
         # Registrar login en login_audits
         try:
-            # Obtener nombre de sucursal
-            cur2 = db.cursor()
-            cur2.execute("SELECT nombre FROM sucursales WHERE id = %s", (sucursal_id,))
-            sucursal_row = cur2.fetchone()
-            sucursal_nombre = sucursal_row[0] if sucursal_row else ""
-            
             # Registrar en login_audits
             cur.execute(
                 "INSERT INTO login_audits (usuario_id, username, nombre_completo, rol, sucursal, fecha_hora_login, created_at) VALUES (%s, %s, %s, %s, %s, NOW(), NOW())",
@@ -4429,6 +4659,7 @@ async def login(username: str, password: str, db=Depends(get_db)):
             "email": email,
             "rol": rol_normalizado,
             "sucursal_id": sucursal_id,
+            "sucursal_slug": _normalize_sucursal_slug(sucursal_nombre),
             "departamento": get_departamento(rol_normalizado),
             "ultima_actividad": time.time()
         }
