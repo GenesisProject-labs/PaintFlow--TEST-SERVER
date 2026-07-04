@@ -3176,6 +3176,28 @@ function getFilteredSucursalUsage(data, selectedZona) {
     return rows.filter(r => r.zona === selectedZona);
 }
 
+const DASHBOARD_TIMEZONE = 'America/Santo_Domingo';
+
+function parseServerDateTime(value) {
+    if (!value) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+    const hasOffset = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
+    const normalized = hasOffset ? raw : `${raw}Z`;
+    const dt = new Date(normalized);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function formatTimeNow() {
+    return new Date().toLocaleTimeString('es-DO', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+        timeZone: DASHBOARD_TIMEZONE,
+    });
+}
+
 function renderLabelsUsageTable(rows) {
     const usageBody = document.getElementById('labelsSucursalUsageBody');
     if (!usageBody) return;
@@ -3196,10 +3218,9 @@ function renderLabelsUsageTable(rows) {
 }
 
 function formatDateTimeSafe(isoText) {
-    if (!isoText) return 'Sin registro';
-    const dt = new Date(isoText);
-    if (Number.isNaN(dt.getTime())) return 'Sin registro';
-    return `${dt.toLocaleDateString('es-DO')} ${dt.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}`;
+    const dt = parseServerDateTime(isoText);
+    if (!dt) return 'Sin registro';
+    return `${dt.toLocaleDateString('es-DO', { timeZone: DASHBOARD_TIMEZONE })} ${dt.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: DASHBOARD_TIMEZONE })}`;
 }
 
 function renderZoneTopProductsTable(data, selectedZona) {
@@ -3315,8 +3336,17 @@ function renderLabelsCharts(data, selectedZona) {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: { display: true, position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => {
+                                const value = Number(ctx.parsed.y || 0);
+                                return `${ctx.dataset.label}: ${value.toLocaleString('es-DO')}`;
+                            }
+                        }
+                    },
                     title: {
                         display: true,
                         text: selectedZona === 'ALL'
@@ -3325,12 +3355,17 @@ function renderLabelsCharts(data, selectedZona) {
                     }
                 },
                 scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'Facturas' } },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Facturas' },
+                        ticks: { callback: (v) => Number(v).toLocaleString('es-DO') }
+                    },
                     y1: {
                         beginAtZero: true,
                         position: 'right',
                         grid: { drawOnChartArea: false },
-                        title: { display: true, text: 'Items' }
+                        title: { display: true, text: 'Items' },
+                        ticks: { callback: (v) => Number(v).toLocaleString('es-DO') }
                     }
                 }
             }
@@ -3365,8 +3400,17 @@ function renderLabelsCharts(data, selectedZona) {
                 responsive: true,
                 maintainAspectRatio: false,
                 indexAxis: 'y',
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => {
+                                const value = Number(ctx.parsed.x || 0);
+                                return `${ctx.dataset.label}: ${value.toLocaleString('es-DO')}`;
+                            }
+                        }
+                    },
                     title: {
                         display: true,
                         text: selectedZona === 'ALL'
@@ -3376,7 +3420,10 @@ function renderLabelsCharts(data, selectedZona) {
                 }
                 ,
                 scales: {
-                    x: { beginAtZero: true }
+                    x: {
+                        beginAtZero: true,
+                        ticks: { callback: (v) => Number(v).toLocaleString('es-DO') }
+                    }
                 }
             }
         });
@@ -3419,8 +3466,17 @@ function renderLabelsCharts(data, selectedZona) {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => {
+                                const value = Number(ctx.parsed.y || 0);
+                                return `${ctx.dataset.label}: ${value.toLocaleString('es-DO')}`;
+                            }
+                        }
+                    },
                     title: {
                         display: true,
                         text: selectedZona === 'ALL'
@@ -3429,12 +3485,17 @@ function renderLabelsCharts(data, selectedZona) {
                     }
                 },
                 scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'Minutos' } },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Minutos' },
+                        ticks: { callback: (v) => Number(v).toLocaleString('es-DO') }
+                    },
                     y1: {
                         beginAtZero: true,
                         position: 'right',
                         grid: { drawOnChartArea: false },
-                        title: { display: true, text: 'Órdenes' }
+                        title: { display: true, text: 'Órdenes' },
+                        ticks: { callback: (v) => Number(v).toLocaleString('es-DO') }
                     }
                 }
             }
@@ -3619,7 +3680,7 @@ async function updateLabelsAppUsageMetrics(options = {}) {
 
             if (!force && Number(cached.ageMs || 0) <= LABELS_METRICS_CLIENT_FRESH_MS) {
                 if (statusEl && !silent) {
-                    statusEl.textContent = `Actualizado (cache): ${new Date().toLocaleTimeString('es-DO')}`;
+                    statusEl.textContent = `Actualizado (cache): ${formatTimeNow()}`;
                 }
                 return;
             }
@@ -3645,11 +3706,8 @@ async function updateLabelsAppUsageMetrics(options = {}) {
 
         if (lastLoginEl) {
             if (data.last_login && data.last_login.fecha_hora_login) {
-                const dt = new Date(data.last_login.fecha_hora_login);
-                const fecha = dt.toLocaleDateString('es-DO');
-                const hora = dt.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
                 const username = data.last_login.username || 'N/A';
-                lastLoginEl.textContent = `${username} · ${fecha} ${hora}`;
+                lastLoginEl.textContent = `${username} · ${formatDateTimeSafe(data.last_login.fecha_hora_login)}`;
             } else {
                 lastLoginEl.textContent = 'Sin registros';
             }
@@ -3663,12 +3721,12 @@ async function updateLabelsAppUsageMetrics(options = {}) {
         const period = (labelsDateFrom || labelsDateTo)
             ? ` (${labelsDateFrom || '...'} a ${labelsDateTo || '...'})`
             : '';
-        if (statusEl) statusEl.textContent = `Actualizado${period}: ${new Date().toLocaleTimeString('es-DO')}`;
+        if (statusEl) statusEl.textContent = `Actualizado${period}: ${formatTimeNow()}`;
     } catch (e) {
         console.error('Error metrics labelsapp:', e);
         if (hadCached || !allowFallback) {
             if (statusEl) {
-                statusEl.textContent = `Mostrando cache por degradación temporal (${new Date().toLocaleTimeString('es-DO')})`;
+                statusEl.textContent = `Mostrando cache por degradación temporal (${formatTimeNow()})`;
             }
             return;
         }
@@ -3683,7 +3741,7 @@ async function updateLabelsAppUsageMetrics(options = {}) {
             updateLabelsZoneSelector(fallbackData);
             updateLabelsZoneView();
             if (statusEl) {
-                statusEl.textContent = `Modo fallback activo: métricas live por zonas (${new Date().toLocaleTimeString('es-DO')})`;
+                statusEl.textContent = `Modo fallback activo: métricas live por zonas (${formatTimeNow()})`;
             }
         } catch (fallbackError) {
             const lastLoginEl = document.getElementById('labelsLastLogin');
@@ -3951,17 +4009,14 @@ async function updateLoginActivityChart() {
         
         // Crear las filas de la tabla
         const rows = logins.map(login => {
-            // Formatear fecha y hora
-            const fecha = new Date(login.fecha_hora_login);
-            const hora = fecha.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            const fecha_str = fecha.toLocaleDateString('es-DO');
+            const fechaHora = formatDateTimeSafe(login.fecha_hora_login);
             
             return '<tr>' +
                 '<td style="padding: 10px; border: 1px solid #ddd;">' + (login.username || 'N/A') + '</td>' +
                 '<td style="padding: 10px; border: 1px solid #ddd;">' + (login.nombre_completo || 'N/A') + '</td>' +
                 '<td style="padding: 10px; border: 1px solid #ddd;">' + (login.rol || 'N/A') + '</td>' +
                 '<td style="padding: 10px; border: 1px solid #ddd;">' + (login.sucursal || 'N/A') + '</td>' +
-                '<td style="padding: 10px; border: 1px solid #ddd; font-weight: 500; color: #1a73e8;">' + fecha_str + ' ' + hora + '</td>' +
+                '<td style="padding: 10px; border: 1px solid #ddd; font-weight: 500; color: #1a73e8;">' + fechaHora + '</td>' +
                 '</tr>';
         });
         

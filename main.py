@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import json
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import csv
 import time
 import random
@@ -20,10 +20,33 @@ import unicodedata
 from threading import Lock
 from collections import defaultdict
 from typing import Optional, List, Dict, Any
+from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict
 from urllib.parse import urlencode, quote
 from urllib.request import Request as UrlRequest, urlopen
 from email.message import EmailMessage
+
+APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/Santo_Domingo")
+try:
+    BUSINESS_TZ = ZoneInfo(APP_TIMEZONE)
+except Exception:
+    BUSINESS_TZ = timezone.utc
+
+
+def _to_business_iso(dt: Optional[datetime]) -> Optional[str]:
+    if dt is None:
+        return None
+    try:
+        value = dt
+        if value.tzinfo is None:
+            # Convencion interna: timestamps DB sin tz se interpretan en UTC.
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(BUSINESS_TZ).isoformat()
+    except Exception:
+        try:
+            return dt.isoformat()
+        except Exception:
+            return None
 
 class FormulaNormalCreate(BaseModel):
     codigo_color: str
@@ -5507,7 +5530,7 @@ async def get_login_activity(limit: int = 50, db=Depends(get_db)):
                 "nombre_completo": a[2],
                 "rol": a[3],
                 "sucursal": a[4],
-                "fecha_hora_login": a[5].isoformat() if a[5] else None
+                "fecha_hora_login": _to_business_iso(a[5])
             }
             for a in audits
         ]
@@ -5821,7 +5844,7 @@ async def labelsapp_usage_metrics(
                     "nombre_completo": last_login_row[1],
                     "rol": last_login_row[2],
                     "sucursal": last_login_row[3],
-                    "fecha_hora_login": last_login_row[4].isoformat() if last_login_row[4] else None,
+                    "fecha_hora_login": _to_business_iso(last_login_row[4]),
                 }
 
             cur.execute(
@@ -5837,7 +5860,7 @@ async def labelsapp_usage_metrics(
                 key = _normalize_sucursal_slug(suc or "")
                 latest_login_by_sucursal[key] = {
                     "username": u,
-                    "fecha_hora_login": dt.isoformat() if dt else None,
+                    "fecha_hora_login": _to_business_iso(dt),
                 }
         except Exception:
             last_login = None
@@ -5890,6 +5913,7 @@ async def labelsapp_usage_metrics(
                 "date_from": date_from or "",
                 "date_to": date_to or "",
             },
+            "timezone": APP_TIMEZONE,
         }
         _usage_metrics_cache_set(cache_key, response_data)
         return response_data

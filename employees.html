@@ -1946,6 +1946,28 @@
             analystCurrentZona = selector.value;
         }
 
+        const DASHBOARD_TIMEZONE = 'America/Santo_Domingo';
+
+        function parseServerDateTime(value) {
+            if (!value) return null;
+            const raw = String(value).trim();
+            if (!raw) return null;
+            const hasOffset = /([zZ]|[+-]\d{2}:?\d{2})$/.test(raw);
+            const normalized = hasOffset ? raw : `${raw}Z`;
+            const dt = new Date(normalized);
+            return Number.isNaN(dt.getTime()) ? null : dt;
+        }
+
+        function formatTimeNow() {
+            return new Date().toLocaleTimeString('es-DO', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+                timeZone: DASHBOARD_TIMEZONE,
+            });
+        }
+
         function getFilteredSucursalUsage(data, selectedZona) {
             const rows = (data.sucursal_usage || []).map(row => ({
                 ...row,
@@ -1982,10 +2004,9 @@
         }
 
         function formatDateTimeSafe(isoText) {
-            if (!isoText) return 'Sin registro';
-            const dt = new Date(isoText);
-            if (Number.isNaN(dt.getTime())) return 'Sin registro';
-            return `${dt.toLocaleDateString('es-DO')} ${dt.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}`;
+            const dt = parseServerDateTime(isoText);
+            if (!dt) return 'Sin registro';
+            return `${dt.toLocaleDateString('es-DO', { timeZone: DASHBOARD_TIMEZONE })} ${dt.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: DASHBOARD_TIMEZONE })}`;
         }
 
         function formatTopProductoSafe(topProducto) {
@@ -2083,11 +2104,39 @@
                     data: {
                         labels: zoneRows.map(z => zoneKeyToLabel(z.zona)),
                         datasets: [
-                            { label: 'Facturas', data: zoneRows.map(z => Number(z.facturas || 0)), backgroundColor: '#1a73e8' },
-                            { label: 'Items', data: zoneRows.map(z => Number(z.items || 0)), backgroundColor: '#17a398' }
+                            {
+                                label: 'Facturas',
+                                data: zoneRows.map(z => Number(z.facturas || 0)),
+                                backgroundColor: '#1a73e8',
+                                borderRadius: 8,
+                                maxBarThickness: 34,
+                            },
+                            {
+                                label: 'Items',
+                                data: zoneRows.map(z => Number(z.items || 0)),
+                                backgroundColor: '#17a398',
+                                borderRadius: 8,
+                                maxBarThickness: 34,
+                            }
                         ]
                     },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Carga por Zona' } } }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            title: { display: true, text: 'Carga por Zona' },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.parsed.y || 0).toLocaleString('es-DO')}`,
+                                }
+                            }
+                        },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { callback: (v) => Number(v).toLocaleString('es-DO') } }
+                        }
+                    }
                 });
             }
 
@@ -2101,11 +2150,40 @@
                     data: {
                         labels: topSucRows.map(r => r.sucursal || 'N/A'),
                         datasets: [
-                            { label: 'Facturas', data: topSucRows.map(r => Number(r.facturas || 0)), backgroundColor: '#2563eb' },
-                            { label: 'Items', data: topSucRows.map(r => Number(r.items || 0)), backgroundColor: '#0ea5a4' }
+                            {
+                                label: 'Facturas',
+                                data: topSucRows.map(r => Number(r.facturas || 0)),
+                                backgroundColor: '#2563eb',
+                                borderRadius: 8,
+                                maxBarThickness: 28,
+                            },
+                            {
+                                label: 'Items',
+                                data: topSucRows.map(r => Number(r.items || 0)),
+                                backgroundColor: '#0ea5a4',
+                                borderRadius: 8,
+                                maxBarThickness: 28,
+                            }
                         ]
                     },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Top Sucursales por Uso' } } }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            title: { display: true, text: 'Top Sucursales por Uso' },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.parsed.x || 0).toLocaleString('es-DO')}`,
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { beginAtZero: true, ticks: { callback: (v) => Number(v).toLocaleString('es-DO') } }
+                        }
+                    }
                 });
             }
 
@@ -2117,17 +2195,51 @@
                     data: {
                         labels: zoneRows.map(z => zoneKeyToLabel(z.zona)),
                         datasets: [
-                            { label: 'Promedio finalización (min)', data: zoneRows.map(z => Number(z.avg_completion_minutes || 0)), backgroundColor: '#f59e0b' },
-                            { label: 'Órdenes finalizadas', type: 'line', data: zoneRows.map(z => Number(z.ordenes_finalizadas || 0)), borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,0.2)', yAxisID: 'y1' }
+                            {
+                                label: 'Promedio finalización (min)',
+                                data: zoneRows.map(z => Number(z.avg_completion_minutes || 0)),
+                                backgroundColor: '#f59e0b',
+                                borderRadius: 8,
+                                maxBarThickness: 34,
+                            },
+                            {
+                                label: 'Órdenes finalizadas',
+                                type: 'line',
+                                data: zoneRows.map(z => Number(z.ordenes_finalizadas || 0)),
+                                borderColor: '#0f766e',
+                                backgroundColor: 'rgba(15,118,110,0.2)',
+                                borderWidth: 3,
+                                tension: 0.3,
+                                yAxisID: 'y1',
+                            }
                         ]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Tiempo de Finalización por Zona' } },
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            title: { display: true, text: 'Tiempo de Finalización por Zona' },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.parsed.y || 0).toLocaleString('es-DO')}`,
+                                }
+                            }
+                        },
                         scales: {
-                            y: { beginAtZero: true, title: { display: true, text: 'Minutos' } },
-                            y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Órdenes' } }
+                            y: {
+                                beginAtZero: true,
+                                title: { display: true, text: 'Minutos' },
+                                ticks: { callback: (v) => Number(v).toLocaleString('es-DO') }
+                            },
+                            y1: {
+                                beginAtZero: true,
+                                position: 'right',
+                                grid: { drawOnChartArea: false },
+                                title: { display: true, text: 'Órdenes' },
+                                ticks: { callback: (v) => Number(v).toLocaleString('es-DO') }
+                            }
                         }
                     }
                 });
@@ -2185,7 +2297,7 @@
                 const period = (analystDateFrom || analystDateTo)
                     ? ` (${analystDateFrom || '...'} a ${analystDateTo || '...'})`
                     : '';
-                status.textContent = `Actualizado${period} (${selectedZona === 'ALL' ? 'Todas las Zonas' : zoneKeyToLabel(selectedZona)}): ${new Date().toLocaleTimeString('es-DO')}`;
+                status.textContent = `Actualizado${period} (${selectedZona === 'ALL' ? 'Todas las Zonas' : zoneKeyToLabel(selectedZona)}): ${formatTimeNow()}`;
             }
         }
 
@@ -2213,7 +2325,7 @@
             }
             updateAnalystZoneView();
 
-            if (status) status.textContent = `Actualizado: ${new Date().toLocaleTimeString('es-DO')}`;
+            if (status) status.textContent = `Actualizado: ${formatTimeNow()}`;
         }
 
         function isAnalystDashboardOpen() {
@@ -2239,7 +2351,7 @@
                 const cacheIsVeryFresh = (Date.now() - analystLastFetchMs) < 30000;
                 if (cacheIsVeryFresh && !force) {
                     if (!silent && status) {
-                        status.textContent = `Actualizado (cache): ${new Date().toLocaleTimeString('es-DO')}`;
+                        status.textContent = `Actualizado (cache): ${formatTimeNow()}`;
                     }
                     return;
                 }
@@ -2261,7 +2373,7 @@
                     const period = (analystDateFrom || analystDateTo)
                         ? ` (${analystDateFrom || '...'} a ${analystDateTo || '...'})`
                         : '';
-                    status.textContent = `Actualizado${period}: ${new Date().toLocaleTimeString('es-DO')}`;
+                    status.textContent = `Actualizado${period}: ${formatTimeNow()}`;
                 }
             } catch (err) {
                 try {
@@ -2271,7 +2383,7 @@
                     analystLastFetchMs = Date.now();
                     renderAnalystDashboard(fallback);
                     if ((!silent || isAnalystDashboardOpen()) && status) {
-                        status.textContent = `Modo fallback activo: métricas live por zonas (${new Date().toLocaleTimeString('es-DO')})`;
+                        status.textContent = `Modo fallback activo: métricas live por zonas (${formatTimeNow()})`;
                     }
                 } catch (fallbackErr) {
                     if ((!silent || isAnalystDashboardOpen()) && status) {
