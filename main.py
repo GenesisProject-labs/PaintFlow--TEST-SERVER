@@ -20,7 +20,7 @@ import unicodedata
 from threading import Lock
 from collections import defaultdict
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from urllib.parse import urlencode, quote
 from urllib.request import Request as UrlRequest, urlopen
 from email.message import EmailMessage
@@ -34,17 +34,17 @@ class FormulaNormalCreate(BaseModel):
     x128s: float = 0
     tipo: str = "galon"
 
-    class Config:
-        # Permitir alias para campos que empiezan con números
-        allow_population_by_field_name = True
-        
-        schema_extra = {
+    # Compatibilidad Pydantic v2 (elimina warnings de Config legacy).
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
             "properties": {
                 "_32s": {"type": "number", "default": 0},
-                "_64s": {"type": "number", "default": 0}, 
-                "_128s": {"type": "number", "default": 0}
+                "_64s": {"type": "number", "default": 0},
+                "_128s": {"type": "number", "default": 0},
             }
-        }
+        },
+    )
 
 # Modelos Pydantic
 class SucursalUpdate(BaseModel):
