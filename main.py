@@ -987,6 +987,19 @@ def _normalize_sucursal_slug(text: str) -> str:
     return norm or "principal"
 
 
+def _canonical_sucursal_slug(text: str) -> str:
+    """Unifica variantes historicas de nombres/codigos de sucursal."""
+    slug = _normalize_sucursal_slug(text)
+    aliases = {
+        "santiago1": "santiago_bartolome_colon",
+        "bartolome_colon": "santiago_bartolome_colon",
+        "santiago_bartolome": "santiago_bartolome_colon",
+        "terrena": "terrenas",
+        "rafaelvidal": "rafael_vidal",
+    }
+    return aliases.get(slug, slug)
+
+
 def _safe_table_for_sucursal(sucursal_slug: str) -> str:
     slug = _normalize_sucursal_slug(sucursal_slug)
     if not re.match(r"^[a-z0-9_]+$", slug):
@@ -5638,7 +5651,8 @@ async def labelsapp_usage_metrics(
                 if not re.match(r"^pedidos_pendientes_[a-z0-9_]+$", table_name):
                     continue
 
-                sucursal_slug = table_name.replace("pedidos_pendientes_", "").strip() or "principal"
+                raw_sucursal_slug = table_name.replace("pedidos_pendientes_", "").strip() or "principal"
+                sucursal_slug = _canonical_sucursal_slug(raw_sucursal_slug)
 
                 table_columns = columns_by_table.get(table_name, set())
                 factura_col = "id_factura" if "id_factura" in table_columns else None
@@ -5688,11 +5702,14 @@ async def labelsapp_usage_metrics(
                 facturas_count = int(facts_row[0] or 0)
                 items_count = int(facts_row[1] or 0)
 
-                sucursal_totals[sucursal_slug] = {
+                bucket = sucursal_totals.get(sucursal_slug, {
                     "sucursal_slug": sucursal_slug,
-                    "facturas": facturas_count,
-                    "items": items_count,
-                }
+                    "facturas": 0,
+                    "items": 0,
+                })
+                bucket["facturas"] += facturas_count
+                bucket["items"] += items_count
+                sucursal_totals[sucursal_slug] = bucket
                 total_facturas += facturas_count
                 total_items += items_count
 
@@ -5876,7 +5893,7 @@ async def labelsapp_usage_metrics(
                 """
             )
             for u, suc, dt in cur.fetchall() or []:
-                key = _normalize_sucursal_slug(suc or "")
+                key = _canonical_sucursal_slug(suc or "")
                 latest_login_by_sucursal[key] = {
                     "username": u,
                     "fecha_hora_login": _to_business_iso(dt),

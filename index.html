@@ -2218,13 +2218,13 @@ let editingEmpleadoId = null;
 const zonas = {
     "Santo_Domingo": ["Bella Vista", "Churchill", "Tiradentes", "San Martin", "Luperon", "Arroyo Hondo", "San Isidro", "Alameda", "Zona Oriental", "Villa Mella"],
     "Zona_Este": ["Romana", "Punta Cana", "Bavaro"],
-    "Zona_Norte": ["La Vega", "Puerto Plata", "San Francisco", "Terrenas", "Rafael Vidal", "Santiago Bartolome Colon"],
+    "Zona_Norte": ["La Vega", "Puerto Plata", "San Francisco", "Terrena", "Terrenas", "Rafael Vidal", "Bartolome Colon", "Santiago Bartolome Colon"],
     "Zona_Sur": ["Bani"]
 };
 
 const ADMIN_STORE_ZONAS = {
     Santo_Domingo: ['Tiradentes', 'Luperon', 'Churchill', 'Bella Vista', 'Zona Oriental', 'Arroyo Hondo', 'San Isidro', 'Villa Mella', 'Alameda', 'San Martin'],
-    Zona_Norte: ['Rafael Vidal', 'Rafel Vidal', 'Bartolome Colon', 'Santiago Bartolome Colon', 'Puerto Plata', 'Samana', 'Samaná', 'San Francisco', 'La Vega'],
+    Zona_Norte: ['Rafael Vidal', 'Rafel Vidal', 'Bartolome Colon', 'Santiago Bartolome Colon', 'Puerto Plata', 'Samana', 'Samaná', 'San Francisco', 'La Vega', 'Terrena', 'Terrenas'],
     Zona_Sur: ['Bani'],
     Zona_Este: ['Punta Cana', 'Romana', 'Bavaro']
 };
@@ -3063,18 +3063,21 @@ function getZonaFromSucursalName(sucursalName) {
 function isAdminStoreSucursal(sucursal) {
     if (!sucursal) return false;
     const nombre = sucursal.nombre || sucursal.sucursal_nombre || sucursal.name || '';
-    const raw = String(nombre || '');
-    const normalized = normalizeTextBasic(raw);
-    if ((normalized === 'bani' || normalized === 'bavaro') && /[íá]/i.test(raw)) return false;
     const target = normalizeTextBasic(nombre);
     if (!target) return false;
+
+    // Bloquear no-sucursales operativas en el dashboard.
+    if (/\b(departamento|gerencia|despacho|reserva|prueba|test|otrotest|pc)\b/.test(target)) return false;
 
     if (ADMIN_STORE_TO_ZONE.has(target)) return true;
 
     const zonaField = toSubtabZoneKey(sucursal.zona || sucursal.zona_nombre || sucursal.region || '');
     if (ADMIN_STORE_ZONE_KEYS.includes(zonaField)) {
-        return (ADMIN_STORE_ZONAS[zonaField] || []).some(name => normalizeTextBasic(name) === target);
+        return true;
     }
+
+    const zonaFromName = getZonaFromSucursalName(nombre);
+    if (ADMIN_STORE_ZONE_KEYS.includes(zonaFromName)) return true;
 
     return false;
 }

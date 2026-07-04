@@ -1631,7 +1631,7 @@
 
         const ANALYST_ZONAS = {
             Santo_Domingo: ['Tiradentes', 'Luperon', 'Churchill', 'Bella Vista', 'Zona Oriental', 'Arroyo Hondo', 'San Isidro', 'Villa Mella', 'Alameda', 'San Martin'],
-            Zona_Norte: ['Rafael Vidal', 'Rafel Vidal', 'Bartolome Colon', 'Santiago Bartolome Colon', 'Puerto Plata', 'Samana', 'San Francisco', 'La Vega'],
+            Zona_Norte: ['Rafael Vidal', 'Rafel Vidal', 'Bartolome Colon', 'Santiago Bartolome Colon', 'Puerto Plata', 'Samana', 'San Francisco', 'La Vega', 'Terrena', 'Terrenas'],
             Zona_Sur: ['Bani'],
             Zona_Este: ['Punta Cana', 'Romana', 'Bavaro']
         };
@@ -1651,6 +1651,10 @@
             map.set(normalizeTextBasic('Sanmartin'), 'Santo_Domingo');
             map.set(normalizeTextBasic('Puntacana'), 'Zona_Este');
             map.set(normalizeTextBasic('Rafaelvidal'), 'Zona_Norte');
+            map.set(normalizeTextBasic('Terrena'), 'Zona_Norte');
+            map.set(normalizeTextBasic('Terrenas'), 'Zona_Norte');
+            map.set(normalizeTextBasic('Bartolomecolon'), 'Zona_Norte');
+            map.set(normalizeTextBasic('Santiago1'), 'Zona_Norte');
             return map;
         })();
 
@@ -1663,6 +1667,11 @@
         })();
 
         function resolveAnalystZona(name, zonaHint = '') {
+            const hintedZone = toSubtabZoneKey(zonaHint);
+            if (ANALYST_ZONE_KEYS.includes(hintedZone)) {
+                return hintedZone;
+            }
+
             const target = normalizeTextBasic(name);
             if (!target) return 'Sin_Zona';
             if (ANALYST_SUCURSAL_TO_ZONE.has(target)) {
@@ -1672,11 +1681,6 @@
             const compactTarget = target.replace(/\s+/g, '');
             if (ANALYST_SUCURSAL_TO_ZONE_COMPACT.has(compactTarget)) {
                 return ANALYST_SUCURSAL_TO_ZONE_COMPACT.get(compactTarget);
-            }
-
-            const hintedZone = toSubtabZoneKey(zonaHint);
-            if (ANALYST_ZONE_KEYS.includes(hintedZone) && ANALYST_SUCURSAL_TO_ZONE.has(target)) {
-                return hintedZone;
             }
 
             return 'Sin_Zona';
