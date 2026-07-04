@@ -992,6 +992,7 @@ def _canonical_sucursal_slug(text: str) -> str:
     slug = _normalize_sucursal_slug(text)
     aliases = {
         "santiago1": "santiago_bartolome_colon",
+        "santiago_1": "santiago_bartolome_colon",
         "bartolome_colon": "santiago_bartolome_colon",
         "santiago_bartolome": "santiago_bartolome_colon",
         "terrena": "terrenas",
