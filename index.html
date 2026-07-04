@@ -2979,6 +2979,32 @@ function normalizeTextBasic(text) {
         .trim();
 }
 
+function getSucursalCanonicalKey(name) {
+    const base = normalizeTextBasic(name)
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    const aliases = {
+        santiago1: 'bartolome_colon',
+        santiago_bartolome_colon: 'bartolome_colon',
+        bartolome_colon: 'bartolome_colon',
+        terrenas: 'terrena',
+        terrena: 'terrena',
+        rafaelvidal: 'rafael_vidal',
+        rafael_vidal: 'rafael_vidal',
+    };
+    return aliases[base] || base;
+}
+
+function getSucursalDisplayName(name) {
+    const key = getSucursalCanonicalKey(name);
+    const labels = {
+        bartolome_colon: 'Bartolome Colon',
+        terrena: 'Terrena',
+        rafael_vidal: 'Rafael Vidal',
+    };
+    return labels[key] || String(name || '').trim();
+}
+
 function getLabelsDateFilterKey() {
     return `${labelsDateFrom || ''}|${labelsDateTo || ''}`;
 }
@@ -3083,7 +3109,23 @@ function isAdminStoreSucursal(sucursal) {
 }
 
 function getAdminStoreSucursales() {
-    return (allSucursales || []).filter(isAdminStoreSucursal);
+    const filtered = (allSucursales || []).filter(isAdminStoreSucursal);
+    const byCanonical = new Map();
+    filtered.forEach((s) => {
+        const key = getSucursalCanonicalKey(s.nombre || s.sucursal_nombre || s.name || '');
+        if (!key) return;
+        const existing = byCanonical.get(key);
+        const currentActive = !!(s.activo === true || s.activo === 1 || String(s.estado || '').toLowerCase() === 'activa');
+        if (!existing) {
+            byCanonical.set(key, s);
+            return;
+        }
+        const existingActive = !!(existing.activo === true || existing.activo === 1 || String(existing.estado || '').toLowerCase() === 'activa');
+        if (!existingActive && currentActive) {
+            byCanonical.set(key, s);
+        }
+    });
+    return Array.from(byCanonical.values());
 }
 
 function sucursalBelongsToZona(sucursal, zonaKey) {
@@ -3978,7 +4020,8 @@ function renderZonaSucursales(zona) {
     if (sucursalesFiltradas.length > 0) {
         tableBody.innerHTML = sucursalesFiltradas.map(s => {
             const isActive = s.estado === "activa" || s.estado === "Activa";
-            return '<tr><td><strong>' + s.nombre + '</strong></td><td><strong>' + zona.replace('_', ' ') + '</strong></td><td>' + s.direccion + '</td><td>' + s.telefono + '</td><td><span class="' + (isActive ? 'status-active' : 'status-inactive') + '">' + (isActive ? 'Activa' : 'Inactiva') + '</span></td><td><button class="btn-edit" onclick="editarSucursal(' + s.id + ')">Editar</button></td></tr>';
+            const nombreVista = getSucursalDisplayName(s.nombre || s.sucursal_nombre || s.name || '');
+            return '<tr><td><strong>' + nombreVista + '</strong></td><td><strong>' + zona.replace('_', ' ') + '</strong></td><td>' + s.direccion + '</td><td>' + s.telefono + '</td><td><span class="' + (isActive ? 'status-active' : 'status-inactive') + '">' + (isActive ? 'Activa' : 'Inactiva') + '</span></td><td><button class="btn-edit" onclick="editarSucursal(' + s.id + ')">Editar</button></td></tr>';
         }).join("");
     } else {
         tableBody.innerHTML = "<tr><td colspan='6' style='text-align:center;'>No hay sucursales en esta zona</td></tr>";

@@ -1744,19 +1744,23 @@
         function extraerSucursalesUnicas() {
             // Solo tiendas operativas; todo lo demás queda fuera.
             if (allSucursales && allSucursales.length > 0) {
-                sucursalesUnicas = allSucursales
-                    .filter(s => isValidAnalystSucursal(s.nombre || s.sucursal_nombre || s.name, s.zona || s.zona_nombre || s.region))
-                    .map(s => s.nombre || s.sucursal_nombre || s.name)
-                    .filter(Boolean)
-                    .sort();
+                const byCanonical = new Map();
+                allSucursales.forEach(s => {
+                    const rawName = s.nombre || s.sucursal_nombre || s.name;
+                    if (!isValidAnalystSucursal(rawName, s.zona || s.zona_nombre || s.region)) return;
+                    const key = getSucursalCanonicalKey(rawName);
+                    if (!key || byCanonical.has(key)) return;
+                    byCanonical.set(key, getSucursalDisplayName(rawName));
+                });
+                sucursalesUnicas = Array.from(byCanonical.values()).sort((a, b) => a.localeCompare(b, 'es'));
             } else {
                 const sucursalesSet = new Set();
                 allEmpleados.forEach(e => {
                     if (e.sucursal_nombre && isValidAnalystSucursal(e.sucursal_nombre, e.zona || e.zona_nombre || e.region)) {
-                        sucursalesSet.add(e.sucursal_nombre);
+                        sucursalesSet.add(getSucursalDisplayName(e.sucursal_nombre));
                     }
                 });
-                sucursalesUnicas = Array.from(sucursalesSet).sort();
+                sucursalesUnicas = Array.from(sucursalesSet).sort((a, b) => a.localeCompare(b, 'es'));
             }
         }
         
@@ -1792,7 +1796,8 @@
             container.innerHTML = '';
             
             sucursalesUnicas.forEach((sucursal, index) => {
-                const empleadosSucursal = allEmpleados.filter(e => e.sucursal_nombre === sucursal);
+                const targetKey = getSucursalCanonicalKey(sucursal);
+                const empleadosSucursal = allEmpleados.filter(e => getSucursalCanonicalKey(e.sucursal_nombre) === targetKey);
                 
                 const div = document.createElement('div');
                 div.id = 'sucursal-' + sucursal.replace(/\s+/g, '-');
@@ -2411,6 +2416,32 @@
                 .trim();
         }
 
+        function getSucursalCanonicalKey(name) {
+            const base = normalizeTextBasic(name)
+                .replace(/[^a-z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, '');
+            const aliases = {
+                santiago1: 'bartolome_colon',
+                santiago_bartolome_colon: 'bartolome_colon',
+                bartolome_colon: 'bartolome_colon',
+                terrenas: 'terrena',
+                terrena: 'terrena',
+                rafaelvidal: 'rafael_vidal',
+                rafael_vidal: 'rafael_vidal',
+            };
+            return aliases[base] || base;
+        }
+
+        function getSucursalDisplayName(name) {
+            const key = getSucursalCanonicalKey(name);
+            const labels = {
+                bartolome_colon: 'Bartolome Colon',
+                terrena: 'Terrena',
+                rafael_vidal: 'Rafael Vidal',
+            };
+            return labels[key] || String(name || '').trim();
+        }
+
         function getAnalystDateFilterKey() {
             return `${analystDateFrom || ''}|${analystDateTo || ''}`;
         }
@@ -2682,7 +2713,7 @@
                 sucursalesUnicas.forEach((sucursal, index) => {
                     const option = document.createElement('option');
                     // Buscar el ID de la sucursal en los empleados
-                    const empleadoEnSucursal = allEmpleados.find(e => e.sucursal_nombre === sucursal);
+                    const empleadoEnSucursal = allEmpleados.find(e => getSucursalCanonicalKey(e.sucursal_nombre) === getSucursalCanonicalKey(sucursal));
                     option.value = empleadoEnSucursal ? empleadoEnSucursal.sucursal_id : index;
                     option.textContent = sucursal;
                     sel.appendChild(option);
