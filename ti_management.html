@@ -1,0 +1,1993 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PaintFlow, Modulo de Gestion TI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --nav-bg: #11182d;
+            --nav-accent: #5a57ff;
+            --nav-accent-soft: rgba(90, 87, 255, 0.18);
+            --app-bg: #f4f6fb;
+            --panel-bg: #ffffff;
+            --panel-muted: #f8f9fd;
+            --line: #e8ecf6;
+            --text: #1a2440;
+            --muted: #78839b;
+            --success: #29c36a;
+            --warning: #ffaf2e;
+            --danger: #ff5b5b;
+            --info: #4a7dff;
+            --shadow: 0 18px 44px rgba(20, 38, 84, 0.08);
+            --radius-xl: 24px;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Manrope, sans-serif;
+            color: var(--text);
+            background: radial-gradient(circle at top right, rgba(90, 87, 255, 0.08), transparent 28%), linear-gradient(180deg, #f8f9ff 0%, var(--app-bg) 100%);
+            min-height: 100vh;
+        }
+        .app-shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100vh; }
+        .sidebar {
+            background: linear-gradient(180deg, #141b33 0%, #10172d 100%);
+            color: #fff;
+            padding: 26px 18px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: min(320px, 88vw);
+            height: 100vh;
+            z-index: 90;
+            box-shadow: -24px 0 48px rgba(8, 12, 24, 0.26);
+            transform: translateX(100%);
+            transition: transform 0.24s ease;
+            overflow-y: auto;
+        }
+        .sidebar.mobile-open {
+            transform: translateX(0);
+        }
+        .page-heading {
+            display: none;
+        }
+        .brand { display: flex; align-items: center; gap: 12px; padding: 4px 10px 18px; }
+        .mobile-nav-toggle {
+            display: inline-flex;
+            height: 38px;
+            border-radius: 10px;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 1.2rem;
+            line-height: 1;
+        }
+        .mobile-nav-toggle:hover { background: transparent; }
+        .menu-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(9, 15, 31, 0.42);
+            backdrop-filter: blur(2px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.22s ease;
+            z-index: 80;
+        }
+        .menu-backdrop.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .brand-mark {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            object-fit: contain;
+            background: rgba(255,255,255,0.95);
+            padding: 3px;
+            box-shadow: 0 8px 18px rgba(8, 12, 24, 0.28);
+        }
+        .brand-copy h1 { margin: 0; font-family: Space Grotesk, sans-serif; font-size: 1.28rem; }
+        .brand-copy p { margin: 4px 0 0; color: rgba(255,255,255,0.68); font-size: 0.8rem; }
+        .side-section-label {
+            font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.44); padding: 0 10px;
+        }
+        .side-nav { display: grid; gap: 8px; }
+        .side-nav button {
+            border: none; border-radius: 14px; background: transparent; color: rgba(255,255,255,0.82); text-align: left; padding: 13px 14px;
+            font: inherit; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: background 0.18s ease, transform 0.18s ease;
+        }
+        .side-nav button:hover { background: rgba(255,255,255,0.07); transform: translateX(1px); }
+        .side-nav button.active {
+            background: linear-gradient(135deg, var(--nav-accent-soft) 0%, rgba(90, 87, 255, 0.32) 100%);
+            color: #fff; box-shadow: inset 0 0 0 1px rgba(118, 116, 255, 0.26);
+        }
+        .nav-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: 0.75; }
+        .content-area { padding: 18px 18px 24px; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+        .topbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+        .topbar-brand .brand-mark {
+            background: #ffffff;
+            box-shadow: var(--shadow);
+        }
+        .topbar-brand .brand-copy p {
+            color: var(--muted);
+        }
+        .page-heading h2 { margin: 0; font-family: Space Grotesk, sans-serif; font-size: 1.9rem; }
+        .page-heading p { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-left: auto;
+        }
+        .search-box {
+            min-width: 320px; display: flex; align-items: center; gap: 10px; background: var(--panel-bg); border: 1px solid var(--line); border-radius: 16px;
+            padding: 0 14px; box-shadow: var(--shadow);
+        }
+        .search-box input { flex: 1; border: none; background: transparent; padding: 12px 0; font: inherit; color: var(--text); }
+        .search-box input:focus { outline: none; }
+        .icon-btn, .primary-btn, .ghost-btn, .mini-btn, .menu-btn {
+            border: none; cursor: pointer; font: inherit; transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+        .icon-btn:hover, .primary-btn:hover, .ghost-btn:hover, .mini-btn:hover, .menu-btn:hover { transform: translateY(-1px); }
+        .icon-btn {
+            width: 42px; height: 42px; border-radius: 14px; background: var(--panel-bg); border: 1px solid var(--line); box-shadow: var(--shadow); color: var(--muted);
+        }
+        .refresh-btn {
+            border-radius: 14px;
+            padding: 0 14px;
+            height: 42px;
+            background: var(--panel-bg);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+            color: var(--muted);
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .user-dropdown {
+            position: relative;
+            margin-top: auto;
+            width: 100%;
+        }
+        .menu-btn {
+            display: flex; align-items: center; gap: 10px; padding: 7px 10px 7px 7px; border-radius: 16px; background: var(--panel-bg); border: 1px solid var(--line); box-shadow: var(--shadow);
+            color: var(--text); font-weight: 700;
+        }
+        .sidebar .menu-btn {
+            width: 100%;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #fff;
+            box-shadow: none;
+        }
+        .menu-avatar {
+            width: 34px; height: 34px; border-radius: 12px; background: #eef2ff; display: grid; place-items: center; color: var(--nav-accent); font-weight: 800;
+        }
+        .dropdown {
+            position: absolute; top: calc(100% + 8px); right: 0; min-width: 220px; border-radius: 18px; background: var(--panel-bg); border: 1px solid var(--line); box-shadow: var(--shadow);
+            overflow: hidden; display: none; z-index: 20;
+        }
+        .sidebar .dropdown {
+            top: auto;
+            right: 0;
+            left: auto;
+            bottom: calc(100% + 8px);
+            min-width: 220px;
+            max-width: min(260px, calc(100vw - 48px));
+        }
+        .dropdown.active { display: block; }
+        .dropdown button {
+            width: 100%; border: none; background: transparent; padding: 12px 14px; text-align: left; font: inherit; font-weight: 600; color: var(--text); cursor: pointer;
+        }
+        .dropdown button:hover { background: #f7f8fd; }
+        .panel { display: none; }
+        .panel.active { display: block; }
+        .cards-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+        .metric-card {
+            background: var(--panel-bg); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); display: grid; gap: 10px;
+        }
+        .metric-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+        .metric-icon { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; font-weight: 800; }
+        .metric-icon.info { background: rgba(74,125,255,0.12); color: var(--info); }
+        .metric-icon.warning { background: rgba(255,175,46,0.14); color: #f38d00; }
+        .metric-icon.danger { background: rgba(255,91,91,0.14); color: var(--danger); }
+        .metric-icon.success { background: rgba(41,195,106,0.14); color: var(--success); }
+        .metric-icon.maintenance { background: rgba(90,87,255,0.12); color: var(--nav-accent); }
+        .metric-title { color: var(--muted); font-size: 0.84rem; font-weight: 700; }
+        .metric-value { font-family: Space Grotesk, sans-serif; font-size: 2rem; line-height: 1; margin-top: 4px; }
+        .metric-link { color: var(--nav-accent); font-size: 0.84rem; font-weight: 700; }
+        .metric-link button { border: none; background: transparent; color: inherit; padding: 0; font: inherit; font-weight: inherit; cursor: pointer; }
+        .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) 360px; gap: 14px; }
+        .stack { display: grid; gap: 14px; }
+        .panel-card {
+            background: var(--panel-bg); border: 1px solid var(--line); border-radius: var(--radius-xl); box-shadow: var(--shadow); overflow: hidden;
+        }
+        .card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 18px 18px 14px; }
+        .card-header h3 { margin: 0; font-size: 1.1rem; font-weight: 800; }
+        .card-header span, .card-header button {
+            color: var(--nav-accent); font-size: 0.8rem; font-weight: 700; border: none; background: transparent; cursor: pointer;
+        }
+        .card-header .inventory-register-btn {
+            color: #fff;
+            background: linear-gradient(135deg, #2fbe63 0%, #1fa750 100%);
+            box-shadow: 0 14px 28px rgba(41,195,106,0.24);
+            padding: 12px 16px;
+        }
+        .card-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .card-body { padding: 0 18px 18px; }
+        .assets-inventory-layout {
+            display: grid;
+            grid-template-columns: 220px minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+        }
+        .asset-filter-panel {
+            border: 1px solid rgba(90, 87, 255, 0.08);
+            border-radius: 20px;
+            background: linear-gradient(180deg, #fcfdff 0%, #f7f9ff 100%);
+            padding: 16px;
+            display: grid;
+            gap: 12px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+        }
+        .asset-filter-list {
+            display: grid;
+            gap: 8px;
+        }
+        .asset-filter-btn {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: #fff;
+            padding: 12px 13px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            color: var(--text);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+        .asset-filter-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 22px rgba(20, 38, 84, 0.08);
+            border-color: rgba(90,87,255,0.2);
+        }
+        .asset-filter-btn.active {
+            background: linear-gradient(135deg, rgba(90,87,255,0.14) 0%, rgba(74,125,255,0.1) 100%);
+            border-color: rgba(90,87,255,0.34);
+            color: #23336a;
+            box-shadow: 0 14px 28px rgba(90,87,255,0.14);
+        }
+        .asset-filter-btn-label {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+        .asset-filter-btn-label strong {
+            font-size: 0.87rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .asset-filter-count {
+            flex: 0 0 auto;
+            min-width: 36px;
+            padding: 6px 8px;
+            border-radius: 999px;
+            background: #eef2fb;
+            color: #61708e;
+            font-size: 0.74rem;
+            font-weight: 800;
+            text-align: center;
+        }
+        .asset-filter-btn.active .asset-filter-count {
+            background: rgba(90,87,255,0.16);
+            color: #3246a8;
+        }
+        .asset-filter-summary {
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+            padding-top: 2px;
+        }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td {
+            padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 0.86rem; vertical-align: top;
+        }
+        .data-table th { color: var(--muted); font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; background: var(--panel-muted); }
+        .data-table tbody tr:hover td { background: #fcfcff; }
+        .equipment-cell strong, .alert-main strong, .history-cell strong { display: block; font-size: 0.88rem; }
+        .equipment-cell span, .alert-main small, .history-cell span, .meta-line { color: var(--muted); font-size: 0.76rem; }
+        .asset-media { display: flex; align-items: center; gap: 12px; }
+        .asset-thumb {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            flex: 0 0 52px;
+            object-fit: cover;
+            border: 1px solid rgba(22, 35, 68, 0.08);
+            box-shadow: 0 10px 20px rgba(20, 38, 84, 0.10);
+            background: #f4f7fd;
+        }
+        .asset-edit-trigger {
+            border: none;
+            background: transparent;
+            padding: 0;
+            margin: 0;
+            font: inherit;
+            color: inherit;
+            text-align: left;
+            cursor: pointer;
+            width: 100%;
+        }
+        .row-badge {
+            display: inline-flex; align-items: center; justify-content: center; padding: 5px 10px; border-radius: 999px; font-size: 0.74rem; font-weight: 800; white-space: nowrap;
+        }
+        .row-badge.info { background: rgba(74,125,255,0.12); color: var(--info); }
+        .row-badge.warning { background: rgba(255,175,46,0.16); color: #f38d00; }
+        .row-badge.danger { background: rgba(255,91,91,0.14); color: var(--danger); }
+        .row-badge.success { background: rgba(41,195,106,0.14); color: #11a551; }
+        .alert-list { display: grid; gap: 12px; }
+        .alert-item {
+            display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line);
+        }
+        .alert-item:last-child { border-bottom: none; }
+        .alert-icon {
+            width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; color: #fff;
+        }
+        .alert-icon.danger { background: var(--danger); }
+        .alert-icon.warning { background: var(--warning); }
+        .alert-icon.info { background: var(--info); }
+        .alert-icon.success { background: var(--success); }
+        .tracking-layout { display: grid; gap: 16px; }
+        .donut-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center; }
+        .donut { width: 150px; height: 150px; border-radius: 50%; margin: 0 auto; position: relative; display: grid; place-items: center; }
+        .donut::before {
+            content: ""; width: 92px; height: 92px; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 1px rgba(232,236,246,0.9);
+        }
+        .donut-center { position: absolute; text-align: center; }
+        .donut-center strong { display: block; font-family: Space Grotesk, sans-serif; font-size: 1.6rem; line-height: 1; }
+        .donut-center span { color: var(--muted); font-size: 0.76rem; font-weight: 700; }
+        .legend { display: grid; gap: 10px; }
+        .legend-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 0.82rem; }
+        .legend-label { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+        .legend-swatch { width: 10px; height: 10px; border-radius: 50%; }
+        .next-list { display: grid; gap: 10px; margin-top: 6px; }
+        .next-item { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 0.8rem; }
+        .next-item .date { color: var(--muted); }
+        .section-panel {
+            background: var(--panel-bg); border: 1px solid var(--line); border-radius: var(--radius-xl); box-shadow: var(--shadow); padding: 18px;
+        }
+        .section-panel h3 { margin: 0 0 12px; font-size: 1.08rem; font-weight: 800; }
+        .toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+        .toolbar-row p { margin: 0; color: var(--muted); font-size: 0.86rem; }
+        .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .asset-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(9, 15, 31, 0.56);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            z-index: 120;
+        }
+        .asset-modal.active { display: flex; }
+        .asset-modal-card {
+            width: min(980px, 100%);
+            max-height: calc(100vh - 36px);
+            overflow: auto;
+            background: var(--panel-bg);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            box-shadow: 0 24px 44px rgba(9, 18, 36, 0.32);
+            padding: 18px;
+        }
+        .asset-modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .asset-modal-head h3 { margin: 0; font-size: 1.08rem; }
+        .asset-modal-head p { margin: 4px 0 0; color: var(--muted); font-size: 0.84rem; }
+        body.modal-open { overflow: hidden; }
+        .form-field { display: grid; gap: 6px; }
+        .form-field.full { grid-column: 1 / -1; }
+        .form-field label { font-size: 0.78rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+        .form-field input, .form-field select, .form-field textarea {
+            width: 100%; border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 12px 14px; font: inherit; color: var(--text);
+        }
+        .form-field textarea { min-height: 104px; resize: vertical; }
+        .form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+            outline: none; border-color: rgba(90,87,255,0.45); box-shadow: 0 0 0 4px rgba(90,87,255,0.1);
+        }
+        .primary-btn {
+            border-radius: 14px; padding: 12px 16px; background: linear-gradient(135deg, #625dff 0%, #4f49ff 100%); color: #fff; font-weight: 800;
+            box-shadow: 0 14px 28px rgba(90,87,255,0.24);
+        }
+        .inventory-register-btn {
+            background: linear-gradient(135deg, #2fbe63 0%, #1fa750 100%);
+            box-shadow: 0 14px 28px rgba(41,195,106,0.24);
+        }
+        .ghost-btn {
+            border-radius: 14px; padding: 12px 16px; background: #eef1fd; color: var(--text); font-weight: 800;
+        }
+        .mini-btn {
+            border-radius: 12px; padding: 8px 10px; background: #f1f4fb; color: var(--text); font-size: 0.76rem; font-weight: 800; margin-right: 6px; margin-bottom: 6px;
+        }
+        .action-menu-wrap {
+            position: relative;
+            display: inline-block;
+        }
+        .mini-btn.action-trigger-btn {
+            background: rgba(74,125,255,0.14);
+            color: var(--info);
+            border: 1px solid rgba(74,125,255,0.18);
+        }
+        .mini-btn.action-trigger-btn:hover {
+            background: rgba(74,125,255,0.2);
+        }
+        .action-menu-panel {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            min-width: 154px;
+            padding: 8px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            background: #fff;
+            box-shadow: 0 18px 34px rgba(20, 38, 84, 0.14);
+            display: none;
+            z-index: 25;
+        }
+        .action-menu-panel.active {
+            display: grid;
+            gap: 6px;
+        }
+        .action-menu-option {
+            width: 100%;
+            border: none;
+            border-radius: 12px;
+            background: #f4f7ff;
+            color: var(--text);
+            padding: 9px 10px;
+            text-align: left;
+            font: inherit;
+            font-size: 0.76rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .action-menu-option:hover {
+            background: #e9eefc;
+        }
+        .action-menu-option.process-option {
+            background: rgba(74,125,255,0.12);
+            color: var(--info);
+        }
+        .action-menu-option.process-option:hover {
+            background: rgba(74,125,255,0.18);
+        }
+        .action-menu-option.complete-option {
+            background: rgba(41,195,106,0.14);
+            color: var(--success);
+        }
+        .action-menu-option.complete-option:hover {
+            background: rgba(41,195,106,0.2);
+        }
+        .status-line { min-height: 20px; color: var(--muted); font-size: 0.82rem; font-weight: 600; }
+        .empty { color: var(--muted); text-align: center; padding: 18px 0; font-size: 0.86rem; }
+        .calendar-shell {
+            display: grid;
+            grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr);
+            gap: 14px;
+        }
+        .calendar-board, .calendar-side {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: #fff;
+        }
+        .calendar-board { padding: 12px; }
+        .calendar-side { padding: 16px; }
+        .calendar-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .calendar-controls { display: flex; gap: 8px; }
+        .calendar-nav-btn {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #f6f8ff;
+            color: var(--text);
+            font: inherit;
+            font-weight: 700;
+            padding: 7px 11px;
+            cursor: pointer;
+        }
+        .calendar-nav-btn:hover { background: #eef2ff; }
+        .calendar-month-label {
+            margin: 0;
+            font-family: Space Grotesk, sans-serif;
+            font-size: 1.04rem;
+            color: var(--text);
+        }
+        .calendar-weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .calendar-weekdays span {
+            text-align: center;
+            font-size: 0.72rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--muted);
+            font-weight: 800;
+            padding: 4px 0;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .calendar-day {
+            min-height: 108px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: #fcfdff;
+            padding: 8px;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 6px;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .calendar-day:hover { background: #f7f9ff; border-color: rgba(90,87,255,0.24); }
+        .calendar-day.muted {
+            opacity: 0.56;
+            background: #f9fafd;
+        }
+        .calendar-day.today {
+            border-color: rgba(90,87,255,0.42);
+            box-shadow: inset 0 0 0 2px rgba(90,87,255,0.10);
+        }
+        .calendar-day.selected {
+            border-color: rgba(79,73,255,0.55);
+            box-shadow: 0 0 0 2px rgba(79,73,255,0.16);
+            background: #f6f7ff;
+            transform: scale(1.06);
+            z-index: 2;
+            position: relative;
+        }
+        .calendar-day-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+        .calendar-day-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+        .calendar-day.today .calendar-day-number {
+            background: var(--nav-accent);
+            color: #fff;
+        }
+        .calendar-day-count {
+            font-size: 0.7rem;
+            color: var(--muted);
+            font-weight: 700;
+        }
+        .calendar-events {
+            display: grid;
+            gap: 5px;
+            align-content: start;
+        }
+        .calendar-mini-summary {
+            margin-top: 4px;
+            border: 1px dashed rgba(79,73,255,0.35);
+            border-radius: 10px;
+            background: rgba(79,73,255,0.06);
+            padding: 6px;
+            display: grid;
+            gap: 3px;
+        }
+        .calendar-mini-summary .title {
+            font-size: 0.66rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #3f46d8;
+        }
+        .calendar-mini-summary .line {
+            font-size: 0.7rem;
+            color: var(--text);
+            font-weight: 600;
+        }
+        .calendar-chip {
+            border-radius: 999px;
+            padding: 4px 8px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .calendar-chip.warning { background: rgba(255,175,46,0.16); color: #f38d00; }
+        .calendar-chip.danger { background: rgba(255,91,91,0.14); color: var(--danger); }
+        .calendar-chip.success { background: rgba(41,195,106,0.14); color: #11a551; }
+        .calendar-chip.info { background: rgba(74,125,255,0.12); color: var(--info); }
+        .calendar-side h4 { margin: 0 0 4px; font-size: 1rem; }
+        .calendar-side p { margin: 0 0 12px; color: var(--muted); font-size: 0.82rem; }
+        .calendar-agenda {
+            display: grid;
+            gap: 8px;
+            max-height: 540px;
+            overflow: auto;
+            padding-right: 4px;
+        }
+        .calendar-agenda-item {
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 10px;
+            background: #fbfcff;
+        }
+        .calendar-agenda-item strong {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 0.84rem;
+        }
+        .calendar-day-summary {
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 10px;
+            background: #fbfcff;
+            margin-bottom: 12px;
+        }
+        .calendar-day-summary h5 {
+            margin: 0;
+            font-size: 0.86rem;
+        }
+        .calendar-day-summary p {
+            margin: 4px 0 0;
+            font-size: 0.76rem;
+            color: var(--muted);
+        }
+        .calendar-day-list {
+            display: grid;
+            gap: 7px;
+            margin-top: 10px;
+        }
+        .calendar-day-item {
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            padding: 8px;
+            background: #fff;
+        }
+        .calendar-day-item strong {
+            display: block;
+            margin-bottom: 3px;
+            font-size: 0.8rem;
+        }
+        .calendar-day-item span {
+            color: var(--muted);
+            font-size: 0.74rem;
+        }
+        .calendar-modal-card {
+            width: min(720px, 100%);
+        }
+        .calendar-modal-body {
+            display: grid;
+            gap: 10px;
+            margin-top: 6px;
+        }
+        .calendar-modal-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .calendar-modal-list {
+            display: grid;
+            gap: 8px;
+            max-height: 56vh;
+            overflow: auto;
+            padding-right: 4px;
+        }
+        .calendar-modal-item {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #fbfcff;
+            padding: 9px;
+            display: grid;
+            gap: 4px;
+        }
+        .calendar-modal-item strong { font-size: 0.82rem; }
+        .calendar-modal-item span { color: var(--muted); font-size: 0.75rem; }
+        .assign-asset-meta {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #fbfcff;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+        .assign-asset-meta strong {
+            display: block;
+            color: var(--text);
+            margin-bottom: 3px;
+            font-size: 0.88rem;
+        }
+        .calendar-agenda-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            color: var(--muted);
+            font-size: 0.75rem;
+        }
+        @media (max-width: 1380px) {
+            .cards-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 1080px) {
+            .sidebar {
+                width: min(320px, 92vw);
+                padding: 18px 14px 14px;
+                gap: 12px;
+            }
+            .brand { padding: 2px 2px 8px; }
+            .brand-copy h1 { font-size: 1.02rem; }
+            .brand-copy p { font-size: 0.72rem; margin-top: 2px; }
+            .topbar-brand .brand-copy h1 { font-size: 1.02rem; }
+            .topbar-brand .brand-copy p { font-size: 0.72rem; margin-top: 2px; }
+            .side-section-label { display: none; }
+            .side-nav {
+                display: grid;
+                gap: 8px;
+                padding-bottom: 2px;
+            }
+            .side-nav button {
+                padding: 10px 12px;
+                border-radius: 12px;
+            }
+            .content-area { padding: 14px 14px 20px; }
+            .sidebar .dropdown {
+                top: calc(100% + 8px);
+                right: 0;
+                left: auto;
+                bottom: auto;
+                min-width: 220px;
+                max-width: calc(100vw - 24px);
+            }
+        }
+        @media (max-width: 860px) {
+            .cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .search-box { min-width: 0; width: 100%; }
+            .topbar {
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+            }
+            .topbar-brand {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+            .topbar-actions {
+                width: auto;
+                padding-right: 0;
+                margin-left: auto;
+                flex: 0 0 auto;
+            }
+            .refresh-btn, .primary-btn { min-height: 42px; }
+            .user-dropdown { width: 100%; }
+            .menu-btn { width: 100%; justify-content: space-between; }
+            .assets-inventory-layout { grid-template-columns: 1fr; }
+            .donut-wrap, .form-grid { grid-template-columns: 1fr; }
+            .calendar-shell { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 620px) {
+            .cards-grid { grid-template-columns: 1fr; }
+            .content-area { padding: 14px; }
+            .page-heading h2 { font-size: 1.42rem; }
+            .page-heading p { font-size: 0.82rem; }
+            .topbar-brand {
+                gap: 10px;
+            }
+            .topbar-brand .brand-mark {
+                width: 32px;
+                height: 32px;
+            }
+            .topbar-actions {
+                display: flex;
+                gap: 8px;
+            }
+            .refresh-btn, .primary-btn { width: 100%; }
+            .menu-btn { width: auto; }
+            .mobile-nav-toggle { width: 42px; padding: 0; justify-content: center; }
+            .section-panel { padding: 12px; border-radius: 18px; }
+            .panel-card { border-radius: 18px; }
+            .card-header { padding: 14px 14px 10px; align-items: flex-start; flex-wrap: wrap; }
+            .card-body { padding: 0 12px 12px; }
+            .data-table { display: block; overflow-x: auto; }
+            .data-table th, .data-table td { padding: 10px 8px; font-size: 0.79rem; }
+            .data-table th { font-size: 0.68rem; }
+            .asset-thumb { width: 42px; height: 42px; flex-basis: 42px; border-radius: 10px; }
+            .asset-media { gap: 8px; }
+            .mini-btn { padding: 7px 8px; font-size: 0.72rem; }
+            .calendar-grid { gap: 6px; }
+            .calendar-day { min-height: 92px; padding: 6px; }
+            .calendar-day.selected { transform: scale(1.02); }
+            .calendar-toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+            .calendar-controls { width: 100%; }
+            .calendar-nav-btn { flex: 1; text-align: center; }
+            .calendar-board { overflow-x: auto; }
+            .calendar-weekdays, .calendar-grid { min-width: 560px; }
+            .asset-modal { padding: 10px; }
+            .asset-modal-card { max-height: calc(100vh - 20px); padding: 12px; border-radius: 16px; }
+            .asset-modal-head { align-items: flex-start; flex-wrap: wrap; }
+            .asset-modal-head .ghost-btn { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <img class="brand-mark" src="/logo.png" alt="PaintFlow Logo">
+                <div class="brand-copy">
+                    <h1>PaintFlow</h1>
+                    <p>Modulo de Gestion TI</p>
+                </div>
+            </div>
+            <div class="side-section-label">Menu principal</div>
+            <div class="side-nav" id="sideNav">
+                <button class="active" data-panel="dashboard" onclick="showPanel('dashboard', event)"><span class="nav-dot"></span>Dashboard</button>
+                <button data-panel="assets" onclick="showPanel('assets', event)"><span class="nav-dot"></span>Equipos</button>
+                <button data-panel="history" onclick="showPanel('history', event)"><span class="nav-dot"></span>Historial de Mantenimiento</button>
+                <button data-panel="calendar" onclick="showPanel('calendar', event)"><span class="nav-dot"></span>Calendario</button>
+                <button data-panel="alerts" onclick="showPanel('alerts', event)"><span class="nav-dot"></span>Avisos</button>
+                <button data-panel="tracking" onclick="showPanel('tracking', event)"><span class="nav-dot"></span>Seguimiento</button>
+                <button data-panel="reports" onclick="showPanel('reports', event)"><span class="nav-dot"></span>Reportes</button>
+                <button data-panel="settings" onclick="showPanel('settings', event)"><span class="nav-dot"></span>Configuracion</button>
+            </div>
+            <div class="user-dropdown">
+                <button type="button" class="menu-btn" id="userMenuBtn" onclick="toggleUserDropdown()">
+                    <div class="menu-avatar" id="topUserAvatar">U</div>
+                    <span id="topUserName">Usuario</span>
+                </button>
+                <div class="dropdown" id="userDropdown"></div>
+            </div>
+        </aside>
+
+        <main class="content-area">
+            <div class="topbar">
+                <div class="topbar-brand">
+                    <img class="brand-mark" src="/logo.png" alt="PaintFlow Logo">
+                    <div class="brand-copy">
+                        <h1>PaintFlow</h1>
+                        <p>Modulo de Gestion TI</p>
+                    </div>
+                </div>
+                <div class="topbar-actions">
+                    <button type="button" class="mobile-nav-toggle" id="mobileNavToggle" onclick="toggleMobileNav()" aria-label="Abrir menu" aria-expanded="false">☰</button>
+                </div>
+            </div>
+
+            <section class="panel active" id="panel-dashboard">
+                <div class="cards-grid">
+                    <div class="metric-card"><div class="metric-head"><div><div class="metric-title">Total de Equipos</div><div class="metric-value" id="metricTotalAssets">0</div></div><div class="metric-icon info">EQ</div></div><div class="metric-link"><button type="button" onclick="showPanel('assets')">Ver equipos</button></div></div>
+                    <div class="metric-card"><div class="metric-head"><div><div class="metric-title">Proximos a Mantenimiento</div><div class="metric-value" id="metricDueSoon">0</div></div><div class="metric-icon warning">PR</div></div><div class="metric-link"><button type="button" onclick="focusSearch('proximos')">Ver proximos</button></div></div>
+                    <div class="metric-card"><div class="metric-head"><div><div class="metric-title">Mantenimiento Vencido</div><div class="metric-value" id="metricOverdue">0</div></div><div class="metric-icon danger">AL</div></div><div class="metric-link"><button type="button" onclick="focusSearch('vencidos')">Ver vencidos</button></div></div>
+                    <div class="metric-card"><div class="metric-head"><div><div class="metric-title">Garantias por vencer</div><div class="metric-value" id="metricCompleted">0</div></div><div class="metric-icon success">GA</div></div><div class="metric-link">Proximos 15 dias</div></div>
+                    <div class="metric-card"><div class="metric-head"><div><div class="metric-title">Garantias vencidas</div><div class="metric-value" id="metricInProgress">0</div></div><div class="metric-icon maintenance">GV</div></div><div class="metric-link"><button type="button" onclick="showPanel('alerts')">Ver alertas</button></div></div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="stack">
+                        <div class="panel-card">
+                            <div class="card-header"><h3>Proximos a Mantenimiento</h3><span>Ver calendario</span></div>
+                            <div class="card-body">
+                                <table class="data-table">
+                                    <thead><tr><th>Equipo</th><th>Codigo</th><th>Ubicacion</th><th>Proximo Mantenimiento</th><th>Dias Restantes</th><th>Prioridad</th></tr></thead>
+                                    <tbody id="upcomingTableBody"><tr><td colspan="6" class="empty">Cargando datos...</td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="panel-card">
+                            <div class="card-header"><h3>Historial de Mantenimiento</h3><button type="button" onclick="showPanel('history')">Ver todo el historial</button></div>
+                            <div class="card-body">
+                                <table class="data-table">
+                                    <thead><tr><th>Fecha</th><th>Equipo</th><th>Mantenimiento Realizado</th><th>Tecnico</th><th>Resultado</th><th>Proximo Mantenimiento</th></tr></thead>
+                                    <tbody id="historyTableBody"><tr><td colspan="6" class="empty">Cargando datos...</td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stack">
+                        <div class="panel-card">
+                            <div class="card-header"><h3>Avisos y Alertas</h3><button type="button" onclick="showPanel('alerts')">Ver todas</button></div>
+                            <div class="card-body"><div class="alert-list" id="alertsList"><div class="empty">Cargando alertas...</div></div></div>
+                        </div>
+                        <div class="panel-card">
+                            <div class="card-header"><h3>Seguimiento de Mantenimientos</h3></div>
+                            <div class="card-body tracking-layout">
+                                <div class="donut-wrap">
+                                    <div class="donut" id="trackingDonut"><div class="donut-center"><strong id="trackingTotal">0</strong><span>Total</span></div></div>
+                                    <div class="legend" id="trackingLegend"></div>
+                                </div>
+                                <div>
+                                    <h4 style="margin: 0 0 10px; font-size: 0.92rem;">Proximos 7 dias</h4>
+                                    <div class="next-list" id="nextSevenDaysList"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-assets">
+                <div class="section-panel">
+                    <div class="toolbar-row"><div><h3>Equipos TI</h3><p>Alta y seguimiento de activos del departamento de TI reutilizando sucursales y responsables existentes.</p></div><div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"><div class="search-box" style="min-width: 280px;"><span>Buscar</span><input id="assetSearch" type="text" placeholder="Buscar equipo, codigo, area, garantia o responsable..." oninput="renderAssetsTable()"></div><button type="button" class="primary-btn inventory-register-btn" onclick="openAssetForm()">Registrar Equipo TI</button></div></div>
+                    <div class="panel-card" style="margin-top: 18px; border-radius: 20px;">
+                        <div class="card-header"><h3>Inventario de equipos TI</h3><div class="card-header-actions"><span id="assetsCount">0 equipos</span></div></div>
+                        <div class="card-body">
+                            <div class="assets-inventory-layout">
+                                <div class="asset-filter-panel">
+                                    <div id="assetCategoryFilter" class="asset-filter-list"></div>
+                                    <div class="asset-filter-summary" id="assetFilterSummary">Mostrando todos los equipos</div>
+                                </div>
+                                <table class="data-table">
+                                    <thead><tr><th>Equipo</th><th>Codigo</th><th>Area</th><th>Garantia</th><th>Responsable</th><th>Proximo mantenimiento</th><th>Estado</th><th>Acciones</th></tr></thead>
+                                    <tbody id="assetsTableBody"><tr><td colspan="8" class="empty">Cargando equipos...</td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-history"><div class="section-panel"><h3>Historial de Mantenimiento</h3><p style="margin: 0 0 14px; color: var(--muted); font-size: 0.86rem;">Ordenes completadas y en proceso dentro del modulo.</p><table class="data-table"><thead><tr><th>Fecha</th><th>Equipo</th><th>Detalle</th><th>Tecnico</th><th>Estado</th><th>Prioridad</th></tr></thead><tbody id="fullHistoryBody"><tr><td colspan="6" class="empty">Cargando historial...</td></tr></tbody></table></div></section>
+            <section class="panel" id="panel-calendar"><div class="section-panel"><h3>Calendario de mantenimiento</h3><p style="margin: 0 0 14px; color: var(--muted); font-size: 0.86rem;">Vista operacional de proximos mantenimientos organizados por fecha.</p><div class="calendar-shell"><div class="calendar-board"><div class="calendar-toolbar"><div class="calendar-controls"><button type="button" class="calendar-nav-btn" onclick="changeCalendarMonth(-1)">Anterior</button><button type="button" class="calendar-nav-btn" onclick="goToCurrentMonth()">Hoy</button><button type="button" class="calendar-nav-btn" onclick="changeCalendarMonth(1)">Siguiente</button></div><h4 class="calendar-month-label" id="calendarMonthLabel">Mes actual</h4></div><div class="calendar-weekdays"><span>Lun</span><span>Mar</span><span>Mie</span><span>Jue</span><span>Vie</span><span>Sab</span><span>Dom</span></div><div class="calendar-grid" id="calendarGrid"></div></div><div class="calendar-side"><h4>Agenda del mes</h4><p>Mantenimientos programados en el mes seleccionado.</p><div class="calendar-day-summary" id="calendarDaySummary"></div><div class="calendar-agenda" id="calendarAgenda"></div></div></div></div></section>
+            <section class="panel" id="panel-alerts"><div class="section-panel"><h3>Avisos</h3><p style="margin: 0 0 14px; color: var(--muted); font-size: 0.86rem;">Alertas generadas desde los datos de vencimiento y estado.</p><div class="alert-list" id="alertsPanelList"></div></div></section>
+            <section class="panel" id="panel-tracking"><div class="section-panel"><h3>Seguimiento</h3><p style="margin: 0 0 14px; color: var(--muted); font-size: 0.86rem;">Control del backlog de ordenes de trabajo.</p><table class="data-table"><thead><tr><th>Activo</th><th>Titulo</th><th>Tipo</th><th>Prioridad</th><th>Estado</th><th>Programado</th><th>Asignado</th><th>Acciones</th></tr></thead><tbody id="ordersTableBody"><tr><td colspan="8" class="empty">Cargando ordenes...</td></tr></tbody></table></div></section>
+            <section class="panel" id="panel-reports"><div class="section-panel"><h3>Reportes</h3><p style="margin: 0 0 14px; color: var(--muted); font-size: 0.86rem;">Consolidado general del modulo de mantenimiento.</p><div id="reportsSummary"></div></div></section>
+            <section class="panel" id="panel-settings"><div class="section-panel"><h3>Configuracion</h3><p style="margin: 0 0 14px; color: var(--muted); font-size: 0.86rem;">Acciones rapidas para refrescar datos, regresar al portal y cerrar sesion.</p><div style="display: flex; gap: 10px; flex-wrap: wrap;"><button type="button" class="primary-btn" onclick="refreshModule()">Actualizar datos</button><button type="button" class="ghost-btn" onclick="goHome()">Ir a PaintFlow</button><button type="button" class="ghost-btn" onclick="handleLogout()">Cerrar sesion</button></div></div></section>
+        </main>
+    </div>
+    <div id="menuBackdrop" class="menu-backdrop" onclick="toggleMobileNav(false)"></div>
+
+    <div id="assetFormModal" class="asset-modal" role="dialog" aria-modal="true" aria-labelledby="assetModalTitle" onclick="handleAssetModalBackdrop(event)">
+        <div class="asset-modal-card">
+            <div class="asset-modal-head">
+                <div>
+                    <h3 id="assetModalTitle">Registrar equipo TI</h3>
+                    <p>Completa los datos del activo para agregarlo al inventario del departamento TI.</p>
+                </div>
+                <button type="button" class="ghost-btn" onclick="closeAssetForm()">Cerrar</button>
+            </div>
+            <form id="assetForm" onsubmit="submitAsset(event)">
+                <div class="form-grid">
+                    <div class="form-field"><label for="assetCodigo">Codigo</label><input id="assetCodigo" type="text" required placeholder="TI-001"></div>
+                    <div class="form-field"><label for="assetNombre">Nombre</label><input id="assetNombre" type="text" required placeholder="Laptop Dell Latitude"></div>
+                    <div class="form-field"><label for="assetCategoria">Tipo de equipo</label><select id="assetCategoria" aria-label="Tipo de equipo"></select></div>
+                    <div class="form-field"><label for="assetSucursal">Area</label><select id="assetSucursal" onchange="handleAreaChange()"></select></div>
+                    <div class="form-field"><label for="assetUbicacion">Ubicacion</label><select id="assetUbicacion"></select></div>
+                    <div class="form-field"><label for="assetGarantia">Garantia (meses)</label><input id="assetGarantia" type="number" min="0" placeholder="12"></div>
+                    <div class="form-field"><label for="assetResponsable">Responsable</label><select id="assetResponsable"></select></div>
+                    <div class="form-field" id="assetFrecuenciaWrap"><label for="assetFrecuencia">Frecuencia dias</label><input id="assetFrecuencia" type="number" min="1" value="90"></div>
+                    <div class="form-field" id="assetUltimoWrap"><label for="assetUltimo">Ultimo mantenimiento</label><input id="assetUltimo" type="date"></div>
+                    <div class="form-field full"><label for="assetDescripcion">Descripcion</label><textarea id="assetDescripcion" placeholder="Observaciones del activo y condiciones operativas."></textarea></div>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+                    <button id="assetSubmitBtn" type="submit" class="primary-btn">Guardar equipo TI</button>
+                    <button type="button" class="ghost-btn" onclick="document.getElementById('assetForm').reset(); populateAreaSelect(''); toggleMaintenanceFields();">Limpiar</button>
+                    <button type="button" class="ghost-btn" onclick="closeAssetForm()">Cancelar</button>
+                </div>
+                <div class="status-line" id="assetStatus"></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="calendarDayModal" class="asset-modal" role="dialog" aria-modal="true" aria-labelledby="calendarDayModalTitle" onclick="handleCalendarDayModalBackdrop(event)">
+        <div class="asset-modal-card calendar-modal-card">
+            <div class="asset-modal-head">
+                <div>
+                    <h3 id="calendarDayModalTitle">Resumen del dia</h3>
+                    <p id="calendarDayModalSubtitle">Actividades a realizar y realizadas.</p>
+                </div>
+                <button type="button" class="ghost-btn" onclick="closeCalendarDayModal()">Cerrar</button>
+            </div>
+            <div class="calendar-modal-body" id="calendarDayModalBody"></div>
+        </div>
+    </div>
+
+    <div id="assignAssetModal" class="asset-modal" role="dialog" aria-modal="true" aria-labelledby="assignAssetModalTitle" onclick="handleAssignAssetModalBackdrop(event)">
+        <div class="asset-modal-card" style="width: min(560px, 100%);">
+            <div class="asset-modal-head">
+                <div>
+                    <h3 id="assignAssetModalTitle">Asignar equipo</h3>
+                    <p>Selecciona el responsable para este equipo.</p>
+                </div>
+                <button type="button" class="ghost-btn" onclick="closeAssignAssetModal()">Cerrar</button>
+            </div>
+            <form id="assignAssetForm" onsubmit="submitAssignAsset(event)">
+                <div class="assign-asset-meta" id="assignAssetMeta"></div>
+                <div class="form-field">
+                    <label for="assignAssetUser">Responsable</label>
+                    <select id="assignAssetUser"></select>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
+                    <button type="submit" class="primary-btn">Guardar asignacion</button>
+                    <button type="button" class="ghost-btn" onclick="closeAssignAssetModal()">Cancelar</button>
+                </div>
+                <div class="status-line" id="assignAssetStatus"></div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `http://${window.location.hostname}:8002` : 'https://paintflow.onrender.com';
+        const MODULE_SCOPE = 'ti';
+        const EQUIPMENT_TYPES = [
+            'Camaras',
+            'Central Telefonica',
+            'Desktop',
+            'DVR',
+            'Flotas',
+            'Impresoras',
+            'Monitores',
+            'Laptops',
+            'Servidores',
+            'TV',
+            'UPS',
+            'WIFI',
+        ];
+        const AREA_OPTIONS = [
+            'Oficina administrativa',
+            'Fabrica',
+            'Tiendas',
+        ];
+        const AREA_LOCATIONS = {
+            'Oficina administrativa': ['Contabilidad', 'Mercadeo', 'Tecnologia', 'Recursos humanos', 'Recepcion'],
+            'Fabrica': ['Laboratorio', 'Despacho', 'Produccion', 'Materia Prima', 'Mantenimiento', 'Gerencia Tecnica'],
+        };
+        const STORE_LOCATIONS_20 = [
+            'Alameda',
+            'Arroyo Hondo',
+            'Bani',
+            'Bartolome Colon',
+            'Bávaro',
+            'Bella Vista',
+            'Churchill',
+            'La Vega',
+            'Luperon',
+            'Puerto Plata',
+            'Punta Cana',
+            'Rafael Vidal',
+            'Romana',
+            'San Francisco',
+            'San Isidro',
+            'San Martin',
+            'Terrenas',
+            'Tiradentes',
+            'Villa Mella',
+            'Zona Oriental',
+        ];
+        const state = { user: null, lookups: { sucursales: [], usuarios: [] }, assets: [], workOrders: [], summary: null, alerts: [], calendarCursor: new Date(), calendarSelectedDate: null, assigningAssetId: null, assetCategoryFilter: 'ALL', openWorkOrderActionsId: null, editingAssetId: null };
+        const panelMeta = {
+            dashboard: ['', ''],
+            assets: ['Gestion de Equipos TI', 'Alta y seguimiento del inventario del departamento TI'],
+            history: ['Historial de Mantenimiento', 'Registro de trabajos realizados y resultados'],
+            calendar: ['Calendario', 'Vista de vencimientos y proximos mantenimientos'],
+            alerts: ['Avisos', 'Alertas operativas y seguimientos inmediatos'],
+            tracking: ['Seguimiento de Mantenimientos TI', 'Backlog y estados operativos del modulo TI'],
+            reports: ['Reportes', 'Consolidado general del modulo TI'],
+            settings: ['Configuracion', 'Acciones rapidas del modulo y sesion actual'],
+        };
+        function normalizeRole(role) {
+            const roleKey = (role || '').toString().trim().toLowerCase().replace(/[-\s]+/g, '_');
+            const aliases = {
+                admin: 'administrador',
+                tecnico: 'tecnicos',
+                tecnico_mantenimiento: 'tecnicos',
+                activo_fijo: 'activos_fijos',
+                activofijo: 'activos_fijos',
+                activos_fijo: 'activos_fijos',
+                activosfijos: 'activos_fijos',
+                activosfijo: 'activos_fijos',
+            };
+            return aliases[roleKey] || roleKey;
+        }
+        function getSessionParams() {
+            const user = state.user || {};
+            const params = new URLSearchParams();
+            if (user.username) params.set('username', user.username);
+            if (user.id) params.set('usuario_id', String(user.id));
+            if (user.rol) params.set('role', user.rol);
+            params.set('module', MODULE_SCOPE);
+            return params.toString();
+        }
+        function clearSession() { localStorage.removeItem('currentUser'); localStorage.removeItem('sessionActive'); }
+        function goHome() { if (normalizeRole(state.user && state.user.rol) === 'administrador') { window.location.href = '/'; return; } window.location.href = '/ti'; }
+        function handleLogout() { clearSession(); window.location.href = '/'; }
+        function toggleMobileNav(forceOpen) {
+            const nav = document.querySelector('.sidebar');
+            const toggle = document.getElementById('mobileNavToggle');
+            const backdrop = document.getElementById('menuBackdrop');
+            if (!nav || !toggle) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !nav.classList.contains('mobile-open');
+            nav.classList.toggle('mobile-open', shouldOpen);
+            if (backdrop) backdrop.classList.toggle('active', shouldOpen);
+            toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+            toggle.textContent = shouldOpen ? '✕' : '☰';
+        }
+        function toggleUserDropdown() { document.getElementById('userDropdown').classList.toggle('active'); }
+        document.addEventListener('click', function(event) {
+            const button = document.getElementById('userMenuBtn');
+            const menu = document.getElementById('userDropdown');
+            if (button && menu && !button.contains(event.target) && !menu.contains(event.target)) menu.classList.remove('active');
+            const actionWrap = event.target && event.target.closest ? event.target.closest('.action-menu-wrap') : null;
+            if (!actionWrap && state.openWorkOrderActionsId != null) {
+                state.openWorkOrderActionsId = null;
+                renderOrdersTable();
+            }
+        });
+        function updateUserChrome() {
+            const user = state.user || {};
+            const name = user.nombre_completo || user.username || 'Usuario';
+            const role = normalizeRole(user.rol) || 'usuario';
+            const initials = name.split(' ').filter(Boolean).slice(0, 2).map(piece => piece[0].toUpperCase()).join('') || 'U';
+            document.getElementById('topUserName').textContent = name;
+            document.getElementById('topUserAvatar').textContent = initials;
+            const dropdown = document.getElementById('userDropdown');
+            const rows = [];
+            if (role === 'administrador') rows.push('<button type="button" onclick="window.location.href=\'/\'">Dashboard PaintFlow</button>');
+            rows.push('<button type="button" onclick="refreshModule()">Actualizar datos</button>');
+            rows.push('<button type="button" onclick="showPanel(\'assets\')">Gestion de equipos</button>');
+            rows.push('<button type="button" onclick="handleLogout()">Cerrar sesion</button>');
+            dropdown.innerHTML = rows.join('');
+        }
+        function ensureAuthorizedUser() {
+            const sessionActive = localStorage.getItem('sessionActive');
+            const rawUser = localStorage.getItem('currentUser');
+            if (sessionActive !== 'true' || !rawUser || rawUser === 'null') { window.location.href = '/'; return false; }
+            try { state.user = JSON.parse(rawUser); } catch (error) { clearSession(); window.location.href = '/'; return false; }
+            const role = normalizeRole(state.user.rol);
+            if (role !== 'administrador' && role !== 'activos_fijos' && role !== 'tecnicos' && role !== 'equipo_ti') {
+                if (role === 'analista') { window.location.href = '/employees'; return false; }
+                if (role === 'facturador' || role === 'cajero' || role === 'cliente') { window.location.href = '/labelsapp-web'; return false; }
+                window.location.href = '/'; return false;
+            }
+            updateUserChrome();
+            return true;
+        }
+        async function fetchJSON(url, options) {
+            const response = await fetch(url, options || {});
+            if (!response.ok) {
+                let detail = 'No se pudo completar la solicitud';
+                try { const data = await response.json(); detail = data.detail || detail; } catch (error) {}
+                throw new Error(detail);
+            }
+            return response.json();
+        }
+        function escapeHtml(value) {
+            return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        function parseDateValue(value) {
+            if (!value) return null;
+            const raw = String(value);
+            const normalized = raw.includes('T') ? raw : `${raw}T00:00:00`;
+            const parsed = new Date(normalized);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        }
+        function formatDate(value) {
+            const parsed = parseDateValue(value);
+            return parsed ? parsed.toLocaleDateString('es-DO') : 'Sin fecha';
+        }
+        function formatShortDate(value) {
+            const parsed = parseDateValue(value);
+            return parsed ? parsed.toLocaleDateString('es-DO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Sin fecha';
+        }
+        function parseNullableInt(value) { if (value === '' || value == null) return null; const parsed = parseInt(value, 10); return Number.isNaN(parsed) ? null : parsed; }
+        function setStatus(elementId, message, isError) {
+            const el = document.getElementById(elementId); if (!el) return; el.textContent = message || ''; el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+        }
+        function dueMeta(dateValue) {
+            if (!dateValue) return { text: 'Sin fecha', tone: 'info', days: null };
+            const now = new Date(); now.setHours(0,0,0,0);
+            const dueDate = new Date(`${dateValue}T00:00:00`);
+            const diffDays = Math.round((dueDate.getTime() - now.getTime()) / 86400000);
+            if (diffDays < 0) return { text: `Vencido hace ${Math.abs(diffDays)} dias`, tone: 'danger', days: diffDays };
+            if (diffDays === 0) return { text: 'Vence hoy', tone: 'danger', days: diffDays };
+            if (diffDays <= 7) return { text: `En ${diffDays} dias`, tone: 'warning', days: diffDays };
+            return { text: `En ${diffDays} dias`, tone: 'success', days: diffDays };
+        }
+        function warrantyMeta(daysRemaining) {
+            if (daysRemaining == null || Number.isNaN(Number(daysRemaining))) return { text: 'Sin garantia', tone: 'info', days: null };
+            const days = Number(daysRemaining);
+            const months = Math.max(1, Math.ceil(Math.abs(days) / 30));
+            if (days < 0) return { text: `Vencio hace ${months} mes${months === 1 ? '' : 'es'}`, tone: 'danger', days };
+            if (days === 0) return { text: 'Vence este mes', tone: 'danger', days };
+            if (days <= 30) return { text: `Vence en ${months} mes`, tone: 'warning', days };
+            return { text: `${months} mes${months === 1 ? '' : 'es'} restantes`, tone: 'success', days };
+        }
+        function monthsToDays(value) {
+            const months = parseNullableInt(value);
+            if (months == null) return null;
+            return months * 30;
+        }
+        function daysToMonths(value) {
+            if (value == null || Number.isNaN(Number(value))) return '';
+            return String(Math.ceil(Number(value) / 30));
+        }
+        function parseAreaLocation(ubicacionDetalle, sucursalNombre) {
+            const raw = (ubicacionDetalle || '').toString().trim();
+            if (!raw) return { area: '', location: '' };
+            const normalized = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            if (normalized.includes('sucursal')) {
+                return { area: 'Tiendas', location: (sucursalNombre || raw.split('·')[1] || '').toString().trim() };
+            }
+            if (raw.includes(':')) {
+                const parts = raw.split(':');
+                const area = (parts.shift() || '').trim();
+                const location = parts.join(':').trim();
+                return { area, location };
+            }
+            return { area: '', location: raw };
+        }
+        function priorityMeta(value) { const priority = (value || '').toLowerCase(); if (priority === 'alta') return { label: 'Alta', tone: 'danger' }; if (priority === 'baja') return { label: 'Baja', tone: 'success' }; return { label: 'Media', tone: 'warning' }; }
+        function statusMeta(value) { const status = (value || '').toLowerCase(); if (status === 'completado') return { label: 'Completado', tone: 'success' }; if (status === 'en proceso') return { label: 'En proceso', tone: 'info' }; if (status === 'vencido') return { label: 'Vencido', tone: 'danger' }; return { label: 'Pendiente', tone: 'warning' }; }
+        function normalizeText(value) {
+            return (value || '')
+                .toString()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, ' ')
+                .trim();
+        }
+        function assetPngPath(item) {
+            const category = normalizeText(item && item.categoria ? item.categoria : '');
+            const name = normalizeText(item && item.nombre ? item.nombre : '');
+            const source = `${category} ${name}`;
+            const pngByType = [
+                { match: /camaras?|camara|camera/, file: 'camaras.png' },
+                { match: /central telefonica|pbx|telefonica|telefono/, file: 'central telefonica.png' },
+                { match: /desktop|pc escritorio|torre/, file: 'Desktop.png' },
+                { match: /dvr/, file: 'dvr.png' },
+                { match: /flotas?|celulares?|movil/, file: 'flotas.png' },
+                { match: /impresoras?|printer/, file: 'impresoras.png' },
+                { match: /monitores?|monitor/, file: 'monitor.png' },
+                { match: /laptops?|notebook/, file: 'LAPTOP.png' },
+                { match: /servidores?|server/, file: 'server.png' },
+                { match: /\btv\b|televisor/, file: 'tv.png' },
+                { match: /ups|respaldo electrico|no break/, file: 'ups.png' },
+                { match: /wifi|wi fi|access point|router/, file: 'wifi.png' },
+            ];
+            const found = pngByType.find(entry => entry.match.test(source));
+            if (!found) return null;
+            return `/tipng/${encodeURIComponent(found.file)}`;
+        }
+        function assetVisualType(item) {
+            const source = `${item && item.nombre ? item.nombre : ''} ${item && item.categoria ? item.categoria : ''}`.toLowerCase();
+            if (source.includes('montacarga') || source.includes('forklift')) return 'forklift';
+            if (source.includes('bomba') || source.includes('pump') || source.includes('hidraulic')) return 'pump';
+            if (source.includes('planta') || source.includes('generador') || source.includes('generator')) return 'generator';
+            if (source.includes('aire acondicionado') || source.includes('hvac') || source.includes('ac-')) return 'ac';
+            if (source.includes('extractor') || source.includes('ventil')) return 'fan';
+            if (source.includes('compresor')) return 'compressor';
+            if (source.includes('aire')) return 'air';
+            return 'equipment';
+        }
+        function assetVisualLabel(type) {
+            const labels = {
+                air: 'AIR',
+                ac: 'HVAC',
+                fan: 'FAN',
+                compressor: 'AIR',
+                pump: 'PUMP',
+                forklift: 'LIFT',
+                generator: 'GEN',
+                equipment: 'EQP',
+            };
+            return labels[type] || labels.equipment;
+        }
+        function assetVisualPalette(type) {
+            const palettes = {
+                air: ['#dff4ff', '#4a7dff'],
+                ac: ['#e7f0ff', '#376dff'],
+                fan: ['#e6fbf7', '#23b39b'],
+                compressor: ['#eef2ff', '#5a57ff'],
+                pump: ['#fff0df', '#f38d00'],
+                forklift: ['#fff3da', '#f2a200'],
+                generator: ['#ffe3e3', '#ff5b5b'],
+                equipment: ['#eef1f7', '#70819a'],
+            };
+            return palettes[type] || palettes.equipment;
+        }
+        function assetVisualSvg(type) {
+            const [bg, accent] = assetVisualPalette(type);
+            const label = assetVisualLabel(type);
+            const iconMarkup = {
+                air: `<circle cx="26" cy="26" r="8" fill="none" stroke="${accent}" stroke-width="2.6"/><path d="M26 8c6 2 10 7 10 12-5 0-10-3-12-8" fill="${accent}" opacity="0.85"/><path d="M44 26c-2 6-7 10-12 10 0-5 3-10 8-12" fill="${accent}" opacity="0.85"/><path d="M26 44c-6-2-10-7-10-12 5 0 10 3 12 8" fill="${accent}" opacity="0.85"/><path d="M8 26c2-6 7-10 12-10 0 5-3 10-8 12" fill="${accent}" opacity="0.85"/>`,
+                ac: `<rect x="9" y="15" width="34" height="18" rx="6" fill="none" stroke="${accent}" stroke-width="2.6"/><path d="M14 23h24" stroke="${accent}" stroke-width="2.4" stroke-linecap="round"/><path d="M18 37c3-1 4-3 4-5M26 39c3-1 4-4 4-7M34 37c3-1 4-3 4-5" stroke="${accent}" stroke-width="2" stroke-linecap="round" fill="none"/>`,
+                fan: `<circle cx="26" cy="26" r="10" fill="none" stroke="${accent}" stroke-width="2.6"/><path d="M26 16c5 0 8 3 8 7-4 1-8-1-10-5" fill="${accent}" opacity="0.88"/><path d="M36 26c0 5-3 8-7 8-1-4 1-8 5-10" fill="${accent}" opacity="0.88"/><path d="M26 36c-5 0-8-3-8-7 4-1 8 1 10 5" fill="${accent}" opacity="0.88"/><path d="M16 26c0-5 3-8 7-8 1 4-1 8-5 10" fill="${accent}" opacity="0.88"/>`,
+                compressor: `<rect x="11" y="16" width="20" height="16" rx="4" fill="none" stroke="${accent}" stroke-width="2.6"/><circle cx="18" cy="34" r="3.5" fill="none" stroke="${accent}" stroke-width="2.4"/><circle cx="31" cy="34" r="3.5" fill="none" stroke="${accent}" stroke-width="2.4"/><path d="M31 19h8l4 6v7" fill="none" stroke="${accent}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`,
+                pump: `<path d="M12 30h10v-8h8v6h6v8h-8v-6h-6v6H12z" fill="none" stroke="${accent}" stroke-width="2.6" stroke-linejoin="round"/><path d="M36 18c0 4-3 7-7 7 0-4 3-7 7-7z" fill="${accent}" opacity="0.88"/>`,
+                forklift: `<circle cx="18" cy="34" r="4" fill="none" stroke="${accent}" stroke-width="2.4"/><circle cx="34" cy="34" r="4" fill="none" stroke="${accent}" stroke-width="2.4"/><path d="M10 32V18h12l3 7h8v7" fill="none" stroke="${accent}" stroke-width="2.6" stroke-linejoin="round"/><path d="M37 14v18M42 12v20" stroke="${accent}" stroke-width="2.4" stroke-linecap="round"/>`,
+                generator: `<rect x="10" y="16" width="32" height="18" rx="5" fill="none" stroke="${accent}" stroke-width="2.6"/><path d="M24 20l-4 7h4l-2 5 8-9h-4l2-3z" fill="${accent}"/><path d="M14 38h24" stroke="${accent}" stroke-width="2.4" stroke-linecap="round"/>`,
+                equipment: `<rect x="12" y="14" width="28" height="20" rx="6" fill="none" stroke="${accent}" stroke-width="2.6"/><path d="M18 20h16M18 26h10" stroke="${accent}" stroke-width="2.4" stroke-linecap="round"/><circle cx="18" cy="36" r="3" fill="${accent}" opacity="0.9"/><circle cx="34" cy="36" r="3" fill="${accent}" opacity="0.9"/>`,
+            };
+            const markup = iconMarkup[type] || iconMarkup.equipment;
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 52 52"><rect width="52" height="52" rx="14" fill="${bg}"/><g>${markup}</g><text x="26" y="47" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-weight="700" fill="${accent}">${label}</text></svg>`;
+        }
+        function assetThumbHtml(item, extraLabel) {
+            const type = assetVisualType(item || {});
+            const pngPath = assetPngPath(item || {});
+            const svg = assetVisualSvg(type);
+            const dataUri = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+            const imageSrc = pngPath || dataUri;
+            const secondary = extraLabel || item.categoria || 'Equipo';
+            return `<div class="asset-media"><img class="asset-thumb" src="${imageSrc}" alt="${escapeHtml(item.nombre || 'Equipo')}" onerror="this.onerror=null;this.src='${dataUri}';" /><div class="equipment-cell"><strong>${escapeHtml(item.nombre || 'Equipo')}</strong><span>${escapeHtml(secondary)}</span></div></div>`;
+        }
+        function populateSelect(select, items, emptyLabel, valueFn, labelFn) {
+            const rows = [`<option value="">${emptyLabel}</option>`];
+            (items || []).forEach(item => rows.push(`<option value="${valueFn(item)}">${escapeHtml(labelFn(item))}</option>`));
+            select.innerHTML = rows.join('');
+        }
+        function populateAssetCategorySelect(selectedValue) {
+            const select = document.getElementById('assetCategoria');
+            if (!select) return;
+            const options = [`<option value="">Selecciona tipo de equipo</option>`];
+            EQUIPMENT_TYPES.forEach(type => {
+                const selected = selectedValue && selectedValue === type ? ' selected' : '';
+                options.push(`<option value="${escapeHtml(type)}"${selected}>${escapeHtml(type)}</option>`);
+            });
+            select.innerHTML = options.join('');
+        }
+        function populateAssetCategoryFilter() {
+            const container = document.getElementById('assetCategoryFilter');
+            if (!container) return;
+            const categories = Array.from(new Set(state.assets.map(item => (item.categoria || 'General').trim() || 'General')));
+            const counts = state.assets.reduce((memo, item) => {
+                const category = (item.categoria || 'General').trim() || 'General';
+                memo[category] = (memo[category] || 0) + 1;
+                return memo;
+            }, {});
+            const categoryOrder = ['ALL'].concat(EQUIPMENT_TYPES, 'General');
+            const sortedCategories = categories.sort((left, right) => {
+                const leftIndex = categoryOrder.indexOf(left);
+                const rightIndex = categoryOrder.indexOf(right);
+                if (leftIndex === -1 && rightIndex === -1) return left.localeCompare(right);
+                if (leftIndex === -1) return 1;
+                if (rightIndex === -1) return -1;
+                return leftIndex - rightIndex;
+            });
+            if (!sortedCategories.includes(state.assetCategoryFilter) && state.assetCategoryFilter !== 'ALL') state.assetCategoryFilter = 'ALL';
+            const buttons = [`<button type="button" class="asset-filter-btn${state.assetCategoryFilter === 'ALL' ? ' active' : ''}" onclick="setAssetCategoryFilter('ALL')"><span class="asset-filter-btn-label"><strong>Todos</strong></span><span class="asset-filter-count">${state.assets.length}</span></button>`];
+            sortedCategories.forEach(category => {
+                const count = counts[category] || 0;
+                const active = state.assetCategoryFilter === category ? ' active' : '';
+                buttons.push(`<button type="button" class="asset-filter-btn${active}" onclick="setAssetCategoryFilter(${JSON.stringify(category).replace(/"/g, '&quot;')})"><span class="asset-filter-btn-label"><strong>${escapeHtml(category)}</strong></span><span class="asset-filter-count">${count}</span></button>`);
+            });
+            container.innerHTML = buttons.join('');
+        }
+        function setAssetCategoryFilter(category) {
+            state.assetCategoryFilter = category || 'ALL';
+            renderAssetsTable();
+        }
+        function populateAreaSelect(selectedValue) {
+            const select = document.getElementById('assetSucursal');
+            if (!select) return;
+            const options = [`<option value="">Selecciona un area</option>`];
+            AREA_OPTIONS.forEach(area => {
+                const selected = selectedValue && selectedValue === area ? ' selected' : '';
+                options.push(`<option value="${escapeHtml(area)}"${selected}>${escapeHtml(area)}</option>`);
+            });
+            select.innerHTML = options.join('');
+            populateLocationSelect(select.value || selectedValue || '');
+        }
+        function getStoreLocations() {
+            const sucursales = (state.lookups.sucursales || []).map(s => ({ id: s.id, nombre: (s.nombre || '').trim() })).filter(s => s.nombre);
+            const seen = new Set();
+            const normalizeName = value => (value || '')
+                .toString()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim()
+                .toLowerCase();
+            const allowSet = new Set(STORE_LOCATIONS_20.map(normalizeName));
+            return sucursales
+                .filter(s => {
+                    const key = normalizeName(s.nombre);
+                    if (!allowSet.has(key)) return false;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                })
+                .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+        }
+        function populateLocationSelect(area, selectedValue) {
+            const select = document.getElementById('assetUbicacion');
+            if (!select) return;
+            let entries = [];
+            if (area === 'Tiendas') {
+                entries = getStoreLocations().map(item => ({ value: item.nombre, label: item.nombre }));
+            } else {
+                entries = (AREA_LOCATIONS[area] || []).map(item => ({ value: item, label: item }));
+            }
+            const options = ['<option value="">Selecciona ubicacion</option>'];
+            entries.forEach(item => {
+                const selected = selectedValue && selectedValue === item.value ? ' selected' : '';
+                options.push(`<option value="${escapeHtml(item.value)}"${selected}>${escapeHtml(item.label)}</option>`);
+            });
+            select.innerHTML = options.join('');
+        }
+        function handleAreaChange() {
+            const area = (document.getElementById('assetSucursal') || {}).value || '';
+            populateLocationSelect(area, '');
+        }
+        function toggleMaintenanceFields() {
+            const freq = document.getElementById('assetFrecuencia');
+            const freqWrap = document.getElementById('assetFrecuenciaWrap');
+            const lastWrap = document.getElementById('assetUltimoWrap');
+            if (freq) {
+                freq.disabled = false;
+                freq.required = true;
+            }
+            if (freqWrap) freqWrap.style.display = '';
+            if (lastWrap) lastWrap.style.display = '';
+        }
+        async function loadLookups() {
+            const data = await fetchJSON(`${API}/api/v1/maintenance/lookups?${getSessionParams()}`);
+            state.lookups = data;
+            populateAreaSelect('');
+            toggleMaintenanceFields();
+            populateSelect(document.getElementById('assetResponsable'), data.usuarios || [], 'Sin responsable', item => item.id, item => `${item.nombre_completo || item.username} · ${item.rol || 'usuario'}`);
+        }
+        async function loadDashboard() {
+            const data = await fetchJSON(`${API}/api/v1/maintenance/dashboard?${getSessionParams()}`);
+            state.summary = data.summary || {}; state.alerts = data.alerts || []; state.assets = data.assets || []; state.workOrders = data.work_orders || [];
+        }
+        function filteredAssets() {
+            const searchInput = document.getElementById('dashboardSearch');
+            const term = ((searchInput && searchInput.value) || '').trim().toLowerCase();
+            if (!term) return state.assets.slice();
+            return state.assets.filter(item => [item.nombre, item.codigo, item.sucursal_nombre, item.ubicacion_detalle, item.categoria].join(' ').toLowerCase().includes(term));
+        }
+        function renderMetrics() {
+            const summary = state.summary || {};
+            document.getElementById('metricTotalAssets').textContent = summary.total_assets || 0;
+            document.getElementById('metricDueSoon').textContent = summary.due_soon || 0;
+            document.getElementById('metricOverdue').textContent = summary.overdue || 0;
+            document.getElementById('metricCompleted').textContent = summary.warranty_due_soon || 0;
+            document.getElementById('metricInProgress').textContent = summary.warranty_overdue || 0;
+        }
+        function renderUpcomingTable() {
+            const rows = filteredAssets();
+            const tbody = document.getElementById('upcomingTableBody');
+            if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No hay equipos que coincidan con la busqueda.</td></tr>'; return; }
+            tbody.innerHTML = rows.map(item => {
+                const due = dueMeta(item.proximo_mantenimiento);
+                const priority = due.tone === 'danger' ? { label: 'Alta', tone: 'danger' } : due.tone === 'warning' ? { label: 'Media', tone: 'warning' } : { label: 'Baja', tone: 'success' };
+                return `<tr><td>${assetThumbHtml(item, item.categoria || 'Equipo')}</td><td>${escapeHtml(item.codigo)}</td><td>${escapeHtml(item.ubicacion_detalle || item.sucursal_nombre || 'Sin ubicacion')}</td><td>${formatDate(item.proximo_mantenimiento)}</td><td><span class="row-badge ${due.tone}">${escapeHtml(due.text)}</span></td><td><span class="row-badge ${priority.tone}">${priority.label}</span></td></tr>`;
+            }).join('');
+        }
+        function renderHistoryTables() {
+            const dashboardBody = document.getElementById('historyTableBody');
+            const fullBody = document.getElementById('fullHistoryBody');
+            const historyRows = state.workOrders.slice().sort((a, b) => { const dateA = a.completado_en || a.programado_para || ''; const dateB = b.completado_en || b.programado_para || ''; return dateA < dateB ? 1 : -1; });
+            if (!historyRows.length) { dashboardBody.innerHTML = '<tr><td colspan="6" class="empty">No hay historial disponible.</td></tr>'; fullBody.innerHTML = '<tr><td colspan="6" class="empty">No hay historial disponible.</td></tr>'; return; }
+            dashboardBody.innerHTML = historyRows.slice(0,5).map(item => {
+                const status = statusMeta(item.estado); const nextAsset = state.assets.find(asset => asset.id === item.activo_id);
+                return `<tr><td>${formatShortDate(item.completado_en || item.programado_para)}</td><td>${assetThumbHtml({ nombre: item.activo_nombre, categoria: item.tipo }, item.activo_codigo)}</td><td>${escapeHtml(item.titulo)}</td><td>${escapeHtml(item.asignado_nombre || 'Sin asignar')}</td><td><span class="row-badge ${status.tone}">${status.label}</span></td><td>${formatDate(nextAsset && nextAsset.proximo_mantenimiento)}</td></tr>`;
+            }).join('');
+            fullBody.innerHTML = historyRows.map(item => {
+                const status = statusMeta(item.estado); const priority = priorityMeta(item.prioridad);
+                return `<tr><td>${formatShortDate(item.completado_en || item.programado_para)}</td><td>${assetThumbHtml({ nombre: item.activo_nombre, categoria: item.tipo }, item.activo_codigo)}</td><td>${escapeHtml(item.titulo)}</td><td>${escapeHtml(item.asignado_nombre || 'Sin asignar')}</td><td><span class="row-badge ${status.tone}">${status.label}</span></td><td><span class="row-badge ${priority.tone}">${priority.label}</span></td></tr>`;
+            }).join('');
+        }
+        function renderAlerts() {
+            const fill = (containerId) => {
+                const root = document.getElementById(containerId);
+                if (!state.alerts.length) { root.innerHTML = '<div class="empty">No hay alertas activas.</div>'; return; }
+                const warrantyAlerts = (state.assets || []).filter(item => item.garantia_dias_restantes != null && Number(item.garantia_dias_restantes) <= 30).map(item => ({
+                    ...item,
+                    __alertType: 'warranty',
+                }));
+                const mergedAlerts = [...state.alerts, ...warrantyAlerts];
+                root.innerHTML = mergedAlerts.map(item => {
+                    if (item.__alertType === 'warranty') {
+                        const warranty = warrantyMeta(item.garantia_dias_restantes);
+                        const mark = warranty.tone === 'danger' ? 'G!' : 'G';
+                        return `<div class="alert-item"><div class="alert-icon ${warranty.tone}">${mark}</div><div class="alert-main">${assetThumbHtml(item, `${item.codigo} · ${warranty.text}`)}<div class="meta-line">Garantia · ${escapeHtml(item.sucursal_nombre || 'Sin sucursal')}</div></div></div>`;
+                    }
+                    const due = dueMeta(item.proximo_mantenimiento);
+                    const mark = due.tone === 'danger' ? '!' : due.tone === 'warning' ? 'A' : due.tone === 'info' ? 'i' : 'o';
+                    return `<div class="alert-item"><div class="alert-icon ${due.tone}">${mark}</div><div class="alert-main">${assetThumbHtml(item, `${item.codigo} · ${due.text}`)}<div class="meta-line">${escapeHtml(item.sucursal_nombre || 'Sin sucursal')} · ${escapeHtml(item.estado_operativo || 'Operativo')}</div></div></div>`;
+                }).join('');
+            };
+            fill('alertsList'); fill('alertsPanelList');
+        }
+        function renderTracking() {
+            const totalCompleted = state.workOrders.filter(item => item.estado === 'Completado').length;
+            const totalUpcoming = state.workOrders.filter(item => item.estado === 'Pendiente').length;
+            const totalInProgress = state.workOrders.filter(item => item.estado === 'En proceso').length;
+            const totalOverdue = state.workOrders.filter(item => item.estado === 'Vencido').length;
+            const total = totalCompleted + totalUpcoming + totalInProgress + totalOverdue;
+            const segments = [
+                { label: 'Completados', value: totalCompleted, color: 'var(--success)' },
+                { label: 'Proximos', value: totalUpcoming, color: 'var(--warning)' },
+                { label: 'En proceso', value: totalInProgress, color: 'var(--info)' },
+                { label: 'Vencidos', value: totalOverdue, color: 'var(--danger)' },
+            ];
+            const gradient = total === 0 ? 'conic-gradient(#eef2fb 0deg 360deg)' : (() => { let current = 0; return `conic-gradient(${segments.map(segment => { const angle = total === 0 ? 0 : (segment.value / total) * 360; const start = current; const end = current + angle; current = end; return `${segment.color} ${start}deg ${end}deg`; }).join(', ')})`; })();
+            document.getElementById('trackingDonut').style.background = gradient;
+            document.getElementById('trackingTotal').textContent = String(total);
+            document.getElementById('trackingLegend').innerHTML = segments.map(segment => { const percent = total ? Math.round((segment.value / total) * 100) : 0; return `<div class="legend-item"><div class="legend-label"><span class="legend-swatch" style="background:${segment.color}"></span>${segment.label}</div><strong>${segment.value} (${percent}%)</strong></div>`; }).join('');
+            const nextRows = state.assets.filter(item => { const due = dueMeta(item.proximo_mantenimiento); return due.days !== null && due.days >= 0 && due.days <= 7; }).sort((a, b) => (a.proximo_mantenimiento || '').localeCompare(b.proximo_mantenimiento || ''));
+            const nextList = document.getElementById('nextSevenDaysList');
+            if (!nextRows.length) { nextList.innerHTML = '<div class="empty">No hay mantenimientos en los proximos 7 dias.</div>'; return; }
+            nextList.innerHTML = nextRows.map(item => { const due = dueMeta(item.proximo_mantenimiento); return `<div class="next-item"><div class="date">${formatShortDate(item.proximo_mantenimiento)}</div><div>${escapeHtml(item.nombre)}</div><div><span class="row-badge ${due.tone}">${escapeHtml(due.text)}</span></div></div>`; }).join('');
+        }
+        function renderAssetsTable() {
+            const tbody = document.getElementById('assetsTableBody');
+            const summary = document.getElementById('assetFilterSummary');
+            const searchInput = document.getElementById('assetSearch');
+            const searchTerm = ((searchInput && searchInput.value) || '').trim().toLowerCase();
+            populateAssetCategoryFilter();
+            const categoryRows = state.assetCategoryFilter === 'ALL'
+                ? state.assets.slice()
+                : state.assets.filter(item => ((item.categoria || 'General').trim() || 'General') === state.assetCategoryFilter);
+            const filteredRows = !searchTerm
+                ? categoryRows
+                : categoryRows.filter(item => [
+                    item.nombre,
+                    item.codigo,
+                    item.ubicacion_detalle,
+                    item.sucursal_nombre,
+                    item.garantia,
+                    item.responsable_nombre,
+                    item.categoria,
+                ].join(' ').toLowerCase().includes(searchTerm));
+            document.getElementById('assetsCount').textContent = `${filteredRows.length} equipos`;
+            if (summary) summary.textContent = state.assetCategoryFilter === 'ALL' ? 'Mostrando todos los equipos' : `Filtrando por ${state.assetCategoryFilter}`;
+            if (!filteredRows.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No hay equipos para este filtro.</td></tr>'; return; }
+            tbody.innerHTML = filteredRows.map(item => {
+                const due = dueMeta(item.proximo_mantenimiento);
+                const warranty = warrantyMeta(item.garantia_dias_restantes);
+                const maintenanceText = item.requiere_mantenimiento === false ? 'No aplica' : escapeHtml(due.text);
+                const maintenanceTone = item.requiere_mantenimiento === false ? 'info' : due.tone;
+                return `<tr><td><button type="button" class="asset-edit-trigger" title="Editar equipo" onclick="openAssetForm(${item.id})">${assetThumbHtml(item, item.categoria || 'Equipo')}</button></td><td>${escapeHtml(item.codigo)}</td><td>${escapeHtml(item.ubicacion_detalle || item.sucursal_nombre || 'Sin ubicacion')}</td><td><span class="row-badge ${warranty.tone}">${escapeHtml(warranty.text)}</span></td><td>${escapeHtml(item.responsable_nombre || 'Sin responsable')}</td><td><span class="row-badge ${maintenanceTone}">${maintenanceText}</span></td><td><span class="row-badge ${item.activo === false ? 'warning' : 'success'}">${item.activo === false ? 'Inactivo' : escapeHtml(item.estado_operativo || 'Operativo')}</span></td><td><button type="button" class="mini-btn" onclick="openAssignAssetModal(${item.id})">Asignar</button><button type="button" class="mini-btn" onclick="showPanel('tracking'); prefillOrderForAsset(${item.id})">Nueva orden</button><button type="button" class="mini-btn" onclick="toggleAssetState(${item.id}, ${item.activo === false ? 'true' : 'false'})">${item.activo === false ? 'Reactivar' : 'Inactivar'}</button></td></tr>`;
+            }).join('');
+        }
+        function renderOrdersTable() {
+            const tbody = document.getElementById('ordersTableBody');
+            if (!state.workOrders.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No hay ordenes registradas.</td></tr>'; return; }
+            tbody.innerHTML = state.workOrders.map(item => {
+                const priority = priorityMeta(item.prioridad);
+                const status = statusMeta(item.estado);
+                const menuActive = state.openWorkOrderActionsId === item.id ? ' active' : '';
+                return `<tr><td>${assetThumbHtml({ nombre: item.activo_nombre, categoria: item.tipo }, item.activo_codigo)}</td><td>${escapeHtml(item.titulo)}</td><td>${escapeHtml(item.tipo)}</td><td><span class="row-badge ${priority.tone}">${priority.label}</span></td><td><span class="row-badge ${status.tone}">${status.label}</span></td><td>${formatDate(item.programado_para)}</td><td>${escapeHtml(item.asignado_nombre || 'Sin asignar')}</td><td><div class="action-menu-wrap"><button type="button" class="mini-btn action-trigger-btn" onclick="toggleWorkOrderActions(${item.id})">En proceso</button><div class="action-menu-panel${menuActive}"><button type="button" class="action-menu-option process-option" onclick="applyWorkOrderStatus(${item.id}, 'En proceso')">En proceso</button><button type="button" class="action-menu-option complete-option" onclick="applyWorkOrderStatus(${item.id}, 'Completado')">Completar</button></div></div></td></tr>`;
+            }).join('');
+        }
+        function toggleWorkOrderActions(workOrderId) {
+            state.openWorkOrderActionsId = state.openWorkOrderActionsId === workOrderId ? null : workOrderId;
+            renderOrdersTable();
+        }
+        async function applyWorkOrderStatus(workOrderId, status) {
+            state.openWorkOrderActionsId = null;
+            await updateWorkOrderStatus(workOrderId, status);
+        }
+        function toDateKey(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        function collectCalendarDayActivities(dateKey) {
+            const assetsForDay = state.assets.filter(item => {
+                const parsed = parseDateValue(item.proximo_mantenimiento);
+                return parsed && toDateKey(parsed) === dateKey;
+            });
+            const scheduledOrders = state.workOrders.filter(item => {
+                const parsed = parseDateValue(item.programado_para);
+                return parsed && toDateKey(parsed) === dateKey;
+            });
+            const completedOrders = state.workOrders.filter(item => {
+                const parsed = parseDateValue(item.completado_en);
+                return parsed && toDateKey(parsed) === dateKey;
+            });
+            const summaryRows = [];
+            assetsForDay.forEach(item => {
+                summaryRows.push(`<div class="calendar-day-item"><strong>Mantenimiento a realizar: ${escapeHtml(item.nombre || item.codigo || 'Equipo')}</strong><span>${escapeHtml(item.sucursal_nombre || 'Sin sucursal')} · ${escapeHtml(item.estado_operativo || 'Operativo')}</span></div>`);
+            });
+            scheduledOrders.forEach(item => {
+                summaryRows.push(`<div class="calendar-day-item"><strong>Orden programada: ${escapeHtml(item.titulo || 'Orden de mantenimiento')}</strong><span>${escapeHtml(item.activo_nombre || 'Activo')} · ${escapeHtml(item.estado || 'Pendiente')}</span></div>`);
+            });
+            completedOrders.forEach(item => {
+                summaryRows.push(`<div class="calendar-day-item"><strong>Actividad realizada: ${escapeHtml(item.titulo || 'Orden completada')}</strong><span>${escapeHtml(item.activo_nombre || 'Activo')} · Completado</span></div>`);
+            });
+            return { assetsForDay, scheduledOrders, completedOrders, summaryRows };
+        }
+        function renderCalendarPanel() {
+            const monthLabel = document.getElementById('calendarMonthLabel');
+            const grid = document.getElementById('calendarGrid');
+            const agenda = document.getElementById('calendarAgenda');
+            const daySummary = document.getElementById('calendarDaySummary');
+            if (!monthLabel || !grid || !agenda || !daySummary) return;
+
+            const cursor = state.calendarCursor || new Date();
+            const year = cursor.getFullYear();
+            const month = cursor.getMonth();
+            const monthStart = new Date(year, month, 1);
+            const monthEnd = new Date(year, month + 1, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            monthLabel.textContent = monthStart.toLocaleDateString('es-DO', { month: 'long', year: 'numeric' });
+            if (!state.calendarSelectedDate) {
+                const todayKey = toDateKey(today);
+                state.calendarSelectedDate = todayKey;
+            }
+
+            const eventsByDate = new Map();
+            state.assets.forEach(item => {
+                const parsed = parseDateValue(item.proximo_mantenimiento);
+                if (!parsed) return;
+                parsed.setHours(0, 0, 0, 0);
+                const key = toDateKey(parsed);
+                if (!eventsByDate.has(key)) eventsByDate.set(key, []);
+                eventsByDate.get(key).push(item);
+            });
+
+            const firstWeekday = (monthStart.getDay() + 6) % 7;
+            const gridStart = new Date(year, month, 1 - firstWeekday);
+            const dayCells = [];
+            for (let i = 0; i < 42; i += 1) {
+                const day = new Date(gridStart);
+                day.setDate(gridStart.getDate() + i);
+                day.setHours(0, 0, 0, 0);
+                const dateKey = toDateKey(day);
+                const dayEvents = eventsByDate.get(dateKey) || [];
+                const inCurrentMonth = day.getMonth() === month;
+                const isToday = day.getTime() === today.getTime();
+                const isSelected = state.calendarSelectedDate === dateKey;
+                const dayClasses = ['calendar-day'];
+                if (!inCurrentMonth) dayClasses.push('muted');
+                if (isToday) dayClasses.push('today');
+                if (isSelected) dayClasses.push('selected');
+                const preview = dayEvents.slice(0, 2).map(item => {
+                    const due = dueMeta(item.proximo_mantenimiento);
+                    return `<div class="calendar-chip ${due.tone}">${escapeHtml(item.nombre || item.codigo || 'Equipo')}</div>`;
+                }).join('');
+                const extra = dayEvents.length > 2 ? `<div class="calendar-chip info">+${dayEvents.length - 2} mas</div>` : '';
+                dayCells.push(`<div class="${dayClasses.join(' ')}" onclick="selectCalendarDay('${dateKey}')"><div class="calendar-day-head"><span class="calendar-day-number">${day.getDate()}</span><span class="calendar-day-count">${dayEvents.length ? `${dayEvents.length} act.` : ''}</span></div><div class="calendar-events">${preview}${extra}</div></div>`);
+            }
+            grid.innerHTML = dayCells.join('');
+
+            const selectedDate = parseDateValue(state.calendarSelectedDate);
+            const selectedKey = selectedDate ? toDateKey(selectedDate) : state.calendarSelectedDate;
+            const dayData = collectCalendarDayActivities(selectedKey);
+            const summaryRows = dayData.summaryRows;
+
+            const selectedText = selectedDate ? formatDate(selectedDate) : 'Sin fecha';
+            daySummary.innerHTML = `<h5>Resumen del dia ${selectedText}</h5><p>${summaryRows.length} actividad(es) detectadas.</p><div class="calendar-day-list">${summaryRows.length ? summaryRows.join('') : '<div class="empty">No hay actividades para este dia.</div>'}</div>`;
+
+            const monthEvents = state.assets
+                .filter(item => {
+                    const parsed = parseDateValue(item.proximo_mantenimiento);
+                    return parsed && parsed >= monthStart && parsed <= monthEnd;
+                })
+                .sort((a, b) => (a.proximo_mantenimiento || '').localeCompare(b.proximo_mantenimiento || ''));
+
+            if (!monthEvents.length) {
+                agenda.innerHTML = '<div class="empty">No hay mantenimientos para este mes.</div>';
+                return;
+            }
+            agenda.innerHTML = monthEvents.map(item => {
+                const due = dueMeta(item.proximo_mantenimiento);
+                return `<div class="calendar-agenda-item"><strong>${escapeHtml(item.nombre || 'Equipo')}</strong><div class="calendar-agenda-meta"><span>${formatDate(item.proximo_mantenimiento)} · ${escapeHtml(item.sucursal_nombre || 'Sin sucursal')}</span><span class="row-badge ${due.tone}">${escapeHtml(due.text)}</span></div></div>`;
+            }).join('');
+        }
+        function changeCalendarMonth(step) {
+            const cursor = state.calendarCursor || new Date();
+            state.calendarCursor = new Date(cursor.getFullYear(), cursor.getMonth() + Number(step || 0), 1);
+            renderCalendarPanel();
+        }
+        function selectCalendarDay(dateKey) {
+            state.calendarSelectedDate = dateKey || null;
+            renderCalendarPanel();
+            openCalendarDayModal(dateKey);
+        }
+        function goToCurrentMonth() {
+            const now = new Date();
+            state.calendarCursor = new Date(now.getFullYear(), now.getMonth(), 1);
+            state.calendarSelectedDate = toDateKey(now);
+            renderCalendarPanel();
+        }
+        function syncBodyModalState() {
+            const activeModal = document.querySelector('.asset-modal.active');
+            if (activeModal) document.body.classList.add('modal-open');
+            else document.body.classList.remove('modal-open');
+        }
+        function openCalendarDayModal(dateKey) {
+            if (!dateKey) return;
+            const modal = document.getElementById('calendarDayModal');
+            const title = document.getElementById('calendarDayModalTitle');
+            const subtitle = document.getElementById('calendarDayModalSubtitle');
+            const body = document.getElementById('calendarDayModalBody');
+            if (!modal || !title || !subtitle || !body) return;
+            const parsed = parseDateValue(dateKey);
+            const dayText = parsed ? formatDate(parsed) : 'Sin fecha';
+            const dayData = collectCalendarDayActivities(dateKey);
+            const total = dayData.summaryRows.length;
+            title.textContent = `Resumen del dia ${dayText}`;
+            subtitle.textContent = `${total} actividad(es) registradas para este dia.`;
+            const modalRows = [];
+            dayData.assetsForDay.forEach(item => {
+                modalRows.push(`<div class="calendar-modal-item"><strong>A realizar: ${escapeHtml(item.nombre || item.codigo || 'Equipo')}</strong><span>${escapeHtml(item.sucursal_nombre || 'Sin sucursal')} · ${escapeHtml(item.estado_operativo || 'Operativo')}</span></div>`);
+            });
+            dayData.scheduledOrders.forEach(item => {
+                modalRows.push(`<div class="calendar-modal-item"><strong>Programada: ${escapeHtml(item.titulo || 'Orden de mantenimiento')}</strong><span>${escapeHtml(item.activo_nombre || 'Activo')} · ${escapeHtml(item.estado || 'Pendiente')}</span></div>`);
+            });
+            dayData.completedOrders.forEach(item => {
+                modalRows.push(`<div class="calendar-modal-item"><strong>Realizada: ${escapeHtml(item.titulo || 'Orden completada')}</strong><span>${escapeHtml(item.activo_nombre || 'Activo')} · Completado</span></div>`);
+            });
+            body.innerHTML = `<div class="calendar-modal-meta"><span class="row-badge info">A realizar: ${dayData.assetsForDay.length + dayData.scheduledOrders.length}</span><span class="row-badge success">Realizadas: ${dayData.completedOrders.length}</span></div><div class="calendar-modal-list">${modalRows.length ? modalRows.join('') : '<div class="empty">No hay actividades para este dia.</div>'}</div>`;
+            modal.classList.add('active');
+            syncBodyModalState();
+        }
+        function closeCalendarDayModal() {
+            const modal = document.getElementById('calendarDayModal');
+            if (modal) modal.classList.remove('active');
+            syncBodyModalState();
+        }
+        function handleCalendarDayModalBackdrop(event) {
+            const target = event && event.target;
+            if (target && target.id === 'calendarDayModal') closeCalendarDayModal();
+        }
+        function openAssignAssetModal(assetId) {
+            const asset = state.assets.find(item => item.id === assetId);
+            if (!asset) {
+                setStatus('assignAssetStatus', 'No se encontro el equipo seleccionado.', true);
+                return;
+            }
+            state.assigningAssetId = assetId;
+            const select = document.getElementById('assignAssetUser');
+            const meta = document.getElementById('assignAssetMeta');
+            const modal = document.getElementById('assignAssetModal');
+            const options = ['<option value="">Selecciona un responsable</option>'];
+            const technicianUsers = (state.lookups.usuarios || []).filter(user => normalizeRole(user.rol) === 'tecnicos');
+            technicianUsers.forEach(user => {
+                const fullName = user.nombre_completo || user.username || `Usuario ${user.id}`;
+                const roleName = (user.rol || 'usuario').replace('_', ' ');
+                const selected = Number(asset.responsable_usuario_id) === Number(user.id) ? ' selected' : '';
+                options.push(`<option value="${user.id}"${selected}>${escapeHtml(fullName)} · ${escapeHtml(roleName)}</option>`);
+            });
+            select.innerHTML = options.join('');
+            meta.innerHTML = `<strong>${escapeHtml(asset.nombre || 'Equipo')}</strong><span>Codigo: ${escapeHtml(asset.codigo || 'N/A')} · Sucursal: ${escapeHtml(asset.sucursal_nombre || 'Sin sucursal')} · Responsable actual: ${escapeHtml(asset.responsable_nombre || 'Sin responsable')}</span>`;
+            if (!technicianUsers.length) setStatus('assignAssetStatus', 'No hay tecnicos activos disponibles para asignar.', true);
+            else setStatus('assignAssetStatus', '', false);
+            if (modal) modal.classList.add('active');
+            syncBodyModalState();
+        }
+        function closeAssignAssetModal() {
+            const modal = document.getElementById('assignAssetModal');
+            if (modal) modal.classList.remove('active');
+            state.assigningAssetId = null;
+            setStatus('assignAssetStatus', '', false);
+            syncBodyModalState();
+        }
+        function handleAssignAssetModalBackdrop(event) {
+            const target = event && event.target;
+            if (target && target.id === 'assignAssetModal') closeAssignAssetModal();
+        }
+        async function submitAssignAsset(event) {
+            event.preventDefault();
+            const assetId = Number(state.assigningAssetId || 0);
+            const selectedUserId = parseNullableInt(document.getElementById('assignAssetUser').value);
+            if (!assetId) { setStatus('assignAssetStatus', 'No hay equipo seleccionado.', true); return; }
+            if (!selectedUserId) { setStatus('assignAssetStatus', 'Selecciona un responsable.', true); return; }
+            setStatus('assignAssetStatus', 'Guardando asignacion...', false);
+            try {
+                await fetchJSON(`${API}/api/v1/maintenance/assets/${assetId}?${getSessionParams()}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ responsable_usuario_id: selectedUserId })
+                });
+                await refreshModule();
+                closeAssignAssetModal();
+            } catch (error) {
+                setStatus('assignAssetStatus', error.message, true);
+            }
+        }
+        function renderReportsPanel() {
+            const summary = state.summary || {};
+            document.getElementById('reportsSummary').innerHTML = `<div class="cards-grid" style="margin-bottom:0;"><div class="metric-card"><div class="metric-title">Equipos activos</div><div class="metric-value">${summary.total_assets || 0}</div><div class="meta-line">Inventario demo para pruebas</div></div><div class="metric-card"><div class="metric-title">Alertas abiertas</div><div class="metric-value">${state.alerts.length}</div><div class="meta-line">Items a monitorear</div></div><div class="metric-card"><div class="metric-title">Ordenes totales</div><div class="metric-value">${state.workOrders.length}</div><div class="meta-line">Backlog del modulo</div></div></div>`;
+        }
+        function renderDashboard() { renderMetrics(); renderUpcomingTable(); renderHistoryTables(); renderAlerts(); renderTracking(); renderAssetsTable(); renderOrdersTable(); renderCalendarPanel(); renderReportsPanel(); }
+        function openAssetForm(assetId) {
+            const modal = document.getElementById('assetFormModal');
+            const form = document.getElementById('assetForm');
+            const title = document.getElementById('assetModalTitle');
+            const submitBtn = document.getElementById('assetSubmitBtn');
+            const categorySelect = document.getElementById('assetCategoria');
+            const locationSelect = document.getElementById('assetUbicacion');
+            const responsibleSelect = document.getElementById('assetResponsable');
+            const codigoInput = document.getElementById('assetCodigo');
+            const nombreInput = document.getElementById('assetNombre');
+            const garantiaInput = document.getElementById('assetGarantia');
+            const frecuenciaInput = document.getElementById('assetFrecuencia');
+            const ultimoInput = document.getElementById('assetUltimo');
+            const descripcionInput = document.getElementById('assetDescripcion');
+            setStatus('assetStatus', '', false);
+            if (form) form.reset();
+            state.editingAssetId = null;
+            if (categorySelect) populateAssetCategorySelect('');
+            populateAreaSelect('');
+            if (locationSelect) locationSelect.value = '';
+            if (responsibleSelect) responsibleSelect.value = '';
+
+            if (assetId != null) {
+                const asset = state.assets.find(item => item.id === assetId);
+                if (asset) {
+                    state.editingAssetId = assetId;
+                    const areaLocation = parseAreaLocation(asset.ubicacion_detalle, asset.sucursal_nombre);
+                    if (categorySelect) populateAssetCategorySelect(asset.categoria || '');
+                    populateAreaSelect(areaLocation.area || '');
+                    populateLocationSelect(areaLocation.area || '', areaLocation.location || '');
+                    if (codigoInput) codigoInput.value = asset.codigo || '';
+                    if (nombreInput) nombreInput.value = asset.nombre || '';
+                    if (garantiaInput) garantiaInput.value = daysToMonths(asset.garantia);
+                    if (responsibleSelect) responsibleSelect.value = asset.responsable_usuario_id != null ? String(asset.responsable_usuario_id) : '';
+                    if (frecuenciaInput) frecuenciaInput.value = asset.frecuencia_dias || 90;
+                    if (ultimoInput) ultimoInput.value = asset.ultimo_mantenimiento || '';
+                    if (descripcionInput) descripcionInput.value = asset.descripcion || '';
+                    if (title) title.textContent = 'Editar equipo TI';
+                    if (submitBtn) submitBtn.textContent = 'Guardar cambios';
+                }
+            } else {
+                if (title) title.textContent = 'Registrar equipo TI';
+                if (submitBtn) submitBtn.textContent = 'Guardar equipo TI';
+            }
+            if (modal) modal.classList.add('active');
+            syncBodyModalState();
+            toggleMaintenanceFields();
+            const firstInput = document.getElementById('assetCodigo');
+            if (firstInput) firstInput.focus();
+        }
+        function closeAssetForm() {
+            const modal = document.getElementById('assetFormModal');
+            if (modal) modal.classList.remove('active');
+            state.editingAssetId = null;
+            syncBodyModalState();
+            setStatus('assetStatus', '', false);
+        }
+        function handleAssetModalBackdrop(event) {
+            const target = event && event.target;
+            if (target && target.id === 'assetFormModal') closeAssetForm();
+        }
+        function showPanel(name, event) {
+            const panelName = name || 'dashboard';
+            document.querySelectorAll('.panel').forEach(panel => panel.classList.toggle('active', panel.id === `panel-${panelName}`));
+            document.querySelectorAll('#sideNav button').forEach(button => button.classList.toggle('active', button.dataset.panel === panelName));
+            if (panelName !== 'assets') closeAssetForm();
+            if (panelName !== 'calendar') closeCalendarDayModal();
+            if (panelName !== 'assets') closeAssignAssetModal();
+            if (panelName === 'calendar') renderCalendarPanel();
+            toggleMobileNav(false);
+            if (event && typeof event.preventDefault === 'function') event.preventDefault();
+        }
+        function focusSearch(mode) {
+            const input = document.getElementById('dashboardSearch');
+            if (input) {
+                input.value = mode === 'vencidos' ? 'COMP' : '';
+                input.focus();
+            }
+            renderDashboard();
+        }
+        async function refreshModule() { await Promise.all([loadLookups(), loadDashboard()]); renderDashboard(); }
+        async function submitAsset(event) {
+            event.preventDefault(); setStatus('assetStatus', 'Guardando equipo...', false);
+            const editingId = state.editingAssetId;
+            const selectedArea = (document.getElementById('assetSucursal').value || '').trim();
+            const selectedLocation = (document.getElementById('assetUbicacion').value || '').trim();
+            const selectedStore = selectedArea === 'Tiendas'
+                ? (state.lookups.sucursales || []).find(item => (item.nombre || '').trim() === selectedLocation)
+                : null;
+            const payload = {
+                codigo: document.getElementById('assetCodigo').value.trim(),
+                nombre: document.getElementById('assetNombre').value.trim(),
+                categoria: document.getElementById('assetCategoria').value.trim() || 'General',
+                sucursal_id: selectedStore ? selectedStore.id : null,
+                responsable_usuario_id: parseNullableInt(document.getElementById('assetResponsable').value),
+                frecuencia_dias: parseInt(document.getElementById('assetFrecuencia').value || '90', 10),
+                ultimo_mantenimiento: document.getElementById('assetUltimo').value || null,
+                proximo_mantenimiento: null,
+                ubicacion_detalle: selectedArea ? `${selectedArea}: ${selectedLocation || 'Sin ubicacion'}` : selectedLocation,
+                descripcion: document.getElementById('assetDescripcion').value.trim(),
+                garantia: monthsToDays(document.getElementById('assetGarantia').value),
+                requiere_mantenimiento: true,
+            };
+            try {
+                const url = editingId == null
+                    ? `${API}/api/v1/maintenance/assets?${getSessionParams()}`
+                    : `${API}/api/v1/maintenance/assets/${editingId}?${getSessionParams()}`;
+                const method = editingId == null ? 'POST' : 'PATCH';
+                await fetchJSON(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                document.getElementById('assetForm').reset();
+                setStatus('assetStatus', editingId == null ? 'Equipo registrado correctamente.' : 'Equipo actualizado correctamente.', false);
+                await refreshModule();
+                closeAssetForm();
+            } catch (error) { setStatus('assetStatus', error.message, true); }
+        }
+        function prefillOrderForAsset(assetId) {
+            const match = state.assets.find(item => item.id === assetId); if (!match) return;
+        }
+        async function toggleAssetState(assetId, nextState) {
+            try {
+                await fetchJSON(`${API}/api/v1/maintenance/assets/${assetId}?${getSessionParams()}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo: nextState === true || nextState === 'true' }) });
+                await refreshModule();
+            } catch (error) { setStatus('assetStatus', error.message, true); }
+        }
+        async function updateWorkOrderStatus(workOrderId, status) {
+            try {
+                await fetchJSON(`${API}/api/v1/maintenance/work-orders/${workOrderId}?${getSessionParams()}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: status }) });
+                await refreshModule();
+            } catch (error) { setStatus('assetStatus', error.message, true); }
+        }
+        document.addEventListener('DOMContentLoaded', async function() {
+            if (!ensureAuthorizedUser()) return;
+            populateAssetCategorySelect('');
+            try { await refreshModule(); }
+            catch (error) {
+                document.getElementById('upcomingTableBody').innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(error.message)}</td></tr>`;
+                document.getElementById('historyTableBody').innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(error.message)}</td></tr>`;
+                document.getElementById('alertsList').innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+            }
+        });
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') { closeAssetForm(); closeCalendarDayModal(); closeAssignAssetModal(); }
+        });
+    </script>
+</body>
+</html>

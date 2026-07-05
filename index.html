@@ -2494,6 +2494,7 @@
                         <button class="subtab-btn" onclick="switchRol(event, 'Analista')">Analista</button>
                         <button class="subtab-btn" onclick="switchRol(event, 'Activos_Fijos')">Activos Fijos</button>
                         <button class="subtab-btn" onclick="switchRol(event, 'Tecnicos')">Técnicos</button>
+                        <button class="subtab-btn" onclick="switchRol(event, 'Equipo_TI')">Equipo TI</button>
                         <button class="subtab-btn" onclick="switchRol(event, 'Contabilidad')">Contabilidad</button>
                     </div>
 
@@ -2543,6 +2544,12 @@
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead><tr style="background: #f5f5f5;"><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Nombre</th><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Email</th><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Sucursal</th><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Telefono</th><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Estado</th><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Acciones</th></tr></thead>
                             <tbody id="tbody-rol-Tecnicos"><tr><td colspan="6" style="text-align: center;">Sin usuarios</td></tr></tbody>
+                        </table>
+                    </div>
+                    <div id="rol-Equipo_TI" class="subtab-content">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead><tr style="background: #f5f5f5;"><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Nombre</th><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Email</th><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Sucursal</th><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Telefono</th><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Estado</th><th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Acciones</th></tr></thead>
+                            <tbody id="tbody-rol-Equipo_TI"><tr><td colspan="6" style="text-align: center;">Sin usuarios</td></tr></tbody>
                         </table>
                     </div>
                     <div id="rol-Contabilidad" class="subtab-content">
@@ -2787,6 +2794,7 @@
                 <option value="Contabilidad">Contabilidad (Especial)</option>
                 <option value="activos_fijos">Activos Fijos</option>
                 <option value="tecnicos">Técnicos</option>
+                <option value="equipo_ti">Equipo TI</option>
             </select></div>
             <div class="form-group"><label>Sucursal</label><select id="inputSucursalUsuario"></select></div>
             <div class="form-group"><label>Telefono</label><input type="text" id="inputTelefonoUsuario"></div>
@@ -4789,6 +4797,7 @@ function renderUsuariosTable(usuarios) {
         'Analista': usuarios.filter(u => u.rol && u.rol.toLowerCase() === 'analista'),
         'Activos_Fijos': usuarios.filter(u => u.rol && u.rol.toLowerCase() === 'activos_fijos'),
         'Tecnicos': usuarios.filter(u => u.rol && u.rol.toLowerCase() === 'tecnicos'),
+        'Equipo_TI': usuarios.filter(u => u.rol && u.rol.toLowerCase() === 'equipo_ti'),
         'Contabilidad': usuarios.filter(u => u.rol && u.rol.toLowerCase() === 'contabilidad')
     };
     
@@ -5488,6 +5497,7 @@ function testRenderUsuarios() {
                         <option value="colorista">Colorista</option>
                         <option value="analista">Analista</option>
                         <option value="contabilidad">Contabilidad</option>
+                        <option value="equipo_ti">Equipo TI</option>
                     </select>
                 </div>
                 
