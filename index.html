@@ -2908,7 +2908,10 @@ function normalizeRole(role) {
         'activo_fijo': 'activos_fijos',
         'activos_fijo': 'activos_fijos',
         'activosfijo': 'activos_fijos',
-        'activosfijos': 'activos_fijos'
+        'activosfijos': 'activos_fijos',
+        'equipoti': 'equipo_ti',
+        'ti': 'equipo_ti',
+        'it': 'equipo_ti'
     };
     return aliases[normalized] || normalized;
 }
@@ -2995,6 +2998,12 @@ async function checkExistingSession() {
                 window.location.href = '/maintenance';
                 return;
             }
+
+            if (userRole === 'equipo_ti') {
+                console.log('Usuario TI detectado, redirigiendo a /ti');
+                window.location.href = '/ti';
+                return;
+            }
             
             // Solo mostrar dashboard si es administrador con sesión válida
             if (userRole === 'administrador') {
@@ -3052,6 +3061,12 @@ function goToDashboard() {
         if (rol === 'activos_fijos' || rol === 'tecnicos') {
             console.log('Usuario de mantenimiento detectado, redirigiendo a /maintenance');
             window.location.href = '/maintenance';
+            return;
+        }
+
+        if (rol === 'equipo_ti') {
+            console.log('Usuario TI detectado, redirigiendo a /ti');
+            window.location.href = '/ti';
             return;
         }
 
@@ -3146,6 +3161,12 @@ async function handleLogin(e) {
         if (userRole === 'activos_fijos' || userRole === 'tecnicos') {
             console.log('Usuario de mantenimiento detectado, redirigiendo a /maintenance');
             window.location.replace('/maintenance');
+            return;
+        }
+
+        if (userRole === 'equipo_ti') {
+            console.log('Usuario TI detectado, redirigiendo a /ti');
+            window.location.replace('/ti');
             return;
         }
 
