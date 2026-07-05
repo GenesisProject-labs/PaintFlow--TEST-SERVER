@@ -92,6 +92,8 @@ class MaintenanceAssetCreate(BaseModel):
     sucursal_id: Optional[int] = None
     ubicacion_detalle: Optional[str] = ""
     descripcion: Optional[str] = ""
+    garantia: Optional[int] = None
+    requiere_mantenimiento: bool = True
     estado_operativo: str = "Operativo"
     frecuencia_dias: int = 90
     ultimo_mantenimiento: Optional[date] = None
@@ -106,6 +108,8 @@ class MaintenanceAssetUpdate(BaseModel):
     sucursal_id: Optional[int] = None
     ubicacion_detalle: Optional[str] = None
     descripcion: Optional[str] = None
+    garantia: Optional[int] = None
+    requiere_mantenimiento: Optional[bool] = None
     estado_operativo: Optional[str] = None
     frecuencia_dias: Optional[int] = None
     ultimo_mantenimiento: Optional[date] = None
@@ -618,6 +622,12 @@ if os.path.exists(pngs_dir):
 else:
     logger.warning(f"PNGs directory not found at: {pngs_dir}")
 
+tipng_dir = os.path.join(os.path.dirname(__file__), "TIPNG")
+if os.path.exists(tipng_dir):
+    app.mount("/tipng", StaticFiles(directory=tipng_dir), name="tipng")
+else:
+    logger.warning(f"TIPNG directory not found at: {tipng_dir}")
+
 PRODUCTOS_MEDIA_DIR = ""
 for _candidate in (
     os.path.join(os.path.dirname(__file__), "Productos"),
@@ -844,6 +854,21 @@ async def maintenance_page():
 async def maintenance_management_page():
     """Alias comercial para el modulo de mantenimiento."""
     return RedirectResponse(url="/maintenance", status_code=307)
+
+
+@app.get("/ti")
+async def ti_page():
+    """Modulo de gestion de TI integrado en PaintFlow."""
+    html_path = os.path.join(os.path.dirname(__file__), "ti_management.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="TI page not found")
+
+
+@app.get("/ti-management")
+async def ti_management_page():
+    """Alias comercial para el modulo de TI."""
+    return RedirectResponse(url="/ti", status_code=307)
 
 @app.get("/fixed-assets-request")
 async def fixed_assets_request_page():
@@ -1285,6 +1310,10 @@ def _normalize_role_key(role: Optional[str]) -> str:
         "activos_fijo": "activos_fijos",
         "activosfijo": "activos_fijos",
         "activosfijos": "activos_fijos",
+        "equipo_ti": "equipo_ti",
+        "equipoti": "equipo_ti",
+        "ti": "equipo_ti",
+        "it": "equipo_ti",
     }
     return aliases.get(role_key, role_key)
 
@@ -1321,9 +1350,19 @@ def _resolve_requester_role(db, username: Optional[str] = None, usuario_id: Opti
     return _normalize_role_key(role)
 
 
-def _require_maintenance_access(db, username: Optional[str] = None, usuario_id: Optional[int] = None, role: Optional[str] = None) -> str:
+def _require_maintenance_access(
+    db,
+    username: Optional[str] = None,
+    usuario_id: Optional[int] = None,
+    role: Optional[str] = None,
+    module: Optional[str] = None,
+) -> str:
     resolved_role = _resolve_requester_role(db, username=username, usuario_id=usuario_id, role=role)
-    if resolved_role not in {"administrador", "activos_fijos", "tecnicos"}:
+    scope = _normalize_maintenance_scope(module)
+    allowed_roles = {"administrador", "activos_fijos", "tecnicos"}
+    if scope == "ti":
+        allowed_roles.add("equipo_ti")
+    if resolved_role not in allowed_roles:
         raise HTTPException(status_code=403, detail="Acceso restringido al modulo de mantenimiento")
     return resolved_role
 
@@ -1617,7 +1656,7 @@ def _ensure_usuarios_cliente_role_constraint(db) -> None:
 
     definition = str(row[1] or "")
     definition_lower = definition.lower()
-    if all(role_name in definition_lower for role_name in ("cliente", "activos_fijos", "tecnicos")):
+    if all(role_name in definition_lower for role_name in ("cliente", "activos_fijos", "tecnicos", "equipo_ti")):
         return
 
     # Reusar valores del CHECK actual y agregar roles del portal sin duplicados.
@@ -1627,7 +1666,7 @@ def _ensure_usuarios_cliente_role_constraint(db) -> None:
 
     merged_roles = []
     seen = set()
-    for role_value in existing_roles + ["cliente", "activos_fijos", "tecnicos"]:
+    for role_value in existing_roles + ["cliente", "activos_fijos", "tecnicos", "equipo_ti"]:
         key = role_value.strip().lower()
         if not key or key in seen:
             continue
@@ -1674,6 +1713,13 @@ def _normalize_maintenance_type(value: Optional[str]) -> str:
     return mapping.get(normalized, "Preventivo")
 
 
+def _normalize_maintenance_scope(value: Optional[str]) -> str:
+    normalized = (value or "maintenance").strip().lower().replace("_", "-")
+    if normalized in {"ti", "it", "tecnologia", "tecnologia-informacion", "tecnologia de informacion"}:
+        return "ti"
+    return "maintenance"
+
+
 def _compute_next_maintenance(last_date: Optional[date], frequency_days: int, explicit_next: Optional[date] = None) -> Optional[date]:
     if explicit_next is not None:
         return explicit_next
@@ -1695,10 +1741,14 @@ def _ensure_maintenance_schema(db) -> None:
             id SERIAL PRIMARY KEY,
             codigo VARCHAR(60) NOT NULL UNIQUE,
             nombre VARCHAR(160) NOT NULL,
+            departamento VARCHAR(40) NOT NULL DEFAULT 'maintenance',
             categoria VARCHAR(80) NOT NULL DEFAULT 'General',
             sucursal_id INTEGER REFERENCES sucursales(id),
             ubicacion_detalle VARCHAR(160),
             descripcion TEXT,
+            garantia VARCHAR(120),
+            garantia_dias INTEGER,
+            requiere_mantenimiento BOOLEAN NOT NULL DEFAULT TRUE,
             estado_operativo VARCHAR(40) NOT NULL DEFAULT 'Operativo',
             frecuencia_dias INTEGER NOT NULL DEFAULT 90,
             ultimo_mantenimiento DATE NULL,
@@ -1732,6 +1782,10 @@ def _ensure_maintenance_schema(db) -> None:
     for stmt in (
         "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS ubicacion_detalle VARCHAR(160)",
         "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS descripcion TEXT",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS departamento VARCHAR(40) NOT NULL DEFAULT 'maintenance'",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS garantia VARCHAR(120)",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS garantia_dias INTEGER",
+        "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS requiere_mantenimiento BOOLEAN NOT NULL DEFAULT TRUE",
         "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS responsable_usuario_id INTEGER NULL REFERENCES usuarios(id)",
         "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS estado_operativo VARCHAR(40) NOT NULL DEFAULT 'Operativo'",
         "ALTER TABLE maintenance_assets ADD COLUMN IF NOT EXISTS frecuencia_dias INTEGER NOT NULL DEFAULT 90",
@@ -1750,6 +1804,8 @@ def _ensure_maintenance_schema(db) -> None:
         cur.execute(stmt)
     for stmt in (
         "CREATE INDEX IF NOT EXISTS idx_maintenance_assets_due ON maintenance_assets(proximo_mantenimiento)",
+        "CREATE INDEX IF NOT EXISTS idx_maintenance_assets_warranty_days ON maintenance_assets(garantia_dias)",
+        "CREATE INDEX IF NOT EXISTS idx_maintenance_assets_scope ON maintenance_assets(departamento)",
         "CREATE INDEX IF NOT EXISTS idx_maintenance_assets_sucursal ON maintenance_assets(sucursal_id)",
         "CREATE INDEX IF NOT EXISTS idx_maintenance_assets_responsable ON maintenance_assets(responsable_usuario_id)",
         "CREATE INDEX IF NOT EXISTS idx_maintenance_work_orders_estado ON maintenance_work_orders(estado)",
@@ -1757,6 +1813,16 @@ def _ensure_maintenance_schema(db) -> None:
         "CREATE INDEX IF NOT EXISTS idx_maintenance_work_orders_activo ON maintenance_work_orders(activo_id)",
     ):
         cur.execute(stmt)
+
+        # Migrar texto legacy de garantia hacia el nuevo campo numerico (dias) cuando aplique.
+        cur.execute(
+                """
+                UPDATE maintenance_assets
+                SET garantia_dias = NULLIF(REGEXP_REPLACE(COALESCE(garantia, ''), '[^0-9]', '', 'g'), '')::INTEGER
+                WHERE garantia_dias IS NULL
+                    AND COALESCE(garantia, '') <> ''
+                """
+        )
 
 
 def _seed_maintenance_demo_data(db) -> None:
@@ -1811,16 +1877,17 @@ def _seed_maintenance_demo_data(db) -> None:
         cur.execute(
             """
             INSERT INTO maintenance_assets (
-                codigo, nombre, categoria, sucursal_id, ubicacion_detalle, descripcion,
+                codigo, nombre, departamento, categoria, sucursal_id, ubicacion_detalle, descripcion,
                 estado_operativo, frecuencia_dias, ultimo_mantenimiento, proximo_mantenimiento,
                 responsable_usuario_id, activo, created_at, updated_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, NOW(), NOW())
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, NOW(), NOW())
             RETURNING id
             """,
             (
                 asset["codigo"],
                 asset["nombre"],
+                "maintenance",
                 asset["categoria"],
                 sucursal_id,
                 area,
@@ -1881,19 +1948,24 @@ def _serialize_maintenance_asset_row(row) -> Dict[str, Any]:
         "id": row[0],
         "codigo": row[1],
         "nombre": row[2],
-        "categoria": row[3],
-        "sucursal_id": row[4],
-        "sucursal_nombre": row[5],
-        "ubicacion_detalle": row[6] or "",
-        "descripcion": row[7] or "",
-        "estado_operativo": row[8],
-        "frecuencia_dias": int(row[9] or 0),
-        "ultimo_mantenimiento": row[10].isoformat() if row[10] else None,
-        "proximo_mantenimiento": row[11].isoformat() if row[11] else None,
-        "responsable_usuario_id": row[12],
-        "responsable_nombre": row[13],
-        "activo": bool(row[14]),
-        "ordenes_abiertas": int(row[15] or 0),
+        "departamento": row[3],
+        "categoria": row[4],
+        "sucursal_id": row[5],
+        "sucursal_nombre": row[6],
+        "ubicacion_detalle": row[7] or "",
+        "descripcion": row[8] or "",
+        "garantia": int(row[9]) if row[9] is not None else None,
+        "garantia_vence": row[10].isoformat() if row[10] else None,
+        "garantia_dias_restantes": int(row[11]) if row[11] is not None else None,
+        "requiere_mantenimiento": bool(row[12]),
+        "estado_operativo": row[13],
+        "frecuencia_dias": int(row[14] or 0),
+        "ultimo_mantenimiento": row[15].isoformat() if row[15] else None,
+        "proximo_mantenimiento": row[16].isoformat() if row[16] else None,
+        "responsable_usuario_id": row[17],
+        "responsable_nombre": row[18],
+        "activo": bool(row[19]),
+        "ordenes_abiertas": int(row[20] or 0),
     }
 
 
@@ -1943,10 +2015,10 @@ def _refresh_asset_dates_from_work_order(db, activo_id: int, status: str, schedu
     )
 
 
-def _list_maintenance_assets(db, limit: int = 200, include_inactive: bool = False) -> List[Dict[str, Any]]:
+def _list_maintenance_assets(db, limit: int = 200, include_inactive: bool = False, scope: str = "maintenance") -> List[Dict[str, Any]]:
     cur = db.cursor()
-    filters = []
-    params: List[Any] = []
+    filters = ["a.departamento = %s"]
+    params: List[Any] = [scope]
     if not include_inactive:
         filters.append("a.activo = TRUE")
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
@@ -1955,11 +2027,24 @@ def _list_maintenance_assets(db, limit: int = 200, include_inactive: bool = Fals
         SELECT a.id,
                a.codigo,
                a.nombre,
+             a.departamento,
                a.categoria,
                a.sucursal_id,
                s.nombre AS sucursal_nombre,
                a.ubicacion_detalle,
                a.descripcion,
+               a.garantia_dias,
+               CASE
+                   WHEN a.garantia_dias IS NOT NULL AND a.garantia_dias > 0
+                   THEN (a.created_at::date + a.garantia_dias)
+                   ELSE NULL
+               END AS garantia_vence,
+               CASE
+                   WHEN a.garantia_dias IS NOT NULL AND a.garantia_dias > 0
+                   THEN ((a.created_at::date + a.garantia_dias) - CURRENT_DATE)
+                   ELSE NULL
+               END AS garantia_dias_restantes,
+               a.requiere_mantenimiento,
                a.estado_operativo,
                a.frecuencia_dias,
                a.ultimo_mantenimiento,
@@ -1986,7 +2071,7 @@ def _list_maintenance_assets(db, limit: int = 200, include_inactive: bool = Fals
     return [_serialize_maintenance_asset_row(row) for row in (cur.fetchall() or [])]
 
 
-def _list_maintenance_work_orders(db, limit: int = 200) -> List[Dict[str, Any]]:
+def _list_maintenance_work_orders(db, limit: int = 200, scope: str = "maintenance") -> List[Dict[str, Any]]:
     cur = db.cursor()
     cur.execute(
         """
@@ -2008,6 +2093,7 @@ def _list_maintenance_work_orders(db, limit: int = 200) -> List[Dict[str, Any]]:
         FROM maintenance_work_orders wo
         JOIN maintenance_assets a ON a.id = wo.activo_id
         LEFT JOIN usuarios u ON u.id = wo.asignado_usuario_id
+        WHERE a.departamento = %s
         ORDER BY
             CASE wo.estado
                 WHEN 'Vencido' THEN 0
@@ -2020,7 +2106,7 @@ def _list_maintenance_work_orders(db, limit: int = 200) -> List[Dict[str, Any]]:
             wo.created_at DESC
         LIMIT %s
         """,
-        (limit,)
+        (scope, limit)
     )
     return [_serialize_maintenance_work_order_row(row) for row in (cur.fetchall() or [])]
 
@@ -2030,9 +2116,10 @@ async def maintenance_lookups(
     username: Optional[str] = None,
     usuario_id: Optional[int] = None,
     role: Optional[str] = None,
+    module: Optional[str] = None,
     db=Depends(get_db),
 ):
-    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role, module=module)
     cur = db.cursor()
     cur.execute(
         "SELECT id, nombre, zona FROM sucursales WHERE activo = TRUE ORDER BY nombre"
@@ -2067,31 +2154,70 @@ async def maintenance_dashboard(
     username: Optional[str] = None,
     usuario_id: Optional[int] = None,
     role: Optional[str] = None,
+    module: Optional[str] = None,
     db=Depends(get_db),
 ):
-    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role, module=module)
+    scope = _normalize_maintenance_scope(module)
     cur = db.cursor()
-    cur.execute("SELECT COUNT(*) FROM maintenance_assets WHERE activo = TRUE")
+    cur.execute("SELECT COUNT(*) FROM maintenance_assets WHERE activo = TRUE AND departamento = %s", (scope,))
     total_assets = int((cur.fetchone() or [0])[0] or 0)
     cur.execute(
-        "SELECT COUNT(*) FROM maintenance_assets WHERE activo = TRUE AND proximo_mantenimiento BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '7 days')"
+        "SELECT COUNT(*) FROM maintenance_assets WHERE activo = TRUE AND departamento = %s AND proximo_mantenimiento BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '7 days')",
+        (scope,)
     )
     due_soon = int((cur.fetchone() or [0])[0] or 0)
     cur.execute(
-        "SELECT COUNT(*) FROM maintenance_assets WHERE activo = TRUE AND proximo_mantenimiento < CURRENT_DATE"
+        "SELECT COUNT(*) FROM maintenance_assets WHERE activo = TRUE AND departamento = %s AND proximo_mantenimiento < CURRENT_DATE",
+        (scope,)
     )
     overdue = int((cur.fetchone() or [0])[0] or 0)
     cur.execute(
         """
         SELECT COUNT(*)
-        FROM maintenance_work_orders
-        WHERE estado = 'Completado'
-          AND date_trunc('month', completado_en) = date_trunc('month', CURRENT_DATE)
+        FROM maintenance_assets
+        WHERE activo = TRUE
+            AND departamento = %s
+            AND garantia_dias IS NOT NULL
+            AND garantia_dias > 0
+            AND (created_at::date + garantia_dias) BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '15 days')
+        """,
+        (scope,)
+    )
+    warranty_due_soon = int((cur.fetchone() or [0])[0] or 0)
+    cur.execute(
         """
+        SELECT COUNT(*)
+        FROM maintenance_assets
+        WHERE activo = TRUE
+            AND departamento = %s
+            AND garantia_dias IS NOT NULL
+            AND garantia_dias > 0
+            AND (created_at::date + garantia_dias) < CURRENT_DATE
+        """,
+        (scope,)
+    )
+    warranty_overdue = int((cur.fetchone() or [0])[0] or 0)
+    cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM maintenance_work_orders wo
+        JOIN maintenance_assets a ON a.id = wo.activo_id
+        WHERE estado = 'Completado'
+          AND a.departamento = %s
+          AND date_trunc('month', completado_en) = date_trunc('month', CURRENT_DATE)
+        """,
+        (scope,)
     )
     completed_this_month = int((cur.fetchone() or [0])[0] or 0)
     cur.execute(
-        "SELECT COUNT(*) FROM maintenance_work_orders WHERE estado = 'En proceso'"
+        """
+        SELECT COUNT(*)
+        FROM maintenance_work_orders wo
+        JOIN maintenance_assets a ON a.id = wo.activo_id
+        WHERE wo.estado = 'En proceso' AND a.departamento = %s
+        """,
+        (scope,)
     )
     in_progress = int((cur.fetchone() or [0])[0] or 0)
     cur.execute(
@@ -2100,12 +2226,14 @@ async def maintenance_dashboard(
         FROM maintenance_assets a
         LEFT JOIN sucursales s ON s.id = a.sucursal_id
         WHERE a.activo = TRUE
+                    AND a.departamento = %s
           AND a.proximo_mantenimiento IS NOT NULL
         ORDER BY
             CASE WHEN a.proximo_mantenimiento < CURRENT_DATE THEN 0 ELSE 1 END,
             a.proximo_mantenimiento ASC
         LIMIT 6
-        """
+        """,
+        (scope,)
     )
     alerts = [
         {
@@ -2125,10 +2253,12 @@ async def maintenance_dashboard(
             "overdue": overdue,
             "completed_this_month": completed_this_month,
             "in_progress": in_progress,
+            "warranty_due_soon": warranty_due_soon,
+            "warranty_overdue": warranty_overdue,
         },
         "alerts": alerts,
-        "assets": _list_maintenance_assets(db, limit=12),
-        "work_orders": _list_maintenance_work_orders(db, limit=12),
+        "assets": _list_maintenance_assets(db, limit=200, scope=scope),
+        "work_orders": _list_maintenance_work_orders(db, limit=12, scope=scope),
     }
 
 
@@ -2137,12 +2267,19 @@ async def maintenance_assets_list(
     username: Optional[str] = None,
     usuario_id: Optional[int] = None,
     role: Optional[str] = None,
+    module: Optional[str] = None,
     include_inactive: bool = False,
     limit: int = 200,
     db=Depends(get_db),
 ):
-    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
-    assets = _list_maintenance_assets(db, limit=min(max(limit, 1), 500), include_inactive=include_inactive)
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role, module=module)
+    scope = _normalize_maintenance_scope(module)
+    assets = _list_maintenance_assets(
+        db,
+        limit=min(max(limit, 1), 500),
+        include_inactive=include_inactive,
+        scope=scope,
+    )
     return {
         "total": len(assets),
         "assets": assets,
@@ -2155,15 +2292,27 @@ async def maintenance_assets_create(
     username: Optional[str] = None,
     usuario_id: Optional[int] = None,
     role: Optional[str] = None,
+    module: Optional[str] = None,
     db=Depends(get_db),
 ):
-    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role, module=module)
+    scope = _normalize_maintenance_scope(module)
     codigo = (payload.codigo or "").strip().upper()
     nombre = (payload.nombre or "").strip()
     if not codigo or not nombre:
         raise HTTPException(status_code=400, detail="Codigo y nombre son obligatorios")
     frecuencia_dias = max(1, int(payload.frecuencia_dias or 1))
-    proximo_mantenimiento = _compute_next_maintenance(payload.ultimo_mantenimiento, frecuencia_dias, payload.proximo_mantenimiento)
+    requiere_mantenimiento = bool(payload.requiere_mantenimiento)
+    proximo_mantenimiento = _compute_next_maintenance(
+        payload.ultimo_mantenimiento,
+        frecuencia_dias,
+        payload.proximo_mantenimiento if requiere_mantenimiento else None,
+    )
+    if not requiere_mantenimiento:
+        proximo_mantenimiento = None
+    garantia_dias = None
+    if payload.garantia is not None:
+        garantia_dias = max(0, int(payload.garantia))
     cur = db.cursor()
     cur.execute(
         "SELECT 1 FROM maintenance_assets WHERE codigo = %s LIMIT 1",
@@ -2174,20 +2323,23 @@ async def maintenance_assets_create(
     cur.execute(
         """
         INSERT INTO maintenance_assets (
-            codigo, nombre, categoria, sucursal_id, ubicacion_detalle, descripcion,
+            codigo, nombre, departamento, categoria, sucursal_id, ubicacion_detalle, descripcion, garantia_dias, requiere_mantenimiento,
             estado_operativo, frecuencia_dias, ultimo_mantenimiento, proximo_mantenimiento,
             responsable_usuario_id, activo, created_at, updated_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
         RETURNING id
         """,
         (
             codigo,
             nombre,
+            scope,
             (payload.categoria or "General").strip() or "General",
             payload.sucursal_id,
             (payload.ubicacion_detalle or "").strip() or None,
             (payload.descripcion or "").strip() or None,
+            garantia_dias,
+            requiere_mantenimiento,
             (payload.estado_operativo or "Operativo").strip() or "Operativo",
             frecuencia_dias,
             payload.ultimo_mantenimiento,
@@ -2208,9 +2360,11 @@ async def maintenance_assets_update(
     username: Optional[str] = None,
     usuario_id: Optional[int] = None,
     role: Optional[str] = None,
+    module: Optional[str] = None,
     db=Depends(get_db),
 ):
-    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role, module=module)
+    scope = _normalize_maintenance_scope(module)
     updates = []
     params: List[Any] = []
     if payload.nombre is not None:
@@ -2228,6 +2382,12 @@ async def maintenance_assets_update(
     if payload.descripcion is not None:
         updates.append("descripcion = %s")
         params.append(payload.descripcion.strip() or None)
+    if payload.garantia is not None:
+        updates.append("garantia_dias = %s")
+        params.append(max(0, int(payload.garantia)))
+    if payload.requiere_mantenimiento is not None:
+        updates.append("requiere_mantenimiento = %s")
+        params.append(bool(payload.requiere_mantenimiento))
     if payload.estado_operativo is not None:
         updates.append("estado_operativo = %s")
         params.append(payload.estado_operativo.strip() or "Operativo")
@@ -2246,15 +2406,40 @@ async def maintenance_assets_update(
     if payload.activo is not None:
         updates.append("activo = %s")
         params.append(bool(payload.activo))
+
+    # Si cambia la base del mantenimiento, recalcular proximo automaticamente.
+    if payload.ultimo_mantenimiento is not None or payload.frecuencia_dias is not None or payload.requiere_mantenimiento is not None:
+        cur_preview = db.cursor()
+        cur_preview.execute(
+            """
+            SELECT ultimo_mantenimiento, frecuencia_dias, requiere_mantenimiento
+            FROM maintenance_assets
+            WHERE id = %s AND departamento = %s
+            LIMIT 1
+            """,
+            (asset_id, scope),
+        )
+        current_row = cur_preview.fetchone()
+        if not current_row:
+            raise HTTPException(status_code=404, detail="Activo no encontrado")
+        base_last = payload.ultimo_mantenimiento if payload.ultimo_mantenimiento is not None else current_row[0]
+        base_freq = max(1, int(payload.frecuencia_dias or 1)) if payload.frecuencia_dias is not None else int(current_row[1] or 90)
+        base_required = bool(payload.requiere_mantenimiento) if payload.requiere_mantenimiento is not None else bool(current_row[2])
+        auto_next = _compute_next_maintenance(base_last, base_freq, None) if base_required else None
+        updates.append("proximo_mantenimiento = %s")
+        params.append(auto_next)
     if not updates:
         raise HTTPException(status_code=400, detail="No hay cambios para aplicar")
     updates.append("updated_at = NOW()")
     params.append(asset_id)
+    params.append(scope)
     cur = db.cursor()
     cur.execute(
-        f"UPDATE maintenance_assets SET {', '.join(updates)} WHERE id = %s",
+        f"UPDATE maintenance_assets SET {', '.join(updates)} WHERE id = %s AND departamento = %s",
         params,
     )
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Activo no encontrado")
     db.commit()
     return {"ok": True}
 
@@ -2264,11 +2449,13 @@ async def maintenance_work_orders_list(
     username: Optional[str] = None,
     usuario_id: Optional[int] = None,
     role: Optional[str] = None,
+    module: Optional[str] = None,
     limit: int = 200,
     db=Depends(get_db),
 ):
-    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
-    orders = _list_maintenance_work_orders(db, limit=min(max(limit, 1), 500))
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role, module=module)
+    scope = _normalize_maintenance_scope(module)
+    orders = _list_maintenance_work_orders(db, limit=min(max(limit, 1), 500), scope=scope)
     return {"total": len(orders), "work_orders": orders}
 
 
@@ -2278,9 +2465,11 @@ async def maintenance_work_orders_create(
     username: Optional[str] = None,
     usuario_id: Optional[int] = None,
     role: Optional[str] = None,
+    module: Optional[str] = None,
     db=Depends(get_db),
 ):
-    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role, module=module)
+    scope = _normalize_maintenance_scope(module)
     titulo = (payload.titulo or "").strip()
     if not titulo:
         raise HTTPException(status_code=400, detail="El titulo de la orden es obligatorio")
@@ -2288,8 +2477,8 @@ async def maintenance_work_orders_create(
     scheduled_for = payload.programado_para
     cur = db.cursor()
     cur.execute(
-        "SELECT 1 FROM maintenance_assets WHERE id = %s LIMIT 1",
-        (payload.activo_id,)
+        "SELECT 1 FROM maintenance_assets WHERE id = %s AND departamento = %s LIMIT 1",
+        (payload.activo_id, scope)
     )
     if not cur.fetchone():
         raise HTTPException(status_code=404, detail="Activo no encontrado")
@@ -2329,9 +2518,11 @@ async def maintenance_work_orders_update(
     username: Optional[str] = None,
     usuario_id: Optional[int] = None,
     role: Optional[str] = None,
+    module: Optional[str] = None,
     db=Depends(get_db),
 ):
-    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role)
+    _require_maintenance_access(db, username=username, usuario_id=usuario_id, role=role, module=module)
+    scope = _normalize_maintenance_scope(module)
     updates = []
     params: List[Any] = []
     status = None
@@ -2366,8 +2557,14 @@ async def maintenance_work_orders_update(
     params.append(work_order_id)
     cur = db.cursor()
     cur.execute(
-        "SELECT activo_id, programado_para FROM maintenance_work_orders WHERE id = %s LIMIT 1",
-        (work_order_id,)
+        """
+        SELECT wo.activo_id, wo.programado_para
+        FROM maintenance_work_orders wo
+        JOIN maintenance_assets a ON a.id = wo.activo_id
+        WHERE wo.id = %s AND a.departamento = %s
+        LIMIT 1
+        """,
+        (work_order_id, scope)
     )
     existing = cur.fetchone()
     if not existing:
@@ -4639,6 +4836,8 @@ def get_departamento(rol):
     """Mapear rol a departamento"""
     if rol and rol.lower() == 'administrador':
         return "Departamento TI"
+    elif rol and rol.lower() == 'equipo_ti':
+        return "Tecnologia"
     elif rol and rol.lower() == 'activos_fijos':
         return "Activos Fijos"
     elif rol and rol.lower() == 'tecnicos':
@@ -4701,6 +4900,7 @@ async def login(username: str, password: str, db=Depends(get_db)):
             'cliente',
             'activos_fijos',
             'tecnicos',
+            'equipo_ti',
             'gerente',
             'contabilidad',
         }
