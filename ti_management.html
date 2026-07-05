@@ -1481,7 +1481,8 @@
             state.lookups = data;
             populateAreaSelect('');
             toggleMaintenanceFields();
-            populateSelect(document.getElementById('assetResponsable'), data.usuarios || [], 'Sin responsable', item => item.id, item => `${item.nombre_completo || item.username} · ${item.rol || 'usuario'}`);
+            const tiUsers = (data.usuarios || []).filter(item => normalizeRole(item.rol) === 'equipo_ti');
+            populateSelect(document.getElementById('assetResponsable'), tiUsers, 'Sin responsable', item => item.id, item => item.nombre_completo || item.username || `Usuario ${item.id}`);
         }
         async function loadDashboard() {
             const data = await fetchJSON(`${API}/api/v1/maintenance/dashboard?${getSessionParams()}`);
