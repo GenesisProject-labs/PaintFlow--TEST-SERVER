@@ -5285,7 +5285,20 @@ async def create_usuario(nombre_completo: str, email: str, password: str = None,
         if username_was_provided:
             cur.execute("SELECT 1 FROM usuarios WHERE LOWER(TRIM(username)) = LOWER(TRIM(%s)) LIMIT 1", (username,))
             if cur.fetchone():
-                raise HTTPException(status_code=409, detail="El usuario (login) ya existe")
+                # Sugerir un login disponible para evitar intentos manuales repetidos.
+                base_username = username
+                candidate = f"{base_username}_2"
+                suffix = 2
+                while True:
+                    cur.execute("SELECT 1 FROM usuarios WHERE LOWER(TRIM(username)) = LOWER(TRIM(%s)) LIMIT 1", (candidate,))
+                    if not cur.fetchone():
+                        break
+                    suffix += 1
+                    candidate = f"{base_username}_{suffix}"
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"El usuario (login) ya existe. Prueba con: {candidate}"
+                )
         else:
             candidate = username
             suffix = 1
