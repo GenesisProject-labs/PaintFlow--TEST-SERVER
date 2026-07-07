@@ -1005,14 +1005,14 @@
             </div>
             <form id="assetForm" onsubmit="submitAsset(event)">
                 <div class="form-grid">
-                    <div class="form-field"><label for="assetCodigo">Codigo</label><input id="assetCodigo" type="text" required placeholder="TI-001"></div>
+                    <div class="form-field"><label for="assetCodigo">S/N</label><input id="assetCodigo" type="text" required placeholder="TI-001"></div>
                     <div class="form-field"><label for="assetNombre">Nombre</label><input id="assetNombre" type="text" required placeholder="Laptop Dell Latitude"></div>
                     <div class="form-field"><label for="assetCategoria">Tipo de equipo</label><select id="assetCategoria" aria-label="Tipo de equipo"></select></div>
                     <div class="form-field"><label for="assetSucursal">Area</label><select id="assetSucursal" onchange="handleAreaChange()"></select></div>
                     <div class="form-field"><label for="assetUbicacion">Ubicacion</label><select id="assetUbicacion"></select></div>
                     <div class="form-field"><label for="assetGarantia">Garantia (meses)</label><input id="assetGarantia" type="number" min="0" placeholder="12"></div>
                     <div class="form-field"><label for="assetResponsable">Responsable</label><select id="assetResponsable"></select></div>
-                    <div class="form-field" id="assetFrecuenciaWrap"><label for="assetFrecuencia">Frecuencia dias</label><input id="assetFrecuencia" type="number" min="1" value="90"></div>
+                    <div class="form-field" id="assetFrecuenciaWrap"><label for="assetFrecuencia">Frecuencia de mantenimiento</label><input id="assetFrecuencia" type="number" min="1" value="90"></div>
                     <div class="form-field" id="assetUltimoWrap"><label for="assetUltimo">Ultimo mantenimiento</label><input id="assetUltimo" type="date"></div>
                     <div class="form-field full"><label for="assetDescripcion">Descripcion</label><textarea id="assetDescripcion" placeholder="Observaciones del activo y condiciones operativas."></textarea></div>
                 </div>
@@ -1075,6 +1075,7 @@
             'Impresoras',
             'Monitores',
             'Laptops',
+            'Perifericos',
             'Servidores',
             'TV',
             'UPS',
@@ -1297,6 +1298,7 @@
                 { match: /impresoras?|printer/, file: 'impresoras.png' },
                 { match: /monitores?|monitor/, file: 'monitor.png' },
                 { match: /laptops?|notebook/, file: 'LAPTOP.png' },
+                { match: /perifericos?|perefericos?|peripherals?/, file: 'Perifericos.png' },
                 { match: /servidores?|server/, file: 'server.png' },
                 { match: /\btv\b|televisor/, file: 'tv.png' },
                 { match: /ups|respaldo electrico|no break/, file: 'ups.png' },
@@ -1365,8 +1367,18 @@
             const svg = assetVisualSvg(type);
             const dataUri = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
             const imageSrc = pngPath || dataUri;
-            const secondary = extraLabel || item.categoria || 'Equipo';
+            const secondary = extraLabel || canonicalEquipmentType(item.categoria) || 'Equipo';
             return `<div class="asset-media"><img class="asset-thumb" src="${imageSrc}" alt="${escapeHtml(item.nombre || 'Equipo')}" onerror="this.onerror=null;this.src='${dataUri}';" /><div class="equipment-cell"><strong>${escapeHtml(item.nombre || 'Equipo')}</strong><span>${escapeHtml(secondary)}</span></div></div>`;
+        }
+        function canonicalEquipmentType(value) {
+            const raw = (value || '').toString().trim();
+            if (!raw) return raw;
+            const normalized = raw
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase();
+            if (normalized === 'perefericos' || normalized === 'perifericos') return 'Perifericos';
+            return raw;
         }
         function populateSelect(select, items, emptyLabel, valueFn, labelFn) {
             const rows = [`<option value="">${emptyLabel}</option>`];
@@ -1376,9 +1388,10 @@
         function populateAssetCategorySelect(selectedValue) {
             const select = document.getElementById('assetCategoria');
             if (!select) return;
+            const selectedCategory = canonicalEquipmentType(selectedValue || '');
             const options = [`<option value="">Selecciona tipo de equipo</option>`];
             EQUIPMENT_TYPES.forEach(type => {
-                const selected = selectedValue && selectedValue === type ? ' selected' : '';
+                const selected = selectedCategory && selectedCategory === type ? ' selected' : '';
                 options.push(`<option value="${escapeHtml(type)}"${selected}>${escapeHtml(type)}</option>`);
             });
             select.innerHTML = options.join('');
@@ -1386,9 +1399,9 @@
         function populateAssetCategoryFilter() {
             const container = document.getElementById('assetCategoryFilter');
             if (!container) return;
-            const categories = Array.from(new Set(state.assets.map(item => (item.categoria || 'General').trim() || 'General')));
+            const categories = Array.from(new Set(state.assets.map(item => canonicalEquipmentType((item.categoria || 'General').trim() || 'General'))));
             const counts = state.assets.reduce((memo, item) => {
-                const category = (item.categoria || 'General').trim() || 'General';
+                const category = canonicalEquipmentType((item.categoria || 'General').trim() || 'General');
                 memo[category] = (memo[category] || 0) + 1;
                 return memo;
             }, {});
@@ -1577,7 +1590,7 @@
             populateAssetCategoryFilter();
             const categoryRows = state.assetCategoryFilter === 'ALL'
                 ? state.assets.slice()
-                : state.assets.filter(item => ((item.categoria || 'General').trim() || 'General') === state.assetCategoryFilter);
+                : state.assets.filter(item => canonicalEquipmentType((item.categoria || 'General').trim() || 'General') === state.assetCategoryFilter);
             const filteredRows = !searchTerm
                 ? categoryRows
                 : categoryRows.filter(item => [
@@ -1597,7 +1610,7 @@
                 const warranty = warrantyMeta(item.garantia_dias_restantes);
                 const maintenanceText = item.requiere_mantenimiento === false ? 'No aplica' : escapeHtml(due.text);
                 const maintenanceTone = item.requiere_mantenimiento === false ? 'info' : due.tone;
-                return `<tr><td><button type="button" class="asset-edit-trigger" title="Editar equipo" onclick="openAssetForm(${item.id})">${assetThumbHtml(item, item.categoria || 'Equipo')}</button></td><td>${escapeHtml(item.codigo)}</td><td>${escapeHtml(item.ubicacion_detalle || item.sucursal_nombre || 'Sin ubicacion')}</td><td><span class="row-badge ${warranty.tone}">${escapeHtml(warranty.text)}</span></td><td>${escapeHtml(item.responsable_nombre || 'Sin responsable')}</td><td><span class="row-badge ${maintenanceTone}">${maintenanceText}</span></td><td><span class="row-badge ${item.activo === false ? 'warning' : 'success'}">${item.activo === false ? 'Inactivo' : escapeHtml(item.estado_operativo || 'Operativo')}</span></td><td><button type="button" class="mini-btn" onclick="openAssignAssetModal(${item.id})">Asignar</button><button type="button" class="mini-btn" onclick="showPanel('tracking'); prefillOrderForAsset(${item.id})">Nueva orden</button><button type="button" class="mini-btn" onclick="toggleAssetState(${item.id}, ${item.activo === false ? 'true' : 'false'})">${item.activo === false ? 'Reactivar' : 'Inactivar'}</button></td></tr>`;
+                return `<tr><td><button type="button" class="asset-edit-trigger" title="Editar equipo" onclick="openAssetForm(${item.id})">${assetThumbHtml(item, canonicalEquipmentType(item.categoria) || 'Equipo')}</button></td><td>${escapeHtml(item.codigo)}</td><td>${escapeHtml(item.ubicacion_detalle || item.sucursal_nombre || 'Sin ubicacion')}</td><td><span class="row-badge ${warranty.tone}">${escapeHtml(warranty.text)}</span></td><td>${escapeHtml(item.responsable_nombre || 'Sin responsable')}</td><td><span class="row-badge ${maintenanceTone}">${maintenanceText}</span></td><td><span class="row-badge ${item.activo === false ? 'warning' : 'success'}">${item.activo === false ? 'Inactivo' : escapeHtml(item.estado_operativo || 'Operativo')}</span></td><td><button type="button" class="mini-btn" onclick="openAssignAssetModal(${item.id})">Asignar</button><button type="button" class="mini-btn" onclick="showPanel('tracking'); prefillOrderForAsset(${item.id})">Nueva orden</button><button type="button" class="mini-btn" onclick="toggleAssetState(${item.id}, ${item.activo === false ? 'true' : 'false'})">${item.activo === false ? 'Reactivar' : 'Inactivar'}</button></td></tr>`;
             }).join('');
         }
         function renderOrdersTable() {
@@ -1938,7 +1951,7 @@
             const payload = {
                 codigo: document.getElementById('assetCodigo').value.trim(),
                 nombre: document.getElementById('assetNombre').value.trim(),
-                categoria: document.getElementById('assetCategoria').value.trim() || 'General',
+                categoria: canonicalEquipmentType(document.getElementById('assetCategoria').value.trim()) || 'General',
                 sucursal_id: selectedStore ? selectedStore.id : null,
                 responsable_usuario_id: parseNullableInt(document.getElementById('assetResponsable').value),
                 frecuencia_dias: parseInt(document.getElementById('assetFrecuencia').value || '90', 10),
