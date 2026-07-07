@@ -5307,8 +5307,17 @@ async function guardarUsuario() {
             cerrarModalUsuario();
             loadUsuarios();
         } else {
-            const error = await res.text();
-            showModalError('modalUsuario', 'Error al guardar usuario: ' + error);
+            let detail = "No se pudo guardar el usuario";
+            try {
+                const payload = await res.json();
+                if (payload && payload.detail) detail = payload.detail;
+            } catch (_) {
+                try {
+                    const raw = await res.text();
+                    if (raw) detail = raw;
+                } catch (__){ }
+            }
+            showModalError('modalUsuario', 'Error al guardar usuario: ' + detail);
         }
     } catch (e) {
         showModalError('modalUsuario', 'Error: ' + e.message);
@@ -5627,12 +5636,13 @@ function testRenderUsuarios() {
         
         const nombre_completo = document.getElementById('nombreInput').value.trim();
         const email = document.getElementById('emailInput').value.trim();
+        const username = document.getElementById('usernameInput').value.trim();
         const password = document.getElementById('passwordInput').value.trim();
         const rol = document.getElementById('rolInput').value;
         const sucursal_id = parseInt(document.getElementById('sucursalInput').value);
         const telefono = document.getElementById('telefonoInput').value.trim();
         
-        if (!nombre_completo || !email || !rol || !sucursal_id) {
+        if (!nombre_completo || !email || !rol || !sucursal_id || (!usuarioEnEdicion && !username)) {
             alert('Faltan datos requeridos');
             return;
         }
@@ -5669,6 +5679,7 @@ function testRenderUsuarios() {
                 const params = new URLSearchParams({
                     nombre_completo,
                     email,
+                    username,
                     password,
                     rol,
                     sucursal_id,
