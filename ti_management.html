@@ -1276,6 +1276,66 @@
         }
         function priorityMeta(value) { const priority = (value || '').toLowerCase(); if (priority === 'alta') return { label: 'Alta', tone: 'danger' }; if (priority === 'baja') return { label: 'Baja', tone: 'success' }; return { label: 'Media', tone: 'warning' }; }
         function statusMeta(value) { const status = (value || '').toLowerCase(); if (status === 'completado') return { label: 'Completado', tone: 'success' }; if (status === 'en proceso') return { label: 'En proceso', tone: 'info' }; if (status === 'vencido') return { label: 'Vencido', tone: 'danger' }; return { label: 'Pendiente', tone: 'warning' }; }
+        function workOrderScheduleMeta(item) {
+            const status = (item && item.estado ? item.estado : '').toLowerCase();
+            const parsed = parseDateValue(item && item.programado_para ? item.programado_para : null);
+            if (!parsed) {
+                return {
+                    sortWeight: status === 'completado' ? 4 : 3,
+                    sortDays: 9999,
+                    priority: status === 'completado' ? { label: 'Baja', tone: 'success' } : { label: 'Media', tone: 'warning' },
+                    dueText: status === 'completado' ? 'Completado' : 'Sin fecha',
+                    dueTone: status === 'completado' ? 'success' : 'info',
+                };
+            }
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            parsed.setHours(0, 0, 0, 0);
+            const diffDays = Math.round((parsed.getTime() - today.getTime()) / 86400000);
+            if (status === 'completado') {
+                return {
+                    sortWeight: 4,
+                    sortDays: diffDays,
+                    priority: { label: 'Baja', tone: 'success' },
+                    dueText: 'Completado',
+                    dueTone: 'success',
+                };
+            }
+            if (diffDays < 0) {
+                return {
+                    sortWeight: 0,
+                    sortDays: diffDays,
+                    priority: { label: 'Alta', tone: 'danger' },
+                    dueText: `Vencida hace ${Math.abs(diffDays)} dia${Math.abs(diffDays) === 1 ? '' : 's'}`,
+                    dueTone: 'danger',
+                };
+            }
+            if (diffDays <= 2) {
+                return {
+                    sortWeight: 1,
+                    sortDays: diffDays,
+                    priority: { label: 'Alta', tone: 'danger' },
+                    dueText: diffDays === 0 ? 'Vence hoy' : `Vence en ${diffDays} dia${diffDays === 1 ? '' : 's'}`,
+                    dueTone: 'danger',
+                };
+            }
+            if (diffDays <= 7) {
+                return {
+                    sortWeight: 2,
+                    sortDays: diffDays,
+                    priority: { label: 'Media', tone: 'warning' },
+                    dueText: `Proxima en ${diffDays} dias`,
+                    dueTone: 'warning',
+                };
+            }
+            return {
+                sortWeight: 3,
+                sortDays: diffDays,
+                priority: { label: 'Baja', tone: 'success' },
+                dueText: `Programada en ${diffDays} dias`,
+                dueTone: 'success',
+            };
+        }
         function normalizeText(value) {
             return (value || '')
                 .toString()
@@ -1616,11 +1676,19 @@
         function renderOrdersTable() {
             const tbody = document.getElementById('ordersTableBody');
             if (!state.workOrders.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No hay ordenes registradas.</td></tr>'; return; }
-            tbody.innerHTML = state.workOrders.map(item => {
-                const priority = priorityMeta(item.prioridad);
+            const orderedRows = state.workOrders.slice().sort((left, right) => {
+                const leftMeta = workOrderScheduleMeta(left);
+                const rightMeta = workOrderScheduleMeta(right);
+                if (leftMeta.sortWeight !== rightMeta.sortWeight) return leftMeta.sortWeight - rightMeta.sortWeight;
+                if (leftMeta.sortDays !== rightMeta.sortDays) return leftMeta.sortDays - rightMeta.sortDays;
+                return String(left.programado_para || '').localeCompare(String(right.programado_para || ''));
+            });
+            tbody.innerHTML = orderedRows.map(item => {
+                const scheduleMeta = workOrderScheduleMeta(item);
+                const priority = scheduleMeta.priority;
                 const status = statusMeta(item.estado);
                 const menuActive = state.openWorkOrderActionsId === item.id ? ' active' : '';
-                return `<tr><td>${assetThumbHtml({ nombre: item.activo_nombre, categoria: item.tipo }, item.activo_codigo)}</td><td>${escapeHtml(item.titulo)}</td><td>${escapeHtml(item.tipo)}</td><td><span class="row-badge ${priority.tone}">${priority.label}</span></td><td><span class="row-badge ${status.tone}">${status.label}</span></td><td>${formatDate(item.programado_para)}</td><td>${escapeHtml(item.asignado_nombre || 'Sin asignar')}</td><td><div class="action-menu-wrap"><button type="button" class="mini-btn action-trigger-btn" onclick="toggleWorkOrderActions(${item.id})">En proceso</button><div class="action-menu-panel${menuActive}"><button type="button" class="action-menu-option process-option" onclick="applyWorkOrderStatus(${item.id}, 'En proceso')">En proceso</button><button type="button" class="action-menu-option complete-option" onclick="applyWorkOrderStatus(${item.id}, 'Completado')">Completar</button></div></div></td></tr>`;
+                return `<tr><td>${assetThumbHtml({ nombre: item.activo_nombre, categoria: item.tipo }, item.activo_codigo)}</td><td>${escapeHtml(item.titulo)}</td><td>${escapeHtml(item.tipo)}</td><td><span class="row-badge ${priority.tone}">${priority.label}</span></td><td><span class="row-badge ${status.tone}">${status.label}</span></td><td>${formatDate(item.programado_para)}<div class="meta-line"><span class="row-badge ${scheduleMeta.dueTone}">${escapeHtml(scheduleMeta.dueText)}</span></div></td><td>${escapeHtml(item.asignado_nombre || 'Sin asignar')}</td><td><div class="action-menu-wrap"><button type="button" class="mini-btn action-trigger-btn" onclick="toggleWorkOrderActions(${item.id})">En proceso</button><div class="action-menu-panel${menuActive}"><button type="button" class="action-menu-option process-option" onclick="applyWorkOrderStatus(${item.id}, 'En proceso')">En proceso</button><button type="button" class="action-menu-option complete-option" onclick="applyWorkOrderStatus(${item.id}, 'Completado')">Completar</button></div></div></td></tr>`;
             }).join('');
         }
         function toggleWorkOrderActions(workOrderId) {
@@ -1856,7 +1924,19 @@
         }
         function renderReportsPanel() {
             const summary = state.summary || {};
-            document.getElementById('reportsSummary').innerHTML = `<div class="cards-grid" style="margin-bottom:0;"><div class="metric-card"><div class="metric-title">Equipos activos</div><div class="metric-value">${summary.total_assets || 0}</div><div class="meta-line">Inventario demo para pruebas</div></div><div class="metric-card"><div class="metric-title">Alertas abiertas</div><div class="metric-value">${state.alerts.length}</div><div class="meta-line">Items a monitorear</div></div><div class="metric-card"><div class="metric-title">Ordenes totales</div><div class="metric-value">${state.workOrders.length}</div><div class="meta-line">Backlog del modulo</div></div></div>`;
+            const orders = state.workOrders || [];
+            const actionable = orders.filter(item => (item.estado || '').toLowerCase() !== 'completado');
+            const completed = orders.filter(item => (item.estado || '').toLowerCase() === 'completado').length;
+            const overdue = actionable.filter(item => workOrderScheduleMeta(item).sortWeight === 0).length;
+            const next7 = actionable.filter(item => {
+                const meta = workOrderScheduleMeta(item);
+                return meta.sortDays >= 0 && meta.sortDays <= 7;
+            }).length;
+            const highAuto = actionable.filter(item => workOrderScheduleMeta(item).priority.label === 'Alta').length;
+            const mediumAuto = actionable.filter(item => workOrderScheduleMeta(item).priority.label === 'Media').length;
+            const lowAuto = actionable.filter(item => workOrderScheduleMeta(item).priority.label === 'Baja').length;
+            const compliance = orders.length ? Math.round((completed / orders.length) * 100) : 0;
+            document.getElementById('reportsSummary').innerHTML = `<div class="cards-grid" style="margin-bottom:14px;"><div class="metric-card"><div class="metric-title">Equipos activos</div><div class="metric-value">${summary.total_assets || 0}</div><div class="meta-line">Inventario TI</div></div><div class="metric-card"><div class="metric-title">Ordenes totales</div><div class="metric-value">${orders.length}</div><div class="meta-line">Backlog general</div></div><div class="metric-card"><div class="metric-title">Vencidas</div><div class="metric-value">${overdue}</div><div class="meta-line">Prioridad alta automatica</div></div><div class="metric-card"><div class="metric-title">Proximas 7 dias</div><div class="metric-value">${next7}</div><div class="meta-line">Planificacion inmediata</div></div><div class="metric-card"><div class="metric-title">Cumplimiento</div><div class="metric-value">${compliance}%</div><div class="meta-line">Ordenes completadas</div></div></div><div class="panel-card" style="border-radius:20px;"><div class="card-header"><h3>Analitica de prioridad automatica</h3><span>Seguimiento por fecha</span></div><div class="card-body"><div class="legend-item"><div class="legend-label"><span class="legend-swatch" style="background:var(--danger)"></span>Alta automatica</div><strong>${highAuto}</strong></div><div class="legend-item"><div class="legend-label"><span class="legend-swatch" style="background:var(--warning)"></span>Media automatica</div><strong>${mediumAuto}</strong></div><div class="legend-item"><div class="legend-label"><span class="legend-swatch" style="background:var(--success)"></span>Baja automatica</div><strong>${lowAuto}</strong></div><div class="legend-item"><div class="legend-label"><span class="legend-swatch" style="background:var(--success)"></span>Completadas</div><strong>${completed}</strong></div></div></div>`;
         }
         function renderDashboard() { renderMetrics(); renderUpcomingTable(); renderHistoryTables(); renderAlerts(); renderTracking(); renderAssetsTable(); renderOrdersTable(); renderCalendarPanel(); renderReportsPanel(); }
         function openAssetForm(assetId) {
