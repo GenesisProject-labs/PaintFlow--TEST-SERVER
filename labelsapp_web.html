@@ -255,6 +255,64 @@
             gap: 8px;
         }
 
+        body.reformulation-warning-open {
+            overflow: hidden;
+        }
+
+        body.reformulation-warning-open .topbar,
+        body.reformulation-warning-open .shell {
+            filter: blur(4px);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .reformulation-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(6, 18, 37, 0.34);
+            backdrop-filter: blur(7px);
+            -webkit-backdrop-filter: blur(7px);
+            z-index: 3200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .reformulation-modal.active {
+            display: flex;
+        }
+
+        .reformulation-modal-content {
+            width: min(520px, 100%);
+            background: #ffffff;
+            border-radius: 18px;
+            border: 1px solid #d9e5f3;
+            box-shadow: 0 26px 70px rgba(2, 14, 29, 0.35);
+            padding: 24px;
+            text-align: center;
+        }
+
+        .reformulation-modal-content h2 {
+            margin: 0 0 10px;
+            font-family: Space Grotesk, sans-serif;
+            font-size: 1.2rem;
+            color: #12395f;
+        }
+
+        .reformulation-modal-content p {
+            margin: 0;
+            color: #37506b;
+            line-height: 1.45;
+            font-size: 0.98rem;
+        }
+
+        .reformulation-modal-actions {
+            margin-top: 18px;
+            display: flex;
+            justify-content: center;
+        }
+
         .logout-confirm-text {
             margin: 0;
             color: #4f6072;
@@ -1381,6 +1439,17 @@
         </div>
     </div>
 
+    <div id="modalReformulacion" class="reformulation-modal" aria-hidden="true">
+        <div class="reformulation-modal-content" role="dialog" aria-modal="true" aria-labelledby="reformulationTitle">
+            <h2 id="reformulationTitle">Aviso de reformulacion</h2>
+            <p><strong id="reformulationWarningCode"></strong></p>
+            <p>Codigo en proceso de reformulacion. porfavor no tintear en corop</p>
+            <div class="reformulation-modal-actions">
+                <button class="btn btn-primary" type="button" onclick="cerrarAvisoReformulacion()">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API = window.location.origin;
 
@@ -1446,6 +1515,15 @@
         let editingFacturaId = null;
         let currentCodigoBaseRaw = "";
         let codigoBaseRequestSeq = 0;
+
+        const REFORMULATION_WARNING_CODES = new Set([
+            "SW9142",
+            "SW2739",
+            "SW6072",
+            "SW9066",
+            "SW6254",
+            "SW6255"
+        ]);
 
         const DEFAULT_TERMINACIONES = ["Mate", "Satin", "Semigloss", "Semimate", "Gloss", "Brillo", "N/A"];
         const DEFAULT_PRESENTACIONES = ["1/8", "Cuarto", "Medio Galon", "Galon", "Cubeta"];
@@ -2381,6 +2459,47 @@
             return (s || "").toString().trim().toLowerCase();
         }
 
+        function normalizeReformulationCode(value) {
+            return (value || "")
+                .toString()
+                .trim()
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, "");
+        }
+
+        function formatReformulationCode(normalizedCode) {
+            if (normalizedCode.startsWith("SW") && normalizedCode.length > 2) {
+                return `SW ${normalizedCode.slice(2)}`;
+            }
+            return normalizedCode;
+        }
+
+        function abrirAvisoReformulacion(codigo) {
+            const modal = document.getElementById("modalReformulacion");
+            const codeEl = document.getElementById("reformulationWarningCode");
+            if (!modal || !codeEl) return;
+            const code = formatReformulationCode(codigo);
+            codeEl.textContent = code ? `${code}:` : "";
+            modal.classList.add("active");
+            modal.setAttribute("aria-hidden", "false");
+            document.body.classList.add("reformulation-warning-open");
+        }
+
+        function cerrarAvisoReformulacion() {
+            const modal = document.getElementById("modalReformulacion");
+            if (modal) {
+                modal.classList.remove("active");
+                modal.setAttribute("aria-hidden", "true");
+            }
+            document.body.classList.remove("reformulation-warning-open");
+        }
+
+        function maybeShowReformulationWarning(code) {
+            const normalizedCode = normalizeReformulationCode(code);
+            if (!REFORMULATION_WARNING_CODES.has(normalizedCode)) return;
+            abrirAvisoReformulacion(normalizedCode);
+        }
+
         function escapeHtml(text) {
             return (text || "")
                 .toString()
@@ -2511,6 +2630,7 @@
             if (btn) btn.textContent = "Agregar A Lista";
             setWorkflowStep("codigo");
             if (typeof _hideColorPreview === "function") _hideColorPreview();
+            cerrarAvisoReformulacion();
         }
 
         function applyProductRules() {
@@ -2997,6 +3117,7 @@
 
             setWorkflowStep("producto");
             applyProductRules();
+            maybeShowReformulationWarning(product.codigo || codigo);
             setStatus("Producto cargado", "ok");
         }
 
@@ -4257,6 +4378,7 @@
             if (e.key === "Escape") {
                 cerrarModalPerfil();
                 cerrarModalLogout();
+                cerrarAvisoReformulacion();
                 closeUserDropdown();
             }
         });
@@ -4266,6 +4388,7 @@
             if (!user) return;
             cerrarModalPerfil();
             cerrarModalLogout();
+            cerrarAvisoReformulacion();
             closeUserDropdown();
             updateUserMenu();
             initCatalogPublicCard();
