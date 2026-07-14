@@ -2845,11 +2845,45 @@ function testRenderUsuarios() {
 </script>
 
 <script>
-// Detectar ambiente y usar URL correcta  
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? `http://${window.location.hostname}:8002`
-    : 'https://paintflow.onrender.com';
-console.log('API URL:', API);
+// Resolver API en runtime: mismo origen primero, luego fallback local/prod.
+let API = window.location.origin;
+let _apiResolvePromise = null;
+
+async function ensureApiBase() {
+    if (_apiResolvePromise) return _apiResolvePromise;
+
+    _apiResolvePromise = (async () => {
+        const candidates = [];
+        const pushUnique = (url) => {
+            if (!url || candidates.includes(url)) return;
+            candidates.push(url);
+        };
+
+        pushUnique(window.location.origin);
+        pushUnique('http://127.0.0.1:8001');
+        pushUnique('http://localhost:8001');
+        pushUnique('https://paintflow.onrender.com');
+
+        for (const base of candidates) {
+            try {
+                const res = await fetch(base + '/health', { method: 'GET' });
+                if (!res.ok) continue;
+                API = base;
+                console.log('API URL:', API);
+                return API;
+            } catch (_) {
+                // Probar siguiente candidato.
+            }
+        }
+
+        console.warn('No se pudo validar /health; se mantiene API por defecto:', API);
+        return API;
+    })();
+
+    return _apiResolvePromise;
+}
+
+console.log('API URL (inicial):', API);
 let editingSucursalId = null;
 let sessionChecked = false;
 let chartsUpdated = false;  // Prevent multiple chart updates
@@ -3116,6 +3150,7 @@ async function handleLogin(e) {
             return;
         }
         
+        await ensureApiBase();
         console.log('Validando credenciales...');
         const res = await fetch(API + '/api/v1/login?username=' + encodeURIComponent(usuario) + '&password=' + encodeURIComponent(password), { method: 'POST' });
         
@@ -3520,7 +3555,7 @@ document.addEventListener("click", function(event) {
 
             try {
                 const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
-                const response = await fetch(`${window.location.hostname === 'localhost' ? 'http://localhost:8002' : 'https://paintflow.onrender.com'}/api/v1/change-password`, {
+                const response = await fetch(`${API}/api/v1/change-password`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -5712,6 +5747,7 @@ function testRenderUsuarios() {
 // Verificar sesión cuando carga la página
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('DOM loaded, checking session...');
+    await ensureApiBase();
     await checkExistingSession();
     
     // Agregar funcionalidad de logout forzado (Ctrl+Click en logo)

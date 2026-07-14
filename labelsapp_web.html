@@ -1212,6 +1212,7 @@
                 <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="hold" onclick="switchLabelsAppTab(event, 'hold')">En espera <span id="holdTabBadge" class="tab-badge">0</span></button>
                 <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="clients" onclick="switchLabelsAppTab(event, 'clients')">Clientes/Kiosko <span id="kioskInboxBadge" class="tab-badge">0</span></button>
                 <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="live" onclick="switchLabelsAppTab(event, 'live')">Tiempo real <span id="liveTabBadge" class="tab-badge">0</span></button>
+                <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="facturacion" onclick="switchLabelsAppTab(event, 'facturacion')">Facturacion</button>
                 <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="history" onclick="switchLabelsAppTab(event, 'history')">Historial</button>
             </div>
 
@@ -1398,6 +1399,65 @@
                     </table>
                 </div>
             </div>
+
+            <div id="labelsappFacturacionTab" class="labelsapp-subtab-content">
+                <div class="card-body queue-tab-shell">
+                    <div class="summary">Facturacion estilo SAP: agrega articulos escribiendo el codigo en la celda y presiona Enter.</div>
+                    <div class="row-2" style="margin-bottom: 10px;">
+                        <div>
+                            <label for="facturacionNumero">Factura</label>
+                            <input id="facturacionNumero" placeholder="Ej: FAC-2026-001" />
+                        </div>
+                        <div>
+                            <label for="facturacionCliente">Cliente</label>
+                            <input id="facturacionCliente" placeholder="Nombre del cliente" />
+                        </div>
+                    </div>
+                    <div id="facturacionSummary" class="summary">0 articulo(s) en factura</div>
+                </div>
+                <div class="queue-wrap live-wrap">
+                    <table class="labelsapp-history-table">
+                        <colgroup>
+                            <col style="width: 60px;">
+                            <col style="width: 180px;">
+                            <col>
+                            <col style="width: 150px;">
+                            <col style="width: 170px;">
+                            <col style="width: 170px;">
+                            <col style="width: 110px;">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Codigo</th>
+                                <th>Descripcion</th>
+                                <th>Cantidad</th>
+                                <th>Precio unitario (DOP)</th>
+                                <th>Total (DOP)</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="facturacionBody">
+                            <tr><td colspan="7" class="empty">Empieza agregando un articulo por codigo en la fila de entrada</td></tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td></td>
+                                <td><input id="facturacionCodigoInput" placeholder="Codigo articulo + Enter" /></td>
+                                <td id="facturacionLookupHint" style="color:#6b7a90;">Busca por codigo exacto o parcial</td>
+                                <td><input id="facturacionCantidadInput" type="number" min="1" step="1" value="1" /></td>
+                                <td colspan="3"><button class="btn btn-primary" type="button" onclick="addFacturacionItemFromInput()">Agregar</button></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <div class="footer-bar">
+                    <div class="status" id="facturacionTotalesStatus">Subtotal: <strong id="facturacionSubtotal">DOP 0.00</strong> | ITBIS 18%: <strong id="facturacionItbis">DOP 0.00</strong> | Total: <strong id="facturacionTotal">DOP 0.00</strong></div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-link" type="button" onclick="clearFacturacionInvoice()">Limpiar factura</button>
+                    </div>
+                </div>
+            </div>
         </section>
     </main>
 
@@ -1515,6 +1575,9 @@
         let editingFacturaId = null;
         let currentCodigoBaseRaw = "";
         let codigoBaseRequestSeq = 0;
+        let facturacionItems = [];
+        let facturacionLoading = false;
+        const FACTURACION_ITBIS_RATE = 0.18;
 
         const REFORMULATION_WARNING_CODES = new Set([
             "SW9142",
@@ -3656,6 +3719,163 @@
             `).join("");
         }
 
+        function formatMoney(value, currency) {
+            const amount = Number(value || 0);
+            return new Intl.NumberFormat("es-DO", {
+                style: "currency",
+                currency,
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        }
+
+        function renderFacturacionPrecios() {
+            const body = document.getElementById("facturacionBody");
+            const summary = document.getElementById("facturacionSummary");
+            const subtotalEl = document.getElementById("facturacionSubtotal");
+            const itbisEl = document.getElementById("facturacionItbis");
+            const totalEl = document.getElementById("facturacionTotal");
+
+            if (summary) {
+                const units = facturacionItems.reduce((acc, item) => acc + Number(item.cantidad || 0), 0);
+                summary.textContent = `${facturacionItems.length} articulo(s) · ${units} unidad(es)`;
+            }
+
+            const subtotal = facturacionItems.reduce((acc, item) => {
+                return acc + (Number(item.cantidad || 0) * Number(item.precio_dop || 0));
+            }, 0);
+            const itbis = subtotal * FACTURACION_ITBIS_RATE;
+            const total = subtotal + itbis;
+
+            if (subtotalEl) subtotalEl.textContent = formatMoney(subtotal, "DOP");
+            if (itbisEl) itbisEl.textContent = formatMoney(itbis, "DOP");
+            if (totalEl) totalEl.textContent = formatMoney(total, "DOP");
+
+            if (!body) return;
+            if (!facturacionItems.length) {
+                body.innerHTML = `<tr><td colspan="7" class="empty">Empieza agregando un articulo por codigo en la fila de entrada</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = facturacionItems.map((item, idx) => {
+                const lineTotal = Number(item.cantidad || 0) * Number(item.precio_dop || 0);
+                return `
+                <tr>
+                    <td>${idx + 1}</td>
+                    <td>${renderCopyableCell(item.codigo || "-")}</td>
+                    <td>${escapeHtml(item.descripcion || "-")}</td>
+                    <td><input type="number" min="1" step="1" value="${Math.max(1, Number(item.cantidad || 1))}" onchange="updateFacturacionCantidad(${idx}, this.value)" /></td>
+                    <td>${escapeHtml(formatMoney(item.precio_dop, "DOP"))}</td>
+                    <td>${escapeHtml(formatMoney(lineTotal, "DOP"))}</td>
+                    <td><button class="btn btn-danger" type="button" onclick="removeFacturacionItem(${idx})">Quitar</button></td>
+                </tr>
+            `;
+            }).join("");
+        }
+
+        async function refreshFacturacionPrecios(resetOffset = false) {
+            if (facturacionLoading) return;
+
+            const codeInput = document.getElementById("facturacionCodigoInput");
+            const qtyInput = document.getElementById("facturacionCantidadInput");
+            const hint = document.getElementById("facturacionLookupHint");
+            const codigoRaw = (codeInput?.value || "").trim();
+            const cantidad = Math.max(1, Number(qtyInput?.value || 1));
+
+            if (!codigoRaw) {
+                if (hint) hint.textContent = "Escribe un codigo para agregar.";
+                return;
+            }
+
+            facturacionLoading = true;
+            try {
+                const params = new URLSearchParams({
+                    q: codigoRaw,
+                    limit: "25",
+                    offset: "0"
+                });
+                const res = await fetch(`${API}/api/v1/labelsapp/facturacion/precios?${params.toString()}`);
+                if (!res.ok) throw new Error("No se pudo consultar el articulo");
+
+                const data = await res.json();
+                const rows = Array.isArray(data.items) ? data.items : [];
+                const normCode = String(codigoRaw).trim().toLowerCase();
+
+                let selected = rows.find((row) => String(row.codigo || "").trim().toLowerCase() === normCode);
+                if (!selected) {
+                    selected = rows.find((row) => String(row.codigo || "").trim().toLowerCase().startsWith(normCode));
+                }
+                if (!selected && rows.length) {
+                    selected = rows[0];
+                }
+                if (!selected) {
+                    throw new Error("Articulo no encontrado en lista de precios");
+                }
+
+                const existing = facturacionItems.find((row) => String(row.codigo || "").trim().toLowerCase() === String(selected.codigo || "").trim().toLowerCase());
+                if (existing) {
+                    existing.cantidad = Math.max(1, Number(existing.cantidad || 0) + cantidad);
+                } else {
+                    facturacionItems.push({
+                        codigo: selected.codigo,
+                        descripcion: selected.descripcion,
+                        precio_usd: Number(selected.precio_usd || 0),
+                        precio_dop: Number(selected.precio_dop || 0),
+                        cantidad,
+                        updated_at: selected.updated_at || null,
+                    });
+                }
+
+                if (codeInput) codeInput.value = "";
+                if (qtyInput) qtyInput.value = "1";
+                if (hint) hint.textContent = `${selected.codigo} agregado a factura`;
+                renderFacturacionPrecios();
+            } catch (err) {
+                if (hint) hint.textContent = err.message || "No se pudo agregar el articulo";
+                setStatus(err.message || "Error cargando lista de precios", "error");
+            } finally {
+                facturacionLoading = false;
+            }
+        }
+
+        function clearFacturacionFilters() {
+            clearFacturacionInvoice();
+        }
+
+        function changeFacturacionPage(direction) {
+            return;
+        }
+
+        async function addFacturacionItemFromInput() {
+            await refreshFacturacionPrecios(false);
+            const codeInput = document.getElementById("facturacionCodigoInput");
+            if (codeInput) codeInput.focus();
+        }
+
+        function updateFacturacionCantidad(index, value) {
+            const item = facturacionItems[index];
+            if (!item) return;
+            item.cantidad = Math.max(1, Number(value || 1));
+            renderFacturacionPrecios();
+        }
+
+        function removeFacturacionItem(index) {
+            if (index < 0 || index >= facturacionItems.length) return;
+            facturacionItems.splice(index, 1);
+            renderFacturacionPrecios();
+        }
+
+        function clearFacturacionInvoice() {
+            facturacionItems = [];
+            const codeInput = document.getElementById("facturacionCodigoInput");
+            const qtyInput = document.getElementById("facturacionCantidadInput");
+            const hint = document.getElementById("facturacionLookupHint");
+            if (codeInput) codeInput.value = "";
+            if (qtyInput) qtyInput.value = "1";
+            if (hint) hint.textContent = "Busca por codigo exacto o parcial";
+            renderFacturacionPrecios();
+        }
+
         function isKioskHistoryEntry(entry) {
             const factura = String(entry?.id_factura || entry?.factura || "").toUpperCase();
             const operador = String(entry?.operador || "").toLowerCase();
@@ -3920,7 +4140,7 @@
         }
 
         function switchLabelsAppTab(evt, tabName) {
-            labelsAppTab = ["queue", "hold", "clients", "live", "history"].includes(tabName) ? tabName : "queue";
+            labelsAppTab = ["queue", "hold", "clients", "live", "history", "facturacion"].includes(tabName) ? tabName : "queue";
 
             document.querySelectorAll("[data-labelsapp-tab]").forEach((btn) => {
                 btn.classList.toggle("active", btn.getAttribute("data-labelsapp-tab") === labelsAppTab);
@@ -3931,11 +4151,13 @@
             const clientsTab = document.getElementById("labelsappClientsTab");
             const liveTab = document.getElementById("labelsappLiveTab");
             const historyTab = document.getElementById("labelsappHistoryTab");
+            const facturacionTab = document.getElementById("labelsappFacturacionTab");
             if (queueTab) queueTab.classList.toggle("active", labelsAppTab === "queue");
             if (holdTab) holdTab.classList.toggle("active", labelsAppTab === "hold");
             if (clientsTab) clientsTab.classList.toggle("active", labelsAppTab === "clients");
             if (liveTab) liveTab.classList.toggle("active", labelsAppTab === "live");
             if (historyTab) historyTab.classList.toggle("active", labelsAppTab === "history");
+            if (facturacionTab) facturacionTab.classList.toggle("active", labelsAppTab === "facturacion");
 
             setLivePolling(labelsAppTab === "live");
             if (labelsAppTab === "live") {
@@ -3950,6 +4172,11 @@
             }
             if (labelsAppTab === "history") {
                 refreshHistory();
+            }
+            if (labelsAppTab === "facturacion") {
+                renderFacturacionPrecios();
+                const codeInput = document.getElementById("facturacionCodigoInput");
+                if (codeInput) codeInput.focus();
             }
 
             if (evt && evt.preventDefault) {
@@ -4352,6 +4579,12 @@
                 setWorkflowStep("factura");
             }
         });
+        document.getElementById("facturacionCodigoInput").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                addFacturacionItemFromInput();
+            }
+        });
 
         document.addEventListener("click", (e) => {
             const codeWrap = document.getElementById("codigo")?.closest(".autocomplete-wrap");
@@ -4417,6 +4650,7 @@
                     if (labelsAppTab === "live") loadLiveQueue();
                     if (labelsAppTab === "hold") loadPendingQueue();
                     if (labelsAppTab === "clients") loadKioskInbox();
+                    if (labelsAppTab === "facturacion") renderFacturacionPrecios();
                 }
             });
 

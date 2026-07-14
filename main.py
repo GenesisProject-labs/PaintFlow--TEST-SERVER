@@ -705,6 +705,7 @@ def _run_startup_schema_setup():
 
         for step_name, fn in (
             ("labelsapp_history_table", _ensure_labelsapp_history_table),
+            ("lista_de_precios_table", _ensure_lista_de_precios_table),
             ("usuarios_cliente_role_constraint", _ensure_usuarios_cliente_role_constraint),
             ("formula_backup", _ensure_formula_backup),
             ("productsw_search_index", _ensure_productsw_search_index),
@@ -1635,6 +1636,31 @@ def _ensure_labelsapp_history_table(db) -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_labelsapp_historial_fecha ON labelsapp_historial(fecha_envio DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_labelsapp_historial_factura ON labelsapp_historial(id_factura)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_labelsapp_historial_sucursal ON labelsapp_historial(sucursal)")
+
+
+def _ensure_lista_de_precios_table(db) -> None:
+    cur = db.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS lista_de_precios (
+            id SERIAL PRIMARY KEY,
+            codigo VARCHAR(80) NOT NULL UNIQUE,
+            descripcion TEXT NOT NULL,
+            precio_usd NUMERIC(14, 4) NOT NULL,
+            precio_dop NUMERIC(14, 2) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute("ALTER TABLE lista_de_precios ADD COLUMN IF NOT EXISTS codigo VARCHAR(80)")
+    cur.execute("ALTER TABLE lista_de_precios ADD COLUMN IF NOT EXISTS descripcion TEXT")
+    cur.execute("ALTER TABLE lista_de_precios ADD COLUMN IF NOT EXISTS precio_usd NUMERIC(14, 4)")
+    cur.execute("ALTER TABLE lista_de_precios ADD COLUMN IF NOT EXISTS precio_dop NUMERIC(14, 2)")
+    cur.execute("ALTER TABLE lista_de_precios ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    cur.execute("ALTER TABLE lista_de_precios ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_lista_de_precios_codigo ON lista_de_precios(codigo)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_lista_de_precios_descripcion ON lista_de_precios(LOWER(descripcion))")
 
 
 def _ensure_usuarios_cliente_role_constraint(db) -> None:
@@ -4112,6 +4138,73 @@ async def labelsapp_codigo_base(payload: LabelsAppCodigoBaseRequest, db=Depends(
     except Exception as e:
         logger.error(f"Error calculating codigo base: {e}")
         raise HTTPException(status_code=500, detail="Error calculando código base")
+
+
+@app.get("/api/v1/labelsapp/facturacion/precios")
+async def labelsapp_facturacion_precios(
+    q: str = "",
+    limit: int = 100,
+    offset: int = 0,
+    db=Depends(get_db),
+):
+    """Listado de precios para el modulo de caja/facturacion."""
+    try:
+        limit = max(1, min(int(limit or 100), 500))
+        offset = max(0, int(offset or 0))
+        query = (q or "").strip()
+
+        _ensure_lista_de_precios_table(db)
+        cur = db.cursor()
+
+        where_sql = ""
+        where_params: List[Any] = []
+        if query:
+            where_sql = "WHERE codigo ILIKE %s OR descripcion ILIKE %s"
+            like = f"%{query}%"
+            where_params = [like, like]
+
+        cur.execute(
+            f"SELECT COUNT(*) FROM lista_de_precios {where_sql}",
+            where_params,
+        )
+        total = int((cur.fetchone() or [0])[0] or 0)
+
+        cur.execute(
+            f"""
+            SELECT codigo,
+                   descripcion,
+                   precio_usd,
+                   precio_dop,
+                   updated_at
+            FROM lista_de_precios
+            {where_sql}
+            ORDER BY codigo ASC
+            LIMIT %s OFFSET %s
+            """,
+            where_params + [limit, offset],
+        )
+
+        items = []
+        for row in cur.fetchall() or []:
+            items.append(
+                {
+                    "codigo": (row[0] or "").strip(),
+                    "descripcion": (row[1] or "").strip(),
+                    "precio_usd": float(row[2] or 0),
+                    "precio_dop": float(row[3] or 0),
+                    "updated_at": _to_business_iso(row[4]),
+                }
+            )
+
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "items": items,
+        }
+    except Exception as e:
+        logger.error(f"Error loading lista_de_precios for facturacion: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo cargar la lista de precios")
 
 
 @app.post("/api/v1/labelsapp/send")
