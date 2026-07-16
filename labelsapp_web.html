@@ -207,6 +207,374 @@
             background: #ffeff0;
         }
 
+        /* ── Hamburger / Side-nav ─────────────────────────── */
+        .ham-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--ink);
+            font-size: 1.2rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+        }
+
+        .side-nav-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(7, 15, 27, 0.45);
+            backdrop-filter: blur(2px);
+            z-index: 1798;
+            display: none;
+        }
+        .side-nav-backdrop.active { display: block; }
+
+        .side-nav-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: min(400px, calc(100vw - 16px));
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(175deg, #0b1734 0%, #0f2a66 52%, #132d5f 100%);
+            border-left: 1px solid rgba(255,255,255,0.15);
+            box-shadow: -10px 0 32px rgba(7,15,27,0.35);
+            z-index: 1799;
+            transform: translateX(102%);
+            transition: transform 0.22s ease-out;
+            color: #eef3ff;
+            overflow: hidden;
+            padding: 18px 16px 20px;
+        }
+        .side-nav-panel.active { transform: translateX(0); }
+
+        #sideNavContent { flex: 1; min-height: 0; overflow-y: auto; padding-right: 2px; }
+
+        .side-nav-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding: 2px 6px 4px;
+        }
+        .side-brand-mark {
+            width: 54px; height: 54px;
+            border-radius: 14px;
+            object-fit: contain;
+            background: rgba(255,255,255,0.92);
+            padding: 4px;
+            box-shadow: 0 8px 22px rgba(8,12,24,0.3);
+        }
+        .side-nav-title h1 {
+            margin: 0;
+            font-family: Space Grotesk, sans-serif;
+            font-size: 1.6rem;
+            color: #fff;
+        }
+        .side-nav-title p {
+            margin: 4px 0 0;
+            color: #c8d8ff;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .side-nav-group {
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.12);
+        }
+        .side-nav-group:last-child { border-bottom: none; }
+        .side-nav-label {
+            font-size: 0.74rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: #9fb0da;
+            margin: 0 0 8px;
+            font-weight: 700;
+        }
+        .side-nav-list { display: grid; gap: 6px; }
+        #sideNavContent {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .side-nav-item {
+            width: 100%;
+            text-align: left;
+            border: 1px solid transparent;
+            background: transparent;
+            color: #eaf0ff;
+            border-radius: 18px;
+            padding: 13px 15px;
+            font-size: 0.97rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .side-nav-item:hover { background: rgba(255,255,255,0.09); }
+        .side-nav-item.active {
+            background: rgba(91,124,255,0.32);
+            border-color: rgba(255,255,255,0.22);
+        }
+        .nav-dot {
+            width: 9px; height: 9px;
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0.7;
+            flex: 0 0 auto;
+        }
+
+        /* ── Ventana independiente Facturación ───────────── */
+        .facturacion-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(7,15,27,0.52);
+            backdrop-filter: blur(3px);
+            z-index: 2000;
+            display: none;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 24px 16px 16px;
+            overflow-y: auto;
+        }
+        .facturacion-overlay.active { display: flex; }
+
+        .facturacion-window {
+            width: 95vw;
+            max-width: 95vw;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 24px 60px rgba(8,20,48,0.32);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .facturacion-window-header {
+            background: linear-gradient(135deg, #0f2a66 0%, #1a4db0 100%);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+        }
+        .facturacion-window-header h2 {
+            margin: 0;
+            font-family: Space Grotesk, sans-serif;
+            font-size: 1.15rem;
+            flex: 1;
+        }
+        .facturacion-window-close {
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .facturacion-window-body {
+            padding: 18px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .facturacion-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .facturacion-meta label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+        .facturacion-meta input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            font-size: 0.93rem;
+        }
+        .facturacion-grid-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+        }
+        .facturacion-grid {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .facturacion-grid th {
+            background: #f0f5ff;
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 2px solid var(--line);
+        }
+        .facturacion-grid td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eef2fa;
+            vertical-align: middle;
+        }
+        .facturacion-grid tr:last-child td { border-bottom: none; }
+        .facturacion-grid tr:hover td { background: #f7fbff; }
+        .facturacion-grid tfoot td {
+            background: #f8fbff;
+            border-top: 2px solid var(--line);
+            font-weight: 700;
+        }
+        .facturacion-grid input[type="number"] {
+            width: 72px;
+            padding: 5px 7px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        .facturacion-entry-row td {
+            background: #f0f7ff;
+            border-top: 2px dashed #b8d0f0;
+        }
+        .facturacion-entry-row input[type="text"],
+        .facturacion-entry-row input[type="number"] {
+            padding: 7px 9px;
+            border: 1px solid #b0c8ea;
+            border-radius: 7px;
+            font-size: 0.92rem;
+            background: #fff;
+        }
+        .facturacion-entry-row input[type="text"] { width: 100%; }
+        .fw-entry-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            background: #f0f6ff;
+            border: 1px dashed #b0c8ea;
+            border-radius: 8px;
+        }
+        .fw-entry-bar input {
+            padding: 7px 9px;
+            border: 1px solid #b0c8ea;
+            border-radius: 7px;
+            font-size: 0.91rem;
+            background: #fff;
+        }
+        .fw-suggestions-box {
+            display: none;
+            position: fixed;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            box-shadow: 0 8px 28px rgba(10,30,70,0.18);
+            z-index: 9999;
+            max-height: 260px;
+            overflow-y: auto;
+            min-width: 380px;
+        }
+        .fw-suggestions-box.open { display: block; }
+        .facturacion-totals {
+            display: flex;
+            justify-content: flex-end;
+        }
+        .facturacion-totals-table {
+            min-width: 300px;
+            border-collapse: collapse;
+            font-size: 0.93rem;
+        }
+        .facturacion-totals-table td {
+            padding: 6px 12px;
+            border-bottom: 1px solid var(--line);
+        }
+        .facturacion-totals-table td:last-child { text-align: right; font-weight: 700; }
+        .facturacion-totals-table tr:last-child td {
+            font-size: 1.05rem;
+            color: var(--brand);
+            border-bottom: none;
+            border-top: 2px solid var(--line);
+        }
+        .facturacion-hint {
+            font-size: 0.8rem;
+            color: var(--muted);
+            min-height: 18px;
+        }
+        .fw-label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+        .fw-label ~ input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            font-size: 0.93rem;
+        }
+        .fw-autocomplete-wrap { position: relative; }
+        .fw-suggestions {
+            display: none;
+            position: fixed;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(10,30,70,0.16);
+            z-index: 4000;
+            max-height: 260px;
+            overflow-y: auto;
+            min-width: 340px;
+        }
+        .fw-suggestions.open { display: block; }
+        .fw-suggestion-item {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            padding: 9px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #eef2fa;
+            font-size: 0.9rem;
+        }
+        .fw-suggestion-item:last-child { border-bottom: none; }
+        .fw-suggestion-item:hover,
+        .fw-suggestion-item.active { background: #eef6ff; }
+        .fw-suggestion-item .fw-s-code {
+            font-weight: 700;
+            color: var(--brand);
+            flex: 0 0 auto;
+            min-width: 130px;
+        }
+        .fw-suggestion-item .fw-s-desc {
+            color: var(--ink);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+        .fw-suggestion-item .fw-s-price {
+            color: #1f9d65;
+            font-weight: 700;
+            flex: 0 0 auto;
+            font-size: 0.85rem;
+        }
+        @media (max-width: 640px) {
+            .facturacion-meta { grid-template-columns: 1fr; }
+        }
+
         .profile-modal {
             position: fixed;
             inset: 0;
@@ -1016,6 +1384,12 @@
             gap: 10px;
             padding: 12px 14px;
             flex-wrap: wrap;
+            position: sticky;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.95);
+            border-top: 1px solid var(--line);
+            z-index: 10;
+            backdrop-filter: blur(4px);
         }
 
         .status {
@@ -1069,20 +1443,176 @@
             <img class="brand-logo" src="/static/logo.png" alt="PaintFlow logo" />
             <span>PaintFlow</span>
         </div>
-        <div class="actions">
-            <div class="user-menu-container">
-                <button class="user-dropdown-btn" id="userDropdownBtn" type="button" onclick="toggleUserDropdown()">
-                    <span class="user-avatar" id="userAvatar">👤</span>
-                    <span id="userDisplayName">Usuario</span>
-                </button>
-                <div class="user-dropdown" id="userDropdown">
-                    <button type="button" onclick="abrirModalPerfil()">Perfil</button>
-                    <button type="button" onclick="closeUserDropdown(); abrirCatalogoPublico();">Catalogo Cliente</button>
-                    <button type="button" onclick="handleLogout()">Cerrar Sesion</button>
+        <div class="actions" style="gap:10px;">
+            <button class="ham-btn" type="button" id="sideNavToggle" onclick="toggleSideNav()" aria-label="Abrir menu" aria-expanded="false">☰</button>
+        </div>
+    </header>
+
+    <!-- Side-nav panel (hamburguesa) -->
+    <aside class="side-nav-panel" id="sideNavPanel">
+        <div class="side-nav-head" id="sideNavUserInfo">
+            <img class="side-brand-mark" src="/static/logo.png" alt="PaintFlow">
+            <div class="side-nav-title" style="flex: 1;">
+                <h1 id="sideUserName" style="font-size: 1rem; margin-bottom: 4px;">Usuario</h1>
+                <p id="sideUserRole" style="margin: 0; color: #c8d8ff; font-size: 0.85rem;">Cajero</p>
+            </div>
+        </div>
+        <div id="sideNavContent">
+            <div class="side-nav-group">
+                <div class="side-nav-label">Principal</div>
+                <div class="side-nav-list">
+                    <button type="button" class="side-nav-item active" onclick="toggleSideNav(false)"><span class="nav-dot"></span>LabelsApp / Cola</button>
+                    <button type="button" class="side-nav-item" onclick="toggleSideNav(false); abrirFacturacionDesdeQueue();"><span class="nav-dot"></span>Facturacion</button>
+                    <button type="button" class="side-nav-item" onclick="toggleSideNav(false); abrirHistorialFacturas();"><span class="nav-dot"></span>Historial de Facturas</button>
+                </div>
+            </div>
+            <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.12);">
+                <button type="button" class="side-nav-item" onclick="logout()" style="width: 100%; text-align: left; color: #ff6b6b;"><span class="nav-dot"></span>Cerrar Sesión</button>
+            </div>
+        </div>
+    </aside>
+    <div class="side-nav-backdrop" id="sideNavBackdrop" onclick="toggleSideNav(false)"></div>
+
+    <!-- Ventana independiente de Facturación -->
+    <div class="facturacion-overlay" id="facturacionOverlay" onclick="facturacionOverlayClick(event)">
+        <div class="facturacion-window" id="facturacionWindow">
+            <div class="facturacion-window-header">
+                <h2>📄 Facturacion</h2>
+            </div>
+            <div class="facturacion-window-body">
+                <!-- Encabezado: cliente a la izquierda, datos de factura a la derecha -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;">
+                    <div style="display:grid;gap:10px;">
+                        <div>
+                            <label class="fw-label" for="fwCedula">Cedula / RNC</label>
+                            <input id="fwCedula" placeholder="Ej: 001-1234567-8" />
+                        </div>
+                        <div>
+                            <label class="fw-label" for="fwCliente">Nombre</label>
+                            <input id="fwCliente" placeholder="Nombre del cliente" />
+                        </div>
+                    </div>
+                    <div style="display:grid;gap:10px;">
+                        <div>
+                            <label class="fw-label" for="fwNumero">N° Factura</label>
+                            <input id="fwNumero" placeholder="Ej: FAC-2026-001" />
+                        </div>
+                        <div>
+                            <label class="fw-label" for="fwFecha">Fecha</label>
+                            <input id="fwFecha" type="date" readonly style="background:#f4f7fc;" />
+                        </div>
+                    </div>
+                </div>
+
+                <div id="fwSuggestions" class="fw-suggestions"></div>
+                <div class="facturacion-grid-wrap">
+                    <table class="facturacion-grid">
+                        <colgroup>
+                            <col style="width:40px">
+                            <col style="width:130px">
+                            <col style="width:60px">
+                            <col>
+                            <col style="width:85px">
+                            <col style="width:115px">
+                            <col style="width:110px">
+                            <col style="width:72px">
+                            <col style="width:110px">
+                            <col style="width:120px">
+                            <col style="width:60px">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Codigo</th>
+                                <th>Cant.</th>
+                                <th>Descripcion</th>
+                                <th>Unid.</th>
+                                <th>Color</th>
+                                <th>Precio</th>
+                                <th>%Desc.</th>
+                                <th>ITBIS</th>
+                                <th>TOTAL</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="fwBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Fila de entrada FUERA de la tabla para evitar clipping -->
+                <div class="fw-entry-bar">
+                    <div style="flex:0 0 160px;">
+                        <input type="text" id="fwCodigoInput" placeholder="Codigo + Enter" autocomplete="off" style="width:100%;" />
+                    </div>
+                    <input type="number" id="fwCantidadInput" min="1" step="1" value="1" style="width:70px;" title="Cantidad" />
+                    <input type="text" id="fwUnidadInput" placeholder="Unid." style="width:80px;" />
+                    <input type="text" id="fwColorInput" placeholder="Color (SW 7009)" style="flex:0 0 130px;" />
+                    <span id="fwHint" class="facturacion-hint" style="flex:1;">Busca por codigo o descripcion</span>
+                    <button class="btn btn-primary" type="button" onclick="fwAddItem()">Agregar</button>
+                </div>
+
+                <div class="facturacion-totals">
+                    <table class="facturacion-totals-table">
+                        <tr><td>Subtotal</td><td id="fwSubtotal">DOP 0.00</td></tr>
+                        <tr><td>ITBIS 18%</td><td id="fwItbis">DOP 0.00</td></tr>
+                        <tr><td>Total</td><td id="fwTotal">DOP 0.00</td></tr>
+                    </table>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+                    <button class="btn btn-primary" type="button" onclick="fwGuardar()">Guardar</button>
+                    <button class="btn btn-danger" type="button" onclick="fwClear(); cerrarFacturacionWindow()">Cancelar</button>
+                </div>
+                <div id="fwGuardarStatus" style="text-align:right;font-size:0.82rem;min-height:18px;margin-top:4px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dropdown sugerencias Facturacion: fuera de cualquier overflow -->
+    <div id="fwSuggestionsBox" class="fw-suggestions-box"></div>
+
+    <!-- Historial de Facturas (ventana independiente) -->
+    <div class="facturacion-overlay" id="historialFacturasOverlay" onclick="historialOverlayClick(event)">
+        <div class="facturacion-window" id="historialFacturasWindow" style="max-width:1100px;">
+            <div class="facturacion-window-header">
+                <h2>🗂 Historial de Facturas</h2>
+                <button class="facturacion-window-close" type="button" onclick="cerrarHistorialFacturas()">✕</button>
+            </div>
+            <div class="facturacion-window-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;margin-bottom:4px;">
+                    <div>
+                        <label class="fw-label" for="hfDesde">Desde</label>
+                        <input id="hfDesde" type="date" />
+                    </div>
+                    <div>
+                        <label class="fw-label" for="hfHasta">Hasta</label>
+                        <input id="hfHasta" type="date" />
+                    </div>
+                    <button class="btn btn-primary" type="button" onclick="loadHistorialFacturas()">Buscar</button>
+                    <button class="btn btn-link" type="button" onclick="clearHistorialFiltros()">Limpiar</button>
+                </div>
+                <div id="hfSummary" style="font-size:0.82rem;color:var(--muted);min-height:16px;margin-bottom:6px;"></div>
+                <div style="overflow-x:auto;border:1px solid var(--line);border-radius:10px;">
+                    <table class="facturacion-grid" style="min-width:820px;">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>N° Factura</th>
+                                <th>Cedula/RNC</th>
+                                <th>Nombre</th>
+                                <th>Sucursal</th>
+                                <th>Items</th>
+                                <th>Subtotal</th>
+                                <th>ITBIS</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hfBody"><tr><td colspan="9" class="empty">Selecciona un rango de fechas y presiona Buscar</td></tr></tbody>
+                    </table>
                 </div>
             </div>
         </div>
-    </header>
+    </div>
 
     <main class="shell">
         <section class="card">
@@ -1212,7 +1742,6 @@
                 <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="hold" onclick="switchLabelsAppTab(event, 'hold')">En espera <span id="holdTabBadge" class="tab-badge">0</span></button>
                 <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="clients" onclick="switchLabelsAppTab(event, 'clients')">Clientes/Kiosko <span id="kioskInboxBadge" class="tab-badge">0</span></button>
                 <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="live" onclick="switchLabelsAppTab(event, 'live')">Tiempo real <span id="liveTabBadge" class="tab-badge">0</span></button>
-                <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="facturacion" onclick="switchLabelsAppTab(event, 'facturacion')">Facturacion</button>
                 <button class="labelsapp-subtab-btn" type="button" data-labelsapp-tab="history" onclick="switchLabelsAppTab(event, 'history')">Historial</button>
             </div>
 
@@ -1400,64 +1929,6 @@
                 </div>
             </div>
 
-            <div id="labelsappFacturacionTab" class="labelsapp-subtab-content">
-                <div class="card-body queue-tab-shell">
-                    <div class="summary">Facturacion estilo SAP: agrega articulos escribiendo el codigo en la celda y presiona Enter.</div>
-                    <div class="row-2" style="margin-bottom: 10px;">
-                        <div>
-                            <label for="facturacionNumero">Factura</label>
-                            <input id="facturacionNumero" placeholder="Ej: FAC-2026-001" />
-                        </div>
-                        <div>
-                            <label for="facturacionCliente">Cliente</label>
-                            <input id="facturacionCliente" placeholder="Nombre del cliente" />
-                        </div>
-                    </div>
-                    <div id="facturacionSummary" class="summary">0 articulo(s) en factura</div>
-                </div>
-                <div class="queue-wrap live-wrap">
-                    <table class="labelsapp-history-table">
-                        <colgroup>
-                            <col style="width: 60px;">
-                            <col style="width: 180px;">
-                            <col>
-                            <col style="width: 150px;">
-                            <col style="width: 170px;">
-                            <col style="width: 170px;">
-                            <col style="width: 110px;">
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Codigo</th>
-                                <th>Descripcion</th>
-                                <th>Cantidad</th>
-                                <th>Precio unitario (DOP)</th>
-                                <th>Total (DOP)</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="facturacionBody">
-                            <tr><td colspan="7" class="empty">Empieza agregando un articulo por codigo en la fila de entrada</td></tr>
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td></td>
-                                <td><input id="facturacionCodigoInput" placeholder="Codigo articulo + Enter" /></td>
-                                <td id="facturacionLookupHint" style="color:#6b7a90;">Busca por codigo exacto o parcial</td>
-                                <td><input id="facturacionCantidadInput" type="number" min="1" step="1" value="1" /></td>
-                                <td colspan="3"><button class="btn btn-primary" type="button" onclick="addFacturacionItemFromInput()">Agregar</button></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-                <div class="footer-bar">
-                    <div class="status" id="facturacionTotalesStatus">Subtotal: <strong id="facturacionSubtotal">DOP 0.00</strong> | ITBIS 18%: <strong id="facturacionItbis">DOP 0.00</strong> | Total: <strong id="facturacionTotal">DOP 0.00</strong></div>
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-link" type="button" onclick="clearFacturacionInvoice()">Limpiar factura</button>
-                    </div>
-                </div>
-            </div>
         </section>
     </main>
 
@@ -2126,15 +2597,16 @@
         function formatCodigoBaseForItem(item) {
             const producto = item?.producto || "";
             const presentacion = item?.presentacion || "";
+            const base = item?.base || "";
             const forcedBase = forcedCodeForProductName(producto);
             if (forcedBase) {
-                const suffix = getSuffixByPresentacion(presentacion);
+                const suffix = getSuffixByPresentacion(presentacion, producto, base);
                 return suffix ? `${forcedBase}${suffix}` : forcedBase;
             }
             const raw = (item?.codigo_base_raw || item?.codigo_base || "").toString().trim();
             if (!raw) return "";
             if (item?.codigo_base_raw) {
-                return applyPresentacionToCodigoBase(raw, presentacion);
+                return applyPresentacionToCodigoBase(raw, presentacion, producto, base);
             }
             return raw;
         }
@@ -2149,10 +2621,10 @@
             return DEFAULT_PRESENTACIONES.slice();
         }
 
-        function applyPresentacionToCodigoBase(rawCodigoBase, presentacion) {
+        function applyPresentacionToCodigoBase(rawCodigoBase, presentacion, producto = "", base = "") {
             const raw = (rawCodigoBase || "").toString().trim();
             if (!raw) return "";
-            const suffix = getSuffixByPresentacion(presentacion);
+            const suffix = getSuffixByPresentacion(presentacion, producto, base);
             return suffix ? `${raw}${suffix}` : raw;
         }
 
@@ -2731,16 +3203,65 @@
             refreshCodigoBase();
         }
 
-        function getSuffixByPresentacion(presentacion) {
-            const p = normalize(presentacion);
-            if (p === "1/8") return "1/8";
-            if (p === "3/4") return "3/4";
-            if (p === "1/4") return "1/4";
-            if (p.includes("cuarto")) return "QT";
-            if (p.includes("medio")) return "1/2";
-            if (p.includes("galon")) return "1";
-            if (p.includes("cubeta")) return "5";
-            return "";
+        function getSuffixByPresentacion(presentacion, producto = "", base = "") {
+            const p = (presentacion || "").trim().toLowerCase();
+            const prod = (producto || "").trim().toLowerCase();
+            const b = (base || "").trim().toLowerCase();
+
+            // Sufijo de presentación base
+            let sufBase = "";
+            if (p === "1/8") {
+                sufBase = "1/8";
+            } else if (p === "3/4") {
+                sufBase = "3/4";
+            } else if (p === "1/4") {
+                sufBase = "1/4";
+            } else if (p.includes("cuarto")) {
+                // Productos que usan "QT" en Cuarto
+                const productosQT = [
+                    'esmalte multiuso', 'excello premium', 'excello voc', 'master paint',
+                    'super paint', 'excello pastel', 'texturizado', 'water blocking', 'kem aqua',
+                    'emerald', 'airpuretec', 'kem pro', 'sanitizing', 'scuff tuff',
+                    'armoseal tread-plex', 'armoseal 1000 hs', 'pro industrial dtm',
+                    'promar® 200 voc', 'promar® 400 voc', 'h&c heavy shield water-based',
+                    'h&c silicone acrylic', 'conversion varnish',
+                    // Alias adicionales
+                    'excello voc', 'h&c heavy-shield', 'h&c silicone-acrylic',
+                    'armoseal 1000hs', 'armoseal t-p', 'scuff tuff-wb'
+                ];
+                sufBase = productosQT.some(k => prod.includes(k)) ? "QT" : "1/4";
+            } else if (p.includes("medio")) {
+                sufBase = "1/2";
+            } else if (p.includes("galon")) {
+                sufBase = "1";
+            } else if (p.includes("cubeta")) {
+                sufBase = "5";
+            }
+
+            // Sufijo complementario para laca/esmalte
+            let sufExtra = "";
+            
+            // Detectar "Extra White" (normalizado)
+            const bSpace = b.replace(/\s+/g, " ").trim();
+            const bFlat = b.replace(/[^a-z0-9]/g, "");
+            const isExtraWhite = bSpace.includes("extra white") || bFlat.includes("extrawhite");
+            
+            // Detectar "Deep" pero NO "Ultra Deep"
+            const isUltraDeep = (b.includes("ultra") && b.includes("deep")) || 
+                               bFlat.includes("ultradeep") || 
+                               bFlat.includes("ultradeep2");
+            const isDeep = b.includes("deep") && !isUltraDeep;
+            const esBaseC = isExtraWhite || isDeep;
+
+            // Aplicar sufijo complementario
+            if (prod.includes("laca")) {
+                sufExtra = esBaseC ? "c" : "e";
+            } else if (prod.includes("esmalte") && !prod.includes("esmalte multiuso")) {
+                sufExtra = esBaseC ? "n" : "e";
+            }
+            // esmalte multiuso no lleva sufijo complementario
+
+            return sufBase + sufExtra;
         }
 
         async function reloadProducts() {
@@ -3213,7 +3734,7 @@
             const forcedByProduct = forcedCodeForProductName(producto);
             if (forcedByProduct) {
                 currentCodigoBaseRaw = forcedByProduct;
-                codigoBaseEl.value = applyPresentacionToCodigoBase(forcedByProduct, presentacion);
+                codigoBaseEl.value = applyPresentacionToCodigoBase(forcedByProduct, presentacion, producto, base);
                 return;
             }
 
@@ -3225,7 +3746,7 @@
 
             if (!terminacion) {
                 if (currentCodigoBaseRaw) {
-                    codigoBaseEl.value = applyPresentacionToCodigoBase(currentCodigoBaseRaw, presentacion);
+                    codigoBaseEl.value = applyPresentacionToCodigoBase(currentCodigoBaseRaw, presentacion, producto, base);
                 } else {
                     codigoBaseEl.value = "";
                 }
@@ -3253,7 +3774,9 @@
 
                 currentCodigoBaseRaw = raw;
                 const latestPresentacion = document.getElementById("presentacion").value;
-                codigoBaseEl.value = applyPresentacionToCodigoBase(raw, latestPresentacion);
+                const latestProducto = document.getElementById("producto").value.trim();
+                const latestBase = document.getElementById("base").value.trim();
+                codigoBaseEl.value = applyPresentacionToCodigoBase(raw, latestPresentacion, latestProducto, latestBase);
             } catch {
                 if (currentSeq !== codigoBaseRequestSeq) return;
                 currentCodigoBaseRaw = "";
@@ -3568,7 +4091,7 @@
             const forcedByProduct = forcedCodeForProductName(item.producto || "");
             if (forcedByProduct) {
                 item.codigo_base_raw = forcedByProduct;
-                item.codigo_base = applyPresentacionToCodigoBase(forcedByProduct, item.presentacion || "");
+                item.codigo_base = applyPresentacionToCodigoBase(forcedByProduct, item.presentacion || "", item.producto || "", item.base || "");
                 renderQueue();
                 return;
             }
@@ -3597,7 +4120,7 @@
                 const raw = (data.codigo_base || "").toString().trim();
                 const invalid = !raw || raw.includes("{") || raw.includes("}") || /no aplica|no encontrado|error/i.test(raw);
                 item.codigo_base_raw = invalid ? "" : raw;
-                item.codigo_base = invalid ? "" : applyPresentacionToCodigoBase(raw, item.presentacion || "");
+                item.codigo_base = invalid ? "" : applyPresentacionToCodigoBase(raw, item.presentacion || "", item.producto || "", item.base || "");
             } catch {
                 item.codigo_base_raw = "";
                 item.codigo_base = "";
@@ -3618,7 +4141,7 @@
             if (!item) return;
             item.presentacion = value;
             if (item.codigo_base_raw) {
-                item.codigo_base = applyPresentacionToCodigoBase(item.codigo_base_raw, value);
+                item.codigo_base = applyPresentacionToCodigoBase(item.codigo_base_raw, value, item.producto || "", item.base || "");
                 renderQueue();
                 return;
             }
@@ -3773,6 +4296,8 @@
             }).join("");
         }
 
+        // Debounce para el filtro de búsqueda
+        let facturacionSearchTimeout;
         async function refreshFacturacionPrecios(resetOffset = false) {
             if (facturacionLoading) return;
 
@@ -3787,14 +4312,23 @@
                 return;
             }
 
+            // Si el código tiene menos de 2 caracteres, esperar a escribir más
+            if (codigoRaw.length < 2) {
+                if (hint) hint.textContent = "Escribe al menos 2 caracteres...";
+                return;
+            }
+
             facturacionLoading = true;
             try {
+                // Usar limit 10 en lugar de 25 para búsquedas más rápidas
                 const params = new URLSearchParams({
                     q: codigoRaw,
-                    limit: "25",
+                    limit: "10",
                     offset: "0"
                 });
-                const res = await fetch(`${API}/api/v1/labelsapp/facturacion/precios?${params.toString()}`);
+                const res = await fetch(`${API}/api/v1/labelsapp/facturacion/precios?${params.toString()}`, {
+                    signal: AbortSignal.timeout(5000) // Timeout de 5 segundos
+                });
                 if (!res.ok) throw new Error("No se pudo consultar el articulo");
 
                 const data = await res.json();
@@ -4140,7 +4674,7 @@
         }
 
         function switchLabelsAppTab(evt, tabName) {
-            labelsAppTab = ["queue", "hold", "clients", "live", "history", "facturacion"].includes(tabName) ? tabName : "queue";
+            labelsAppTab = ["queue", "hold", "clients", "live", "history"].includes(tabName) ? tabName : "queue";
 
             document.querySelectorAll("[data-labelsapp-tab]").forEach((btn) => {
                 btn.classList.toggle("active", btn.getAttribute("data-labelsapp-tab") === labelsAppTab);
@@ -4151,13 +4685,11 @@
             const clientsTab = document.getElementById("labelsappClientsTab");
             const liveTab = document.getElementById("labelsappLiveTab");
             const historyTab = document.getElementById("labelsappHistoryTab");
-            const facturacionTab = document.getElementById("labelsappFacturacionTab");
             if (queueTab) queueTab.classList.toggle("active", labelsAppTab === "queue");
             if (holdTab) holdTab.classList.toggle("active", labelsAppTab === "hold");
             if (clientsTab) clientsTab.classList.toggle("active", labelsAppTab === "clients");
             if (liveTab) liveTab.classList.toggle("active", labelsAppTab === "live");
             if (historyTab) historyTab.classList.toggle("active", labelsAppTab === "history");
-            if (facturacionTab) facturacionTab.classList.toggle("active", labelsAppTab === "facturacion");
 
             setLivePolling(labelsAppTab === "live");
             if (labelsAppTab === "live") {
@@ -4172,11 +4704,6 @@
             }
             if (labelsAppTab === "history") {
                 refreshHistory();
-            }
-            if (labelsAppTab === "facturacion") {
-                renderFacturacionPrecios();
-                const codeInput = document.getElementById("facturacionCodigoInput");
-                if (codeInput) codeInput.focus();
             }
 
             if (evt && evt.preventDefault) {
@@ -4215,6 +4742,170 @@
             }
         }
 
+        async function abrirFacturacionDesdeQueue() {
+            if (!queue.length) {
+                setStatus("No hay productos en la cola para facturar", "warn");
+                return;
+            }
+            const idFactura = document.getElementById("idFactura")?.value.trim() || "";
+            await openFacturacionWithItems(queue, idFactura);
+        }
+
+        // Buscar precio en lista_de_precios por código
+        async function getPrecioFromCodigo(codigo) {
+            if (!codigo) return 0;
+            try {
+                const params = new URLSearchParams({
+                    q: codigo.trim(),
+                    limit: "10",
+                    offset: "0"
+                });
+                const res = await fetch(`${API}/api/v1/labelsapp/facturacion/precios?${params.toString()}`);
+                if (!res.ok) return 0;
+                const data = await res.json();
+                const rows = Array.isArray(data.items) ? data.items : [];
+                
+                if (rows.length === 0) return 0;
+                
+                // Exact match
+                const normalized = String(codigo).trim().toLowerCase();
+                const exactMatch = rows.find(r => String(r.codigo || "").trim().toLowerCase() === normalized);
+                if (exactMatch && exactMatch.precio_dop > 0) {
+                    return Number(exactMatch.precio_dop);
+                }
+                
+                // First valid price
+                const firstValid = rows.find(r => Number(r.precio_dop || 0) > 0);
+                if (firstValid) return Number(firstValid.precio_dop);
+                
+                // Return first item price even if 0
+                return rows[0] ? Number(rows[0].precio_dop || 0) : 0;
+            } catch (err) {
+                console.error("Error fetching price for", codigo, err);
+                return 0;
+            }
+        }
+
+        async function getProductDataFromCodigo(codigo) {
+            if (!codigo) return { descripcion: "", precio_dop: 0 };
+            try {
+                const params = new URLSearchParams({
+                    q: codigo.trim(),
+                    limit: "10",
+                    offset: "0"
+                });
+                const res = await fetch(`${API}/api/v1/labelsapp/facturacion/precios?${params.toString()}`);
+                if (!res.ok) return { descripcion: "", precio_dop: 0 };
+                const data = await res.json();
+                const rows = Array.isArray(data.items) ? data.items : [];
+                
+                if (rows.length === 0) return { descripcion: "", precio_dop: 0 };
+                
+                // Exact match
+                const normalized = String(codigo).trim().toLowerCase();
+                const exactMatch = rows.find(r => String(r.codigo || "").trim().toLowerCase() === normalized);
+                if (exactMatch) {
+                    return {
+                        descripcion: exactMatch.descripcion || "",
+                        precio_dop: Number(exactMatch.precio_dop || 0)
+                    };
+                }
+                
+                // First valid item
+                const firstValid = rows[0];
+                if (firstValid) {
+                    return {
+                        descripcion: firstValid.descripcion || "",
+                        precio_dop: Number(firstValid.precio_dop || 0)
+                    };
+                }
+                
+                return { descripcion: "", precio_dop: 0 };
+            } catch (err) {
+                console.error("Error fetching product data for", codigo, err);
+                return { descripcion: "", precio_dop: 0 };
+            }
+        }
+
+        async function openFacturacionWithItems(queueItems, numeroFactura) {
+            // Limpiar la factura actual
+            fwItems.length = 0;
+            
+            // Agregar cada producto de la cola con búsqueda de precios
+            for (const qItem of queueItems) {
+                if (!qItem) continue;
+                
+                // Si no tenemos código base, calcularlo desde el backend
+                let codigoBase = qItem.codigo_base_raw || qItem.codigo_base;
+                if (!codigoBase && qItem.codigo && qItem.producto) {
+                    // Calcular código base desde backend
+                    try {
+                        const baseRes = await fetch(`${API}/api/v1/labelsapp/codigo-base`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                codigo: qItem.codigo,
+                                producto: qItem.producto,
+                                base: qItem.base || "",
+                                terminacion: qItem.terminacion || "mate"
+                            })
+                        });
+                        if (baseRes.ok) {
+                            const baseData = await baseRes.json();
+                            codigoBase = baseData.codigo_base || baseData.codigo || "";
+                        }
+                    } catch (err) {
+                        console.log("Error calculating codigo_base:", err);
+                    }
+                }
+                
+                // Aplicar sufijo de presentación al código base (ej: A27WDR01- + QT = A27WDR01-QT)
+                const codigoBaseConSufijo = applyPresentacionToCodigoBase(
+                    codigoBase,
+                    qItem.presentacion || "1/8",
+                    qItem.producto || "",
+                    qItem.base || ""
+                );
+                
+                // Buscar datos del producto (descripción + precio) por código base con sufijo (ej: A26WDR01-QT)
+                const codigoParaBuscar = codigoBaseConSufijo || codigoBase || qItem.codigo || "";
+                const productData = await getProductDataFromCodigo(codigoParaBuscar);
+                
+                // MAPEO CORRECTO ENTRE LABELSAPP Y FACTURACIÓN:
+                // codigo → código base con sufijo (ej: A27WDR01-QT) - ESTO ES LO QUE SE FACTURA
+                // color → código de color (ej: SW 7009)
+                // unidad → presentación (Cuarto, Medio Galón, etc)
+                // descripción → descripción del producto (desde lista_de_precios) + código del color
+                
+                fwItems.push({
+                    codigo: codigoBaseConSufijo || "",  // Código base con sufijo para facturación (A27WDR01-QT)
+                    descripcion: `${productData.descripcion} ${qItem.codigo}`.trim(),  // Descripción del producto + código del color (SW 7009)
+                    precio_dop: productData.precio_dop,  // Precio buscado desde lista_de_precios por código base con sufijo
+                    cantidad: Math.max(1, Number(qItem.cantidad || 1)),
+                    unidad: qItem.presentacion || "1/8",
+                    color: qItem.codigo || "",  // Código de color (SW 7009)
+                    descuento: 0
+                });
+            }
+            
+            // Abrir la ventana de facturación
+            abrirFacturacionWindow();
+            
+            // Generar automáticamente el número de factura si no se proporcionó
+            const nFactEl = document.getElementById("fwNumero");
+            if (nFactEl && !nFactEl.value.trim()) {
+                nFactEl.value = generateFacturaId();
+            }
+            
+            // Pre-llenar el número de factura si se proporcionó
+            if (numeroFactura && nFactEl && !nFactEl.value.trim()) {
+                nFactEl.value = numeroFactura;
+            }
+            
+            // Renderizar los items en la tabla de factura
+            fwRender();
+        }
+
         async function sendQueue() {
             const user = ensureSession();
             if (!user) return;
@@ -4222,57 +4913,54 @@
             if (!queue.length) return setStatus("No hay productos en la lista", "warn");
 
             const id_factura = document.getElementById("idFactura").value.trim();
-            const prioridad = document.getElementById("prioridad").value;
-            if (!id_factura) return setStatus("Debes indicar ID de factura", "warn");
+            if (!id_factura) return setStatus("Debes indicar N° de factura", "warn");
 
-            setStatus("Enviando lote...", "warn");
+            setStatus("Enviando a coloristas...", "ok");
 
             try {
+                // Preparar payload exactamente como espera el backend
                 const payload = {
-                    id_factura,
-                    prioridad,
+                    id_factura: id_factura,
+                    id_cliente: null,
+                    prioridad: document.getElementById("prioridadSelect")?.value || "Media",
                     username: user.username,
                     usuario_id: user.id,
-                    sucursal: user.sucursal || user.sucursal_nombre || "",
-                    items: queue.map((item) => ({
-                        ...item,
-                        prioridad: item.prioridad || prioridad
+                    sucursal: user.sucursal,
+                    operador: "labelsapp-web",
+                    items: queue.map(item => ({
+                        codigo: item.codigo || "",
+                        descripcion: item.descripcion || "",
+                        producto: item.producto || "",
+                        terminacion: item.terminacion || "",
+                        presentacion: item.presentacion || "",
+                        cantidad: Math.max(1, Number(item.cantidad || 1)),
+                        base: item.base || "",
+                        ubicacion: item.ubicacion || "",
+                        codigo_base: item.codigo_base || ""
                     }))
                 };
 
-                const params = new URLSearchParams();
-                if (user.username) params.set("username", user.username);
-                if (user.id) params.set("usuario_id", String(user.id));
-                if (user.sucursal || user.sucursal_nombre) params.set("sucursal", user.sucursal || user.sucursal_nombre);
-
-                const url = editingFacturaId
-                    ? `${API}/api/v1/labelsapp/factura/${encodeURIComponent(editingFacturaId)}/items?${params.toString()}`
-                    : `${API}/api/v1/labelsapp/send`;
-                const method = editingFacturaId ? "PUT" : "POST";
-
-                const res = await fetch(url, {
-                    method,
+                // POST a /api/v1/labelsapp/send
+                const response = await fetch(`${API}/api/v1/labelsapp/send`, {
+                    method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
                 });
 
-                const data = await res.json();
-                if (!res.ok) {
-                    throw new Error(data.detail || "No se pudo enviar el lote");
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `Error ${response.status}: ${response.statusText}`);
                 }
 
-                const sentFactura = data.id_factura || id_factura;
-                setStatus(editingFacturaId
-                    ? `Factura ${sentFactura} actualizada (${data.inserted || 0} item(s))`
-                    : `Factura ${sentFactura} enviada (${data.inserted || 0} item(s))`, "ok");
+                const result = await response.json();
+                setStatus(`✓ ${result.inserted} producto(s) enviado(s) a coloristas`, "ok");
+
+                // Limpiar la cola después de envio exitoso
                 clearQueue();
-                if (labelsAppTab === "live") {
-                    await loadLiveQueue();
-                }
-                await refreshHistory();
-                await loadKioskInbox();
+
             } catch (err) {
-                setStatus(err.message || "Error enviando lote", "error");
+                console.error("sendQueue error:", err);
+                setStatus(err.message || "Error enviando a coloristas", "error");
             }
         }
 
@@ -4562,7 +5250,9 @@
         document.getElementById("presentacion").addEventListener("change", () => {
             setWorkflowStep("cantidad");
             if (currentCodigoBaseRaw) {
-                document.getElementById("codigoBase").value = applyPresentacionToCodigoBase(currentCodigoBaseRaw, document.getElementById("presentacion").value);
+                const producto = document.getElementById("producto").value.trim();
+                const base = document.getElementById("base").value.trim();
+                document.getElementById("codigoBase").value = applyPresentacionToCodigoBase(currentCodigoBaseRaw, document.getElementById("presentacion").value, producto, base);
             } else {
                 refreshCodigoBase();
             }
@@ -4577,12 +5267,6 @@
             const cantidad = Math.max(1, Number(document.getElementById("cantidad").value || 1));
             if (cantidad > 0) {
                 setWorkflowStep("factura");
-            }
-        });
-        document.getElementById("facturacionCodigoInput").addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                addFacturacionItemFromInput();
             }
         });
 
@@ -4650,7 +5334,6 @@
                     if (labelsAppTab === "live") loadLiveQueue();
                     if (labelsAppTab === "hold") loadPendingQueue();
                     if (labelsAppTab === "clients") loadKioskInbox();
-                    if (labelsAppTab === "facturacion") renderFacturacionPrecios();
                 }
             });
 
@@ -4658,6 +5341,649 @@
                 if (liveQueueTimer) clearInterval(liveQueueTimer);
             });
         })();
+
+        /* ── Side-nav (hamburguesa) ─────────────────────── */
+        function toggleSideNav(forceOpen) {
+            const panel = document.getElementById("sideNavPanel");
+            const backdrop = document.getElementById("sideNavBackdrop");
+            const toggle = document.getElementById("sideNavToggle");
+            const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !panel.classList.contains("active");
+            panel.classList.toggle("active", shouldOpen);
+            if (backdrop) backdrop.classList.toggle("active", shouldOpen);
+            if (toggle) {
+                toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+                toggle.textContent = shouldOpen ? "✕" : "☰";
+            }
+        }
+
+        /* ── Ventana independiente Facturación ─────────── */
+        const FW_ITBIS = 0.18;
+        const fwItems = [];
+        let fwLoading = false;
+
+        function _fwTodayStr() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+
+        function generateFacturaId() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            
+            // Clave en localStorage para contador de facturas
+            const counterKey = `fwFacturaCounter_${year}${month}${day}`;
+            let counter = parseInt(localStorage.getItem(counterKey) || "0", 10);
+            counter += 1;
+            localStorage.setItem(counterKey, String(counter));
+            
+            const counterStr = String(counter).padStart(5, '0');
+            return `FAC-${year}${month}${day}-${counterStr}`;
+        }
+
+        function abrirFacturacionWindow() {
+            const overlay = document.getElementById("facturacionOverlay");
+            if (overlay) overlay.classList.add("active");
+            
+            // Limpiar campos de cédula y nombre (pero mantener otros)
+            const cedulaEl = document.getElementById("fwCedula");
+            const nombreEl = document.getElementById("fwCliente");
+            if (cedulaEl) cedulaEl.value = "";
+            if (nombreEl) nombreEl.value = "";
+            
+            const fechaEl = document.getElementById("fwFecha");
+            if (fechaEl && !fechaEl.value) fechaEl.value = _fwTodayStr();
+            fwWarmupSuggestions();
+            _setupFWListeners();  // ← Registrar listeners cuando se abre la ventana
+            fwRender();
+            setTimeout(() => {
+                const inp = document.getElementById("fwCodigoInput");
+                if (inp) inp.focus();
+            }, 80);
+        }
+
+        function cerrarFacturacionWindow() {
+            const overlay = document.getElementById("facturacionOverlay");
+            
+            // Si hay productos y número de factura, guardar automáticamente
+            if (fwItems.length > 0) {
+                const nFactEl = document.getElementById("fwNumero");
+                if (nFactEl && nFactEl.value.trim()) {
+                    // Guardar silenciosamente antes de cerrar
+                    fwGuardar();
+                }
+            }
+            
+            if (overlay) overlay.classList.remove("active");
+            
+            // Limpiar factura después de cerrar
+            setTimeout(() => fwClear(), 500);
+        }
+
+        function facturacionOverlayClick(e) {
+            if (e.target && e.target.id === "facturacionOverlay") cerrarFacturacionWindow();
+        }
+
+        function fwLineCalc(item) {
+            const precio = Number(item.precio_dop || 0);
+            const cant   = Number(item.cantidad || 0);
+            const desc   = Math.min(100, Math.max(0, Number(item.descuento || 0)));
+            const base   = precio * cant * (1 - desc / 100);
+            const itbis  = base * FW_ITBIS;
+            return { base, itbis, total: base + itbis };
+        }
+
+        function fwRender() {
+            const body = document.getElementById("fwBody");
+            const subtotalEl = document.getElementById("fwSubtotal");
+            const itbisEl   = document.getElementById("fwItbis");
+            const totalEl   = document.getElementById("fwTotal");
+
+            let grandBase = 0, grandItbis = 0;
+            fwItems.forEach(item => {
+                const c = fwLineCalc(item);
+                grandBase  += c.base;
+                grandItbis += c.itbis;
+            });
+
+            if (subtotalEl) subtotalEl.textContent = formatMoney(grandBase, "DOP");
+            if (itbisEl)    itbisEl.textContent    = formatMoney(grandItbis, "DOP");
+            if (totalEl)    totalEl.textContent    = formatMoney(grandBase + grandItbis, "DOP");
+
+            if (!body) return;
+            if (!fwItems.length) {
+                body.innerHTML = `<tr><td colspan="11" style="height:8px"></td></tr>`;
+                return;
+            }
+            body.innerHTML = fwItems.map((item, idx) => {
+                const { base, itbis } = fwLineCalc(item);
+                return `<tr>
+                    <td>${idx + 1}</td>
+                    <td>${renderCopyableCell(item.codigo)}</td>
+                    <td><input type="number" min="1" step="1" value="${Number(item.cantidad)}" onchange="fwUpdateField(${idx},'cantidad',this.value)" /></td>
+                    <td style="color:var(--ink)">${escapeHtml(item.descripcion)}</td>
+                    <td><input type="text" value="${escapeHtml(item.unidad||'')}" placeholder="Unid." onchange="fwUpdateField(${idx},'unidad',this.value)" /></td>
+                    <td><input type="text" value="${escapeHtml(item.color||'')}" placeholder="SW 7009" onchange="fwUpdateField(${idx},'color',this.value)" /></td>
+                    <td style="text-align:right"><input type="number" min="0" step="0.01" value="${Number(item.precio_dop||0)}" onchange="fwUpdateField(${idx},'precio_dop',this.value)" placeholder="0.00" style="width:100%;text-align:right" /></td>
+                    <td><input type="number" min="0" max="100" step="0.01" value="${Number(item.descuento||0)}" onchange="fwUpdateField(${idx},'descuento',this.value)" /></td>
+                    <td style="text-align:right">${escapeHtml(formatMoney(itbis,"DOP"))}</td>
+                    <td style="font-weight:700;text-align:right">${escapeHtml(formatMoney(base,"DOP"))}</td>
+                    <td><button class="btn btn-danger" type="button" onclick="fwRemove(${idx})">✕</button></td>
+                </tr>`;
+            }).join("");
+        }
+
+        async function fwAddItem() {
+            if (fwLoading) return;
+            const codeInput = document.getElementById("fwCodigoInput");
+            const qtyInput  = document.getElementById("fwCantidadInput");
+            const unidInput = document.getElementById("fwUnidadInput");
+            const colorInput = document.getElementById("fwColorInput");
+            const hint = document.getElementById("fwHint");
+            const codigo   = (codeInput?.value || "").trim();
+            const cantidad = Math.max(1, Number(qtyInput?.value || 1));
+            const unidad   = (unidInput?.value || "").trim();
+            const color    = (colorInput?.value || "").trim();
+            if (!codigo) { if (hint) hint.textContent = "Escribe un codigo para buscar."; return; }
+
+            fwLoading = true;
+            try {
+                const params = new URLSearchParams({ q: codigo, limit: "25", offset: "0" });
+                const res = await fetch(`${API}/api/v1/labelsapp/facturacion/precios?${params}`);
+                if (!res.ok) throw new Error("Error al consultar precios");
+                const data = await res.json();
+                const rows = Array.isArray(data.items) ? data.items : [];
+                const norm = codigo.toLowerCase();
+                let sel = rows.find(r => String(r.codigo).trim().toLowerCase() === norm)
+                    || rows.find(r => String(r.codigo).trim().toLowerCase().startsWith(norm))
+                    || rows[0];
+                if (!sel) throw new Error("Articulo no encontrado");
+
+                const existing = fwItems.find(r => r.codigo.toLowerCase() === sel.codigo.toLowerCase() && (r.color||'') === color);
+                if (existing) {
+                    existing.cantidad = Math.max(1, Number(existing.cantidad) + cantidad);
+                } else {
+                    fwItems.push({ codigo: sel.codigo, descripcion: sel.descripcion, precio_dop: Number(sel.precio_dop), cantidad, unidad, color, descuento: 0 });
+                }
+                if (codeInput)  codeInput.value  = "";
+                if (qtyInput)   qtyInput.value   = "1";
+                if (unidInput)  unidInput.value  = "";
+                if (colorInput) colorInput.value = "";
+                if (hint) hint.textContent = `${sel.codigo} — ${sel.descripcion}`;
+                fwSuggestionsClose();
+                fwRender();
+                if (codeInput) codeInput.focus();
+            } catch (err) {
+                if (hint) hint.textContent = err.message || "No se pudo agregar";
+            } finally {
+                fwLoading = false;
+            }
+        }
+
+        function fwUpdateField(idx, field, val) {
+            if (!fwItems[idx]) return;
+            if (field === "cantidad"  ) fwItems[idx].cantidad   = Math.max(1, Number(val || 1));
+            else if (field === "descuento") fwItems[idx].descuento = Math.min(100, Math.max(0, Number(val || 0)));
+            else if (field === "precio_dop") fwItems[idx].precio_dop = Math.max(0, Number(val || 0));
+            else fwItems[idx][field] = val;
+            fwRender();
+        }
+
+        function fwRemove(idx) {
+            fwItems.splice(idx, 1);
+            fwRender();
+        }
+
+        async function fwGuardar() {
+            const numero = (document.getElementById("fwNumero")?.value || "").trim();
+            const cedula = (document.getElementById("fwCedula")?.value || "").trim();
+            const nombre = (document.getElementById("fwCliente")?.value || "").trim();
+            const fecha  = (document.getElementById("fwFecha")?.value || "").trim() || _fwTodayStr();
+            const statusEl = document.getElementById("fwGuardarStatus");
+
+            if (!numero) { if (statusEl) { statusEl.textContent = "Indica el N° de factura antes de guardar."; statusEl.style.color = "#c0392b"; } return; }
+            if (!fwItems.length) { if (statusEl) { statusEl.textContent = "Agrega al menos un articulo."; statusEl.style.color = "#c0392b"; } return; }
+
+            const user = ensureSession();
+            const sucursal = (user?.sucursal || user?.sucursal_nombre || "").trim() || "principal";
+            let grandBase = 0, grandItbis = 0;
+            fwItems.forEach(item => { const c = fwLineCalc(item); grandBase += c.base; grandItbis += c.itbis; });
+            const subtotal = grandBase;
+            const itbis = grandItbis;
+            const total = grandBase + grandItbis;
+
+            const body = {
+                numero_factura: numero,
+                cedula_rnc: cedula,
+                nombre_cliente: nombre,
+                fecha,
+                sucursal,
+                items_json: JSON.stringify(fwItems),
+                subtotal: Math.round(subtotal * 100) / 100,
+                itbis: Math.round(itbis * 100) / 100,
+                total: Math.round(total * 100) / 100,
+            };
+
+            try {
+                if (statusEl) { statusEl.textContent = "Guardando..."; statusEl.style.color = "var(--muted)"; }
+                const res = await fetch(`${API}/api/v1/facturacion/guardar`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || "Error al guardar");
+                if (statusEl) { statusEl.textContent = `Factura ${numero} guardada correctamente.`; statusEl.style.color = "#1f9d65"; }
+                
+                // Auto-llenar el campo ID Factura en Cola actual con el número de factura guardado
+                const idFacturaEl = document.getElementById("idFactura");
+                if (idFacturaEl) {
+                    idFacturaEl.value = numero;
+                }
+                
+                // NO enviar a producción desde facturación window
+                // Solo se envía cuando el usuario hace clic en "Enviar" desde la cola actual
+                
+                // Limpiar factura y cerrar ventana, sin tocar la cola
+                setTimeout(() => {
+                    fwClear();
+                    cerrarFacturacionWindow();
+                }, 500);
+            } catch (err) {
+                if (statusEl) { statusEl.textContent = err.message || "Error al guardar"; statusEl.style.color = "#c0392b"; }
+            }
+        }
+
+        function fwClear() {
+            fwItems.length = 0;
+            const n = document.getElementById("fwNumero");
+            const ced = document.getElementById("fwCedula");
+            const c = document.getElementById("fwCliente");
+            const f = document.getElementById("fwFecha");
+            const ci = document.getElementById("fwCodigoInput");
+            const qi = document.getElementById("fwCantidadInput");
+            const h = document.getElementById("fwHint");
+            const s = document.getElementById("fwGuardarStatus");
+            if (n) n.value = "";
+            if (ced) ced.value = "";
+            if (c) c.value = "";
+            if (f) f.value = _fwTodayStr();
+            if (ci) ci.value = "";
+            if (qi) qi.value = "1";
+            if (h) h.textContent = "Busca por codigo exacto o parcial";
+            if (s) s.textContent = "";
+            fwRender();
+        }
+
+        /* ── Historial de Facturas ──────────────────────── */
+        function abrirHistorialFacturas() {
+            const overlay = document.getElementById("historialFacturasOverlay");
+            if (!overlay) return;
+            overlay.classList.add("active");
+            const hoy = _fwTodayStr();
+            const desdeEl = document.getElementById("hfDesde");
+            const hastaEl = document.getElementById("hfHasta");
+            if (desdeEl && !desdeEl.value) desdeEl.value = hoy;
+            if (hastaEl && !hastaEl.value) hastaEl.value = hoy;
+            loadHistorialFacturas();
+        }
+
+        function cerrarHistorialFacturas() {
+            const overlay = document.getElementById("historialFacturasOverlay");
+            if (overlay) overlay.classList.remove("active");
+        }
+
+        function historialOverlayClick(e) {
+            if (e.target && e.target.id === "historialFacturasOverlay") cerrarHistorialFacturas();
+        }
+
+        function clearHistorialFiltros() {
+            const hoy = _fwTodayStr();
+            const d = document.getElementById("hfDesde");
+            const h = document.getElementById("hfHasta");
+            if (d) d.value = hoy;
+            if (h) h.value = hoy;
+            loadHistorialFacturas();
+        }
+
+        async function loadHistorialFacturas() {
+            const body = document.getElementById("hfBody");
+            const summary = document.getElementById("hfSummary");
+            const desde = document.getElementById("hfDesde")?.value || "";
+            const hasta = document.getElementById("hfHasta")?.value || "";
+            const user = ensureSession();
+            const sucursal = (user?.sucursal || user?.sucursal_nombre || "").trim();
+            const rol = (user?.rol || "").trim().toLowerCase();
+
+            if (body) body.innerHTML = `<tr><td colspan="9" class="empty">Cargando...</td></tr>`;
+            try {
+                const params = new URLSearchParams();
+                if (desde) params.set("desde", desde);
+                if (hasta) params.set("hasta", hasta);
+                if (rol !== "administrador" && sucursal) params.set("sucursal", sucursal);
+                const res = await fetch(`${API}/api/v1/facturacion/historial?${params}`);
+                if (!res.ok) throw new Error("No se pudo cargar el historial");
+                const data = await res.json();
+                const rows = Array.isArray(data.items) ? data.items : [];
+                if (summary) summary.textContent = `${rows.length} factura(s) encontrada(s)`;
+                if (!rows.length) {
+                    if (body) body.innerHTML = `<tr><td colspan="9" class="empty">No hay facturas para ese rango</td></tr>`;
+                    return;
+                }
+                if (body) body.innerHTML = rows.map(r => `<tr>
+                    <td>${escapeHtml(r.fecha || "-")}</td>
+                    <td><strong>${escapeHtml(r.numero_factura || "-")}</strong></td>
+                    <td>${escapeHtml(r.cedula_rnc || "-")}</td>
+                    <td>${escapeHtml(r.nombre_cliente || "-")}</td>
+                    <td>${escapeHtml(r.sucursal || "-")}</td>
+                    <td style="text-align:center">${Number(r.total_items || 0)}</td>
+                    <td>${escapeHtml(formatMoney(r.subtotal, "DOP"))}</td>
+                    <td>${escapeHtml(formatMoney(r.itbis, "DOP"))}</td>
+                    <td><strong>${escapeHtml(formatMoney(r.total, "DOP"))}</strong></td>
+                </tr>`).join("");
+            } catch (err) {
+                if (body) body.innerHTML = `<tr><td colspan="9" class="empty">${escapeHtml(err.message)}</td></tr>`;
+                if (summary) summary.textContent = "";
+            }
+        }
+
+        /* ── FW Autocomplete ─────────────────────────────── */
+        let _fwSuggestTimer = null;
+        let _fwSuggestions = [];
+        let _fwSuggestIdx = -1;
+        let _fwFetchSeq = 0;
+        let _fwListenersReady = false;
+        let _fwSearchCache = {};  // Cache para búsquedas de productos
+        let _fwLocalIndex = [];
+        let _fwLocalReady = false;
+        let _fwWarmupInFlight = false;
+
+        async function fwWarmupSuggestions() {
+            if (_fwLocalReady || _fwWarmupInFlight) return;
+            _fwWarmupInFlight = true;
+            try {
+                const params = new URLSearchParams({ q: "", limit: "500", offset: "0" });
+                const res = await fetch(`${API}/api/v1/labelsapp/facturacion/precios?${params}`);
+                if (!res.ok) return;
+
+                const data = await res.json();
+                const items = Array.isArray(data.items) ? data.items : [];
+                _fwLocalIndex = items;
+                _fwLocalReady = items.length > 0;
+            } catch (_) {
+                // fallback silencioso al fetch remoto normal
+            } finally {
+                _fwWarmupInFlight = false;
+            }
+        }
+
+        function fwFilterLocalSuggestions(q, limit = 25) {
+            if (!_fwLocalReady || !q) return [];
+            const qLower = String(q).toLowerCase().trim();
+            if (!qLower) return [];
+
+            const starts = [];
+            const contains = [];
+            for (const item of _fwLocalIndex) {
+                const code = String(item.codigo || "").toLowerCase();
+                const desc = String(item.descripcion || "").toLowerCase();
+
+                if (code.startsWith(qLower)) {
+                    starts.push(item);
+                } else if (code.includes(qLower) || desc.includes(qLower)) {
+                    contains.push(item);
+                }
+
+                if (starts.length + contains.length >= limit) break;
+            }
+
+            return [...starts, ...contains].slice(0, limit);
+        }
+        
+        function _setupFWListeners() {
+            if (_fwListenersReady) return;
+            _fwListenersReady = true;
+            
+            const codeInput = document.getElementById("fwCodigoInput");
+            const qtyInput = document.getElementById("fwCantidadInput");
+            const cedulaInput = document.getElementById("fwCedula");
+            
+            if (!codeInput || !qtyInput) return;
+
+            // Listener para consulta JCE por cédula
+            if (cedulaInput) {
+                cedulaInput.addEventListener("blur", async (e) => {
+                    const cedula = e.target.value.trim();
+                    if (!cedula || cedula.length < 9) return;
+                    
+                    try {
+                        const res = await fetch(`${API}/api/v1/facturacion/jce-lookup?cedula=${encodeURIComponent(cedula)}`);
+                        if (!res.ok) return;
+                        
+                        const data = await res.json();
+                        if (data.success && data.nombre) {
+                            const nombreInput = document.getElementById("fwCliente");
+                            if (nombreInput && !nombreInput.value.trim()) {
+                                nombreInput.value = data.nombre;
+                            }
+                        }
+                    } catch (err) {
+                        console.log("Error consultando JCE:", err);
+                    }
+                });
+            }
+
+            codeInput.addEventListener("input", (e) => {
+                const q = e.target.value.trim();
+                clearTimeout(_fwSuggestTimer);
+                if (!q) { fwSuggestionsClose(); return; }
+                
+                // Si ya tenemos cache, mostrar inmediatamente sin esperar
+                const cacheKey = q.toLowerCase();
+                if (_fwSearchCache[cacheKey]) {
+                    fwSuggestionsRender(_fwSearchCache[cacheKey]);
+                    return;
+                }
+
+                // Respuesta instantánea desde índice local precargado
+                const localItems = fwFilterLocalSuggestions(q, 25);
+                if (localItems.length) {
+                    _fwSearchCache[cacheKey] = localItems;
+                    fwSuggestionsRender(localItems);
+                    return;
+                }
+                
+                // Debounce dinámico: cuanto más caracteres, más rápido
+                // 1 char: 40ms | 2+ chars: 30ms | 4+ chars: 20ms
+                let delay = 40;
+                if (q.length >= 4) delay = 20;
+                else if (q.length >= 2) delay = 30;
+                
+                _fwSuggestTimer = setTimeout(() => fwFetchSuggestions(q), delay);
+            });
+
+            codeInput.addEventListener("keydown", (e) => {
+                if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    _fwSuggestIdx = Math.min(_fwSuggestIdx + 1, _fwSuggestions.length - 1);
+                    fwSuggestHighlight();
+                } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    _fwSuggestIdx = Math.max(_fwSuggestIdx - 1, 0);
+                    fwSuggestHighlight();
+                } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (_fwSuggestIdx >= 0 && _fwSuggestions[_fwSuggestIdx]) {
+                        fwPickSuggestion(_fwSuggestIdx);
+                    } else {
+                        fwSuggestionsClose();
+                        fwAddItem();
+                    }
+                } else if (e.key === "Escape") {
+                    fwSuggestionsClose();
+                }
+            });
+
+            codeInput.addEventListener("blur", () => {
+                setTimeout(fwSuggestionsClose, 150);
+            });
+
+            qtyInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") { e.preventDefault(); fwAddItem(); }
+            });
+        }
+
+        function fwSuggestionsClose() {
+            const el = document.getElementById("fwSuggestionsBox");
+            if (el) el.classList.remove("open");
+            _fwSuggestions = [];
+            _fwSuggestIdx = -1;
+        }
+
+        function fwSuggestionsRender(items) {
+            const el = document.getElementById("fwSuggestionsBox");
+            const input = document.getElementById("fwCodigoInput");
+            if (!el) return;
+            _fwSuggestions = items;
+            _fwSuggestIdx = -1;
+            if (!items.length) { el.classList.remove("open"); return; }
+            el.innerHTML = items.map((item, i) => `
+                <div class="fw-suggestion-item" data-idx="${i}">
+                    <span class="fw-s-code">${escapeHtml(item.codigo)}</span>
+                    <span class="fw-s-desc">${escapeHtml(item.descripcion)}</span>
+                    <span class="fw-s-price">${escapeHtml(formatMoney(item.precio_dop, "DOP"))}</span>
+                </div>
+            `).join("");
+            // Posicionar justo debajo del input usando coordenadas de viewport
+            if (input) {
+                const rect = input.getBoundingClientRect();
+                el.style.top  = (rect.bottom + 2) + "px";
+                el.style.left = rect.left + "px";
+                el.style.width = Math.max(rect.width, 380) + "px";
+            }
+            el.classList.add("open");
+            el.querySelectorAll(".fw-suggestion-item").forEach((row, i) => {
+                row.addEventListener("mousedown", (e) => { e.preventDefault(); fwPickSuggestion(i); });
+            });
+        }
+
+        function fwSuggestHighlight() {
+            const el = document.getElementById("fwSuggestionsBox");
+            if (!el) return;
+            el.querySelectorAll(".fw-suggestion-item").forEach((row, i) => {
+                row.classList.toggle("active", i === _fwSuggestIdx);
+            });
+            if (_fwSuggestIdx >= 0) {
+                const active = el.querySelectorAll(".fw-suggestion-item")[_fwSuggestIdx];
+                if (active) active.scrollIntoView({ block: "nearest" });
+            }
+        }
+
+        function fwPickSuggestion(idx) {
+            const item = _fwSuggestions[idx];
+            if (!item) return;
+            const input  = document.getElementById("fwCodigoInput");
+            const hint   = document.getElementById("fwHint");
+            const unidEl = document.getElementById("fwUnidadInput");
+            const colorEl = document.getElementById("fwColorInput");
+            const qtyEl  = document.getElementById("fwCantidadInput");
+            if (hint) hint.textContent = `${item.codigo} — ${item.descripcion}`;
+            fwSuggestionsClose();
+            const qty   = Math.max(1, Number(qtyEl?.value || 1));
+            const unidad = (unidEl?.value || "").trim();
+            const color  = (colorEl?.value || "").trim();
+            const existing = fwItems.find(r => r.codigo.toLowerCase() === item.codigo.toLowerCase() && (r.color||'') === color);
+            if (existing) {
+                existing.cantidad = Math.max(1, Number(existing.cantidad) + qty);
+            } else {
+                fwItems.push({ codigo: item.codigo, descripcion: item.descripcion, precio_dop: Number(item.precio_dop), cantidad: qty, unidad, color, descuento: 0 });
+            }
+            if (input)  input.value  = "";
+            if (qtyEl)  qtyEl.value  = "1";
+            if (unidEl) unidEl.value = "";
+            if (colorEl) colorEl.value = "";
+            fwRender();
+            if (input) input.focus();
+        }
+
+        async function fwFetchSuggestions(q) {
+            if (!q || q.length < 1) { fwSuggestionsClose(); return; }
+            
+            // Normalizar búsqueda para cache
+            const cacheKey = q.toLowerCase().trim();
+            
+            // Si ya tenemos en cache, usar cached data
+            if (_fwSearchCache[cacheKey]) {
+                fwSuggestionsRender(_fwSearchCache[cacheKey]);
+                return;
+            }
+            
+            const seq = ++_fwFetchSeq;
+            try {
+                // Aumentar límite de 12 a 25 para más opciones
+                const params = new URLSearchParams({ q, limit: "25", offset: "0" });
+                const res = await fetch(`${API}/api/v1/labelsapp/facturacion/precios?${params}`);
+                if (seq !== _fwFetchSeq) return;  // respuesta obsoleta, ignorar
+                if (!res.ok) return;
+                const data = await res.json();
+                if (seq !== _fwFetchSeq) return;  // verificar de nuevo tras await
+                
+                let items = Array.isArray(data.items) ? data.items : [];
+                
+                // Optimización: Priorizar matches exactos (por código)
+                const qLower = q.toLowerCase();
+                const exactMatches = items.filter(item => 
+                    String(item.codigo || "").toLowerCase() === qLower
+                );
+                const partialMatches = items.filter(item => 
+                    String(item.codigo || "").toLowerCase() !== qLower
+                );
+                
+                // Exactos primero, luego parciales
+                items = [...exactMatches, ...partialMatches];
+                
+                // Cachear resultado
+                _fwSearchCache[cacheKey] = items;
+                
+                fwSuggestionsRender(items);
+            } catch (_) { 
+                if (seq === _fwFetchSeq) fwSuggestionsClose(); 
+            }
+        }
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                cerrarFacturacionWindow();
+                cerrarHistorialFacturas();
+                toggleSideNav(false);
+            }
+        });
+
+        // Actualizar información del usuario en el sidebar
+        function updateSidebarUserInfo() {
+            const user = ensureSession();
+            if (user) {
+                const roleEl = document.getElementById("sideUserRole");
+                const nameEl = document.getElementById("sideUserName");
+                if (roleEl) {
+                    roleEl.textContent = (user.rol || "Usuario").charAt(0).toUpperCase() + (user.rol || "usuario").slice(1);
+                }
+                if (nameEl) {
+                    nameEl.textContent = user.username || "Usuario";
+                }
+            }
+        }
+
+        // Función para cerrar sesión
+        function logout() {
+            localStorage.removeItem("currentUser");
+            localStorage.removeItem("sessionActive");
+            window.location.href = "/";
+        }
+
+        // Actualizar sidebar al cargar
+        updateSidebarUserInfo();
     </script>
 </body>
 </html>

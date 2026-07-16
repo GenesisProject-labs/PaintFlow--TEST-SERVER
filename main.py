@@ -2,6 +2,7 @@
 import asyncio
 import select
 import smtplib
+import requests
 
 from fastapi import FastAPI, HTTPException, Depends, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -706,6 +707,7 @@ def _run_startup_schema_setup():
         for step_name, fn in (
             ("labelsapp_history_table", _ensure_labelsapp_history_table),
             ("lista_de_precios_table", _ensure_lista_de_precios_table),
+            ("facturas_table", _ensure_facturas_table),
             ("usuarios_cliente_role_constraint", _ensure_usuarios_cliente_role_constraint),
             ("formula_backup", _ensure_formula_backup),
             ("productsw_search_index", _ensure_productsw_search_index),
@@ -1661,6 +1663,31 @@ def _ensure_lista_de_precios_table(db) -> None:
     cur.execute("ALTER TABLE lista_de_precios ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP")
     cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_lista_de_precios_codigo ON lista_de_precios(codigo)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_lista_de_precios_descripcion ON lista_de_precios(LOWER(descripcion))")
+
+
+def _ensure_facturas_table(db) -> None:
+    cur = db.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS facturas (
+            id BIGSERIAL PRIMARY KEY,
+            numero_factura VARCHAR(80) NOT NULL,
+            cedula_rnc VARCHAR(40) DEFAULT '',
+            nombre_cliente VARCHAR(200) DEFAULT '',
+            fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+            sucursal VARCHAR(120) NOT NULL DEFAULT 'principal',
+            items_json TEXT NOT NULL DEFAULT '[]',
+            total_items INTEGER NOT NULL DEFAULT 0,
+            subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
+            itbis NUMERIC(14, 2) NOT NULL DEFAULT 0,
+            total NUMERIC(14, 2) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_facturas_sucursal ON facturas(sucursal)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_facturas_fecha ON facturas(fecha DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_facturas_numero ON facturas(numero_factura)")
 
 
 def _ensure_usuarios_cliente_role_constraint(db) -> None:
@@ -4153,21 +4180,39 @@ async def labelsapp_facturacion_precios(
         offset = max(0, int(offset or 0))
         query = (q or "").strip()
 
-        _ensure_lista_de_precios_table(db)
         cur = db.cursor()
 
         where_sql = ""
         where_params: List[Any] = []
+        order_sql = "ORDER BY codigo ASC"
+        
         if query:
-            where_sql = "WHERE codigo ILIKE %s OR descripcion ILIKE %s"
-            like = f"%{query}%"
-            where_params = [like, like]
+            # Priorizar búsquedas por código (más frecuentes en facturación)
+            # Códigos que empiezan con query, luego códigos que contienen, luego descripciones
+            like_prefix = f"{query}%"
+            like_anywhere = f"%{query}%"
+            
+            where_sql = """WHERE 
+                codigo ILIKE %s
+                OR codigo ILIKE %s
+                OR descripcion ILIKE %s
+            """
+            where_params = [like_prefix, like_anywhere, like_anywhere]
+            
+            # Ordenar por relevancia: código exacto/inicio primero
+            order_sql = """ORDER BY 
+                CASE 
+                    WHEN codigo ILIKE %s THEN 0
+                    WHEN codigo ILIKE %s THEN 1
+                    ELSE 2
+                END,
+                codigo ASC
+            """
 
-        cur.execute(
-            f"SELECT COUNT(*) FROM lista_de_precios {where_sql}",
-            where_params,
-        )
-        total = int((cur.fetchone() or [0])[0] or 0)
+        # Preparar parámetros de ORDER BY si es necesario
+        order_params = []
+        if query:
+            order_params = [f"{query}%", f"%{query}%"]
 
         cur.execute(
             f"""
@@ -4178,10 +4223,10 @@ async def labelsapp_facturacion_precios(
                    updated_at
             FROM lista_de_precios
             {where_sql}
-            ORDER BY codigo ASC
+            {order_sql}
             LIMIT %s OFFSET %s
             """,
-            where_params + [limit, offset],
+            where_params + order_params + [limit, offset],
         )
 
         items = []
@@ -4197,7 +4242,8 @@ async def labelsapp_facturacion_precios(
             )
 
         return {
-            "total": total,
+            # Evita COUNT(*) por rendimiento; para el autocomplete basta con el tamaño del lote.
+            "total": len(items),
             "limit": limit,
             "offset": offset,
             "items": items,
@@ -4205,6 +4251,191 @@ async def labelsapp_facturacion_precios(
     except Exception as e:
         logger.error(f"Error loading lista_de_precios for facturacion: {e}")
         raise HTTPException(status_code=500, detail="No se pudo cargar la lista de precios")
+
+
+class FacturaGuardarRequest(BaseModel):
+    numero_factura: str
+    cedula_rnc: Optional[str] = ""
+    nombre_cliente: Optional[str] = ""
+    fecha: Optional[str] = ""
+    sucursal: Optional[str] = "principal"
+    items_json: Optional[str] = "[]"
+    subtotal: float = 0
+    itbis: float = 0
+    total: float = 0
+
+
+@app.post("/api/v1/facturacion/guardar")
+async def facturacion_guardar(payload: FacturaGuardarRequest, db=Depends(get_db)):
+    """Guardar una factura emitida desde el modulo de caja."""
+    numero = (payload.numero_factura or "").strip()
+    if not numero:
+        raise HTTPException(status_code=400, detail="El numero de factura es obligatorio")
+    try:
+        import json as _json
+        items = _json.loads(payload.items_json or "[]")
+        total_items = sum(int(i.get("cantidad", 0)) for i in items) if isinstance(items, list) else 0
+    except Exception:
+        total_items = 0
+
+    fecha_val = (payload.fecha or "").strip() or None
+
+    _ensure_facturas_table(db)
+    cur = db.cursor()
+    cur.execute(
+        """
+        INSERT INTO facturas
+            (numero_factura, cedula_rnc, nombre_cliente, fecha, sucursal,
+             items_json, total_items, subtotal, itbis, total)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """,
+        (
+            numero,
+            (payload.cedula_rnc or "").strip(),
+            (payload.nombre_cliente or "").strip(),
+            fecha_val,
+            (payload.sucursal or "principal").strip() or "principal",
+            payload.items_json or "[]",
+            total_items,
+            round(float(payload.subtotal or 0), 2),
+            round(float(payload.itbis or 0), 2),
+            round(float(payload.total or 0), 2),
+        ),
+    )
+    row = cur.fetchone()
+    db.commit()
+    return {"message": "Factura guardada", "id": row[0] if row else None, "numero_factura": numero}
+
+
+@app.get("/api/v1/facturacion/jce-lookup")
+async def jce_cedula_lookup(cedula: str):
+    """Consulta el nombre registrado en el JCE por cédula."""
+    # Limpiar cédula: remover espacios, guiones y dejar solo 11 dígitos
+    cedula_limpia = cedula.strip().replace(" ", "").replace("-", "")
+    
+    # Validar formato
+    if not cedula_limpia.isdigit() or len(cedula_limpia) != 11:
+        raise HTTPException(
+            status_code=400, 
+            detail="La cédula debe tener 11 dígitos sin espacios ni guiones"
+        )
+    
+    try:
+        # Llamar a la API del JCE
+        api_key = "jce_1a354cf67fe92e77703fba3ddc66e8a3c5e636dc1a8f96b8"
+        headers = {"x-api-key": api_key}
+        
+        response = requests.get(
+            f"https://jce.genlabs.us/api/cedula/{cedula_limpia}",
+            headers=headers,
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                "success": True,
+                "nombre": data.get("name", ""),
+                "cedula": cedula_limpia,
+                "cached": data.get("cached", False)
+            }
+        elif response.status_code == 400:
+            return {
+                "success": False,
+                "error": "Formato de cédula inválido",
+                "cedula": cedula_limpia
+            }
+        elif response.status_code == 401:
+            return {
+                "success": False,
+                "error": "Error de autenticación con JCE",
+                "cedula": cedula_limpia
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Error en consulta JCE: {response.status_code}",
+                "cedula": cedula_limpia
+            }
+    except requests.exceptions.Timeout:
+        return {
+            "success": False,
+            "error": "Tiempo de espera agotado al consultar JCE",
+            "cedula": cedula_limpia
+        }
+    except requests.exceptions.RequestException as e:
+        return {
+            "success": False,
+            "error": f"Error de conexión: {str(e)}",
+            "cedula": cedula_limpia
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Error inesperado: {str(e)}",
+            "cedula": cedula_limpia
+        }
+
+
+@app.get("/api/v1/facturacion/historial")
+async def facturacion_historial(
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
+    sucursal: Optional[str] = None,
+    limit: int = 200,
+    db=Depends(get_db),
+):
+    """Historial de facturas guardadas, filtrado por fecha y sucursal."""
+    try:
+        _ensure_facturas_table(db)
+        cur = db.cursor()
+        where_parts = []
+        params: List[Any] = []
+
+        if desde:
+            where_parts.append("fecha >= %s")
+            params.append(desde)
+        if hasta:
+            where_parts.append("fecha <= %s")
+            params.append(hasta)
+        if sucursal and sucursal.strip():
+            where_parts.append("LOWER(TRIM(sucursal)) = LOWER(TRIM(%s))")
+            params.append(sucursal.strip())
+
+        where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+        limit_val = max(1, min(int(limit or 200), 1000))
+
+        cur.execute(
+            f"""
+            SELECT id, numero_factura, cedula_rnc, nombre_cliente,
+                   fecha, sucursal, total_items, subtotal, itbis, total, created_at
+            FROM facturas
+            {where_sql}
+            ORDER BY fecha DESC, created_at DESC
+            LIMIT %s
+            """,
+            params + [limit_val],
+        )
+        items = []
+        for row in cur.fetchall() or []:
+            items.append({
+                "id": row[0],
+                "numero_factura": (row[1] or "").strip(),
+                "cedula_rnc": (row[2] or "").strip(),
+                "nombre_cliente": (row[3] or "").strip(),
+                "fecha": row[4].isoformat() if row[4] else "",
+                "sucursal": (row[5] or "").strip(),
+                "total_items": int(row[6] or 0),
+                "subtotal": float(row[7] or 0),
+                "itbis": float(row[8] or 0),
+                "total": float(row[9] or 0),
+                "created_at": _to_business_iso(row[10]),
+            })
+        return {"total": len(items), "items": items}
+    except Exception as e:
+        logger.error(f"Error loading historial facturas: {e}")
+        raise HTTPException(status_code=500, detail="No se pudo cargar el historial de facturas")
 
 
 @app.post("/api/v1/labelsapp/send")
