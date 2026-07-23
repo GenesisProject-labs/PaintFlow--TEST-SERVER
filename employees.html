@@ -2374,17 +2374,52 @@
             if (!target) return;
 
             const role = getCurrentUserRoleNormalized();
-            const canSeeMaintenance = role === 'administrador' || role === 'analista' || role === 'tecnicos' || role === 'activos_fijos';
-            const canSeeFormulas = role === 'analista';
+            
+            // Si es administrador, mostrar menú admin completo
+            if (role === 'administrador') {
+                const principalItems = [
+                    '<button type="button" class="analyst-side-item" data-key="dashboard" onclick="openRouteFromAnalystMenu(\'/\',\'dashboard\')"><span class="analyst-nav-dot"></span>Dashboard</button>'
+                ];
 
+                const tiendasItems = [
+                    '<button type="button" class="analyst-side-item active" data-key="empleados" onclick="openEmpleadosFromMenu()"><span class="analyst-nav-dot"></span>Gestión de Empleados</button>',
+                    '<button type="button" class="analyst-side-item" data-key="labels" onclick="openRouteFromAnalystMenu(\'/labelsapp-web\',\'labels\')"><span class="analyst-nav-dot"></span>LabelsApp / Facturación</button>',
+                    '<button type="button" class="analyst-side-item" data-key="formulas" onclick="openRouteFromAnalystMenu(\'/formulas?role=administrador\',\'formulas\')"><span class="analyst-nav-dot"></span>Fórmulas</button>'
+                ];
+
+                const mantenimientoItems = [
+                    '<button type="button" class="analyst-side-item" data-key="ti" onclick="openRouteFromAnalystMenu(\'/ti\',\'ti\')"><span class="analyst-nav-dot"></span>Módulo TI</button>',
+                    '<button type="button" class="analyst-side-item" data-key="maintenance" onclick="openRouteFromAnalystMenu(\'/maintenance\',\'maintenance\')"><span class="analyst-nav-dot"></span>Maintenance</button>'
+                ];
+
+                target.innerHTML = `
+                    <div class="analyst-side-group">
+                        <div class="analyst-side-label">Principal</div>
+                        <div class="analyst-side-list">${principalItems.join('')}</div>
+                    </div>
+                    <div class="analyst-side-group">
+                        <div class="analyst-side-label">Tiendas</div>
+                        <div class="analyst-side-list">${tiendasItems.join('')}</div>
+                    </div>
+                    <div class="analyst-side-group">
+                        <div class="analyst-side-label">Mantenimiento</div>
+                        <div class="analyst-side-list">${mantenimientoItems.join('')}</div>
+                    </div>
+                `;
+                updateAnalystSideIdentity();
+                setActiveAnalystMenuKey('empleados');
+                return;
+            }
+
+            // Menú para analista
             const moduleLinks = [
                 `<button type="button" class="analyst-side-item" data-key="labelsapp" onclick="openRouteFromAnalystMenu('/labelsapp-web','labelsapp')"><span class="analyst-nav-dot"></span>LabelsApp / Facturacion</button>`,
             ];
 
-            if (canSeeMaintenance) {
+            if (role === 'administrador' || role === 'analista' || role === 'tecnicos' || role === 'activos_fijos') {
                 moduleLinks.push(`<button type="button" class="analyst-side-item" data-key="maintenance" onclick="openRouteFromAnalystMenu('/maintenance','maintenance')"><span class="analyst-nav-dot"></span>Maintenance</button>`);
             }
-            if (canSeeFormulas) {
+            if (role === 'analista') {
                 moduleLinks.push(`<button type="button" class="analyst-side-item" data-key="formulas" onclick="openRouteFromAnalystMenu('/formulas?role=analista','formulas')"><span class="analyst-nav-dot"></span>Formulas</button>`);
             }
 
