@@ -11,36 +11,48 @@
         
         body {
             font-family: Roboto, sans-serif;
-            .side-logout-wrap {
-                margin-top: auto;
-                align-self: center;
-                width: min(360px, calc(100% - 18px));
-            }
-
-            .side-logout-btn {
-                width: 100%;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                background: rgba(255, 255, 255, 0.1);
-                color: #ffd0d0;
-                border-radius: 18px;
-                padding: 12px 14px;
-                font: inherit;
-                font-weight: 700;
-                cursor: pointer;
-                text-align: left;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-
-            .side-logout-btn:hover {
-                background: rgba(255, 255, 255, 0.16);
-                color: #ffe4e4;
-            }
-            background: linear-gradient(135deg, #f5f5f5 0%, #fff 100%); 
+            background: linear-gradient(135deg, #f5f5f5 0%, #fff 100%);
             z-index: 9999 !important;
             margin: 0;
             padding: 0;
+            min-height: 100vh;
+        }
+
+        #loginContainer {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 10000;
+        }
+
+        .side-logout-wrap {
+            margin-top: auto;
+            align-self: center;
+            width: min(360px, calc(100% - 18px));
+        }
+
+        .side-logout-btn {
+            width: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffd0d0;
+            border-radius: 18px;
+            padding: 12px 14px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .side-logout-btn:hover {
+            background: rgba(255, 255, 255, 0.16);
+            color: #ffe4e4;
         }
         #loginContainer.hidden { 
             display: none !important; 
@@ -1668,6 +1680,7 @@
             font-size: clamp(1.25rem, 2.4vw, 1.8rem);
             font-weight: 700;
             letter-spacing: 0.01em;
+            margin: 0;
         }
 
         #appContainer .header-content {
@@ -1684,7 +1697,20 @@
         }
 
         #appContainer .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
             justify-self: auto;
+        }
+
+        #appContainer .logo {
+            width: auto;
+            height: 44px;
+            max-height: 44px;
+            display: block;
+            object-fit: contain;
+            flex: 0 0 auto;
+            cursor: pointer;
         }
 
         #appContainer .user-menu {
