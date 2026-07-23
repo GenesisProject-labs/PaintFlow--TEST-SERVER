@@ -11,88 +11,32 @@
         
         body {
             font-family: Roboto, sans-serif;
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-            color: #333;
-            min-height: 100vh;
-        }
+            .side-logout-wrap {
+                margin-top: auto;
+                align-self: center;
+                width: min(360px, calc(100% - 18px));
+            }
 
-        .header {
-            background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
-            color: white;
-            padding: 25px 35px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            position: relative;
-        }
+            .side-logout-btn {
+                width: 100%;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                background: rgba(255, 255, 255, 0.1);
+                color: #ffd0d0;
+                border-radius: 18px;
+                padding: 12px 14px;
+                font: inherit;
+                font-weight: 700;
+                cursor: pointer;
+                text-align: left;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
 
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        .logo-section {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .logo {
-            width: 50px;
-            height: 50px;
-            cursor: pointer;
-        }
-
-        .title {
-            font-size: 1.8em;
-            font-weight: 700;
-            margin: 0;
-        }
-
-        .navbar-tabs {
-            display: flex;
-            gap: 20px;
-            align-items: center;
-        }
-
-        .tab-btn {
-            padding: 12px 24px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            color: white;
-            border-radius: 25px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 14px;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .tab-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.4);
-            transform: translateY(-2px);
-        }
-
-        .tab-btn.active {
-            background: rgba(255, 255, 255, 0.95);
-            color: #1a73e8;
-            border-color: white;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        }
-        #loginContainer { 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100vw; 
-            height: 100vh; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
+            .side-logout-btn:hover {
+                background: rgba(255, 255, 255, 0.16);
+                color: #ffe4e4;
+            }
             background: linear-gradient(135deg, #f5f5f5 0%, #fff 100%); 
             z-index: 9999 !important;
             margin: 0;
@@ -2451,19 +2395,17 @@
             <div class="side-nav-head">
                 <img class="side-brand-mark" src="/logo.png" alt="PaintFlow Logo">
                 <div class="side-nav-title">
-                    <h1>PaintFlow</h1>
-                    <p>Modulo Administrador</p>
+                    <h1 id="sideNavUserName">Usuario</h1>
+                    <p id="sideNavUserRole">Rol</p>
                 </div>
                 <button type="button" class="side-nav-close" onclick="toggleMobileNav(false)" aria-label="Cerrar menu">✕</button>
             </div>
             <div class="side-nav-label" style="padding: 0 6px 8px;">Menu principal</div>
             <div id="sideNavContent"></div>
-            <div class="side-user-wrap">
-                <button type="button" class="side-user-card" onclick="toggleAdminSideUserMenu()">
-                    <div class="side-user-avatar" id="sideUserAvatar">U</div>
-                    <div class="side-user-name" id="sideUserName">Usuario</div>
+            <div class="side-logout-wrap">
+                <button type="button" class="side-logout-btn" onclick="handleLogout()">
+                    <span class="nav-dot"></span>Cerrar Sesión
                 </button>
-                <div class="side-user-dropdown" id="sideUserDropdown"></div>
             </div>
         </aside>
         <div id="menuBackdrop" class="side-nav-backdrop" onclick="toggleMobileNav(false)"></div>
@@ -5861,18 +5803,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             toggleMobileNav(false);
         }
 
-        function toggleAdminSideUserMenu(forceOpen) {
-            const menu = document.getElementById('sideUserDropdown');
-            if (!menu) return;
-            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !menu.classList.contains('active');
-            menu.classList.toggle('active', shouldOpen);
-        }
-
-        function openProfileFromAdminMenu() {
-            abrirModalPerfil();
-            toggleAdminSideUserMenu(false);
-        }
-
         function renderAdminSideMenu(userRole) {
             const target = document.getElementById('sideNavContent');
             if (!target) return;
@@ -5911,16 +5841,22 @@ document.addEventListener('DOMContentLoaded', async function() {
             try {
                 const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
                 const name = userData.nombre_completo || userData.username || 'Usuario';
-                const initials = String(name)
-                    .split(' ')
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .map(part => part.charAt(0).toUpperCase())
-                    .join('') || 'U';
-                const avatar = document.getElementById('sideUserAvatar');
-                const userName = document.getElementById('sideUserName');
-                if (avatar) avatar.textContent = initials;
+                const roleRaw = normalizeRole(userData.rol || '');
+                const roleMap = {
+                    administrador: 'Administrador',
+                    analista: 'Analista',
+                    facturador: 'Facturador',
+                    cajero: 'Cajero',
+                    cliente: 'Cliente',
+                    activos_fijos: 'Activos Fijos',
+                    tecnicos: 'Tecnicos'
+                };
+                const roleLabel = roleMap[roleRaw] || 'Usuario';
+
+                const userName = document.getElementById('sideNavUserName');
+                const userRole = document.getElementById('sideNavUserRole');
                 if (userName) userName.textContent = name;
+                if (userRole) userRole.textContent = roleLabel;
             } catch (_) {}
         }
 
@@ -5938,9 +5874,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
 
         function updateUserMenu(userRole) {
-            const sideUserDropdown = document.getElementById('sideUserDropdown');
             userRole = normalizeRole(userRole);
-            if (!sideUserDropdown) return;
 
             const baseButtons = [
                 { label: 'Cerrar Sesión', action: 'handleLogout()' }
@@ -6026,29 +5960,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             };
 
             const roleConfig = configByRole[userRole] || configByRole.default;
-            const sideOptionsByRole = {
-                administrador: [
-                    { label: 'Actualizar datos', action: 'openProfileFromAdminMenu()' },
-                    { label: 'Gestion de equipos', action: 'goToMaintenance()' },
-                    { label: 'Cerrar sesion', action: 'handleLogout()' }
-                ],
-                activos_fijos: [
-                    { label: 'Actualizar datos', action: 'openProfileFromAdminMenu()' },
-                    { label: 'Gestion de equipos', action: 'goToMaintenance()' },
-                    { label: 'Cerrar sesion', action: 'handleLogout()' }
-                ],
-                tecnicos: [
-                    { label: 'Actualizar datos', action: 'openProfileFromAdminMenu()' },
-                    { label: 'Gestion de equipos', action: 'goToMaintenance()' },
-                    { label: 'Cerrar sesion', action: 'handleLogout()' }
-                ],
-                default: [
-                    { label: 'Actualizar datos', action: 'openProfileFromAdminMenu()' },
-                    { label: 'Cerrar sesion', action: 'handleLogout()' }
-                ]
-            };
-
-            sideUserDropdown.innerHTML = renderMenuButtons(sideOptionsByRole[userRole] || sideOptionsByRole.default);
             renderNavbarTabs(roleConfig.tabs);
             renderAdminSideMenu(userRole);
             updateAdminSideIdentity();
@@ -6070,12 +5981,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
                 btn.classList.remove('active');
                 menu.classList.remove('active');
-            }
-
-            const sideCard = document.querySelector('.side-user-card');
-            const sideDropdown = document.getElementById('sideUserDropdown');
-            if (sideCard && sideDropdown && !sideCard.contains(e.target) && !sideDropdown.contains(e.target)) {
-                sideDropdown.classList.remove('active');
             }
         });
 
