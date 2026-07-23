@@ -5966,11 +5966,38 @@
             if (user) {
                 const roleEl = document.getElementById("sideUserRole");
                 const nameEl = document.getElementById("sideUserName");
+                const navContent = document.getElementById("sideNavContent");
+                const role = String(user.rol || "").trim().toLowerCase();
                 if (roleEl) {
                     roleEl.textContent = (user.rol || "Usuario").charAt(0).toUpperCase() + (user.rol || "usuario").slice(1);
                 }
                 if (nameEl) {
                     nameEl.textContent = user.username || "Usuario";
+                }
+                if (navContent && role === "administrador") {
+                    navContent.innerHTML = `
+                        <div class="side-nav-group">
+                            <div class="side-nav-label">Modulo Actual</div>
+                            <div class="side-nav-list">
+                                <button type="button" class="side-nav-item active" onclick="toggleSideNav(false)"><span class="nav-dot"></span>LabelsApp / Cola</button>
+                                <button type="button" class="side-nav-item" onclick="toggleSideNav(false); abrirFacturacionDesdeQueue();"><span class="nav-dot"></span>Facturación</button>
+                                <button type="button" class="side-nav-item" onclick="toggleSideNav(false); abrirHistorialFacturas();"><span class="nav-dot"></span>Historial de Facturas</button>
+                            </div>
+                        </div>
+                        <div class="side-nav-group">
+                            <div class="side-nav-label">Todos los Modulos</div>
+                            <div class="side-nav-list">
+                                <button type="button" class="side-nav-item" onclick="toggleSideNav(false); window.location.href='/'"><span class="nav-dot"></span>Dashboard Admin</button>
+                                <button type="button" class="side-nav-item" onclick="toggleSideNav(false); window.location.href='/employees'"><span class="nav-dot"></span>Gestión de Empleados</button>
+                                <button type="button" class="side-nav-item" onclick="toggleSideNav(false); window.location.href='/formulas?role=administrador'"><span class="nav-dot"></span>Fórmulas</button>
+                                <button type="button" class="side-nav-item" onclick="toggleSideNav(false); window.location.href='/maintenance'"><span class="nav-dot"></span>Maintenance</button>
+                                <button type="button" class="side-nav-item" onclick="toggleSideNav(false); window.location.href='/ti'"><span class="nav-dot"></span>TI</button>
+                            </div>
+                        </div>
+                        <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.12);">
+                            <button type="button" class="side-nav-item" onclick="logout()" style="width: 100%; text-align: left; color: #ff6b6b;"><span class="nav-dot"></span>Cerrar Sesión</button>
+                        </div>
+                    `;
                 }
             }
         }

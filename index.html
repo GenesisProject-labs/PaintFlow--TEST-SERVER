@@ -5775,8 +5775,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
             const userRole = normalizeRole(userData.rol);
             
-            if (userRole !== 'analista') {
-                alert('Acceso restringido: Solo los analistas pueden acceder a fórmulas');
+            if (userRole !== 'analista' && userRole !== 'administrador') {
+                alert('Acceso restringido: Solo administradores o analistas pueden acceder a fórmulas');
                 return;
             }
             
@@ -5881,8 +5881,11 @@ document.addEventListener('DOMContentLoaded', async function() {
             const mainItems = [];
             if (role === 'administrador') {
                 mainItems.push('<button type="button" class="side-nav-item active" data-key="dashboard" onclick="openDashboardFromMenu()"><span class="nav-dot"></span>Dashboard</button>');
-                mainItems.push('<button type="button" class="side-nav-item" data-key="empleados" onclick="goToAnalystView()"><span class="nav-dot"></span>Empleados</button>');
+                mainItems.push('<button type="button" class="side-nav-item" data-key="empleados" onclick="goToAnalystView()"><span class="nav-dot"></span>Gestión de Empleados</button>');
+                mainItems.push('<button type="button" class="side-nav-item" data-key="formulas" onclick="goToFormulas()"><span class="nav-dot"></span>Fórmulas</button>');
                 mainItems.push('<button type="button" class="side-nav-item" data-key="maintenance" onclick="goToMaintenance()"><span class="nav-dot"></span>Maintenance</button>');
+                mainItems.push('<button type="button" class="side-nav-item" data-key="ti" onclick="window.location.href=\'/ti\'"><span class="nav-dot"></span>Módulo TI</button>');
+                mainItems.push('<button type="button" class="side-nav-item" data-key="labels" onclick="goToLabelsAppWeb()"><span class="nav-dot"></span>LabelsApp / Facturación</button>');
             }
             if (role === 'activos_fijos' || role === 'tecnicos') {
                 mainItems.push('<button type="button" class="side-nav-item" data-key="maintenance" onclick="goToMaintenance()"><span class="nav-dot"></span>Maintenance</button>');
@@ -5900,7 +5903,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     <div class="side-nav-label">Principal</div>
                     <div class="side-nav-list">${mainItems.join('')}</div>
                 </div>
-                ${role === 'administrador' ? `<div class="side-nav-group"><div class="side-nav-label">Gestion</div><div class="side-nav-list"><button type="button" class="side-nav-item" data-key="gestion_usuarios" onclick="openGestionUsuariosFromMenu()"><span class="nav-dot"></span>Empleado</button><button type="button" class="side-nav-item" data-key="gestion_sucursales" onclick="openGestionSucursalesFromMenu()"><span class="nav-dot"></span>Sucursal</button></div></div>` : ''}
+                ${role === 'administrador' ? `<div class="side-nav-group"><div class="side-nav-label">Gestión Interna</div><div class="side-nav-list"><button type="button" class="side-nav-item" data-key="gestion_usuarios" onclick="openGestionUsuariosFromMenu()"><span class="nav-dot"></span>Usuarios</button><button type="button" class="side-nav-item" data-key="gestion_sucursales" onclick="openGestionSucursalesFromMenu()"><span class="nav-dot"></span>Sucursales</button></div></div>` : ''}
             `;
         }
 
