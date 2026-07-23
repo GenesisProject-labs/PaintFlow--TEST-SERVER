@@ -708,6 +708,7 @@ def _run_startup_schema_setup():
             ("labelsapp_history_table", _ensure_labelsapp_history_table),
             ("lista_de_precios_table", _ensure_lista_de_precios_table),
             ("facturas_table", _ensure_facturas_table),
+            ("facturacion_feature_tables", _ensure_facturacion_feature_tables),
             ("usuarios_cliente_role_constraint", _ensure_usuarios_cliente_role_constraint),
             ("formula_backup", _ensure_formula_backup),
             ("productsw_search_index", _ensure_productsw_search_index),
@@ -1681,13 +1682,60 @@ def _ensure_facturas_table(db) -> None:
             subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0,
             itbis NUMERIC(14, 2) NOT NULL DEFAULT 0,
             total NUMERIC(14, 2) NOT NULL DEFAULT 0,
+            factura_sap VARCHAR(80) NOT NULL DEFAULT '',
+            estado_factura VARCHAR(40) NOT NULL DEFAULT 'facturado',
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
+    cur.execute("ALTER TABLE facturas ADD COLUMN IF NOT EXISTS factura_sap VARCHAR(80) NOT NULL DEFAULT ''")
+    cur.execute("ALTER TABLE facturas ADD COLUMN IF NOT EXISTS estado_factura VARCHAR(40) NOT NULL DEFAULT 'facturado'")
+    cur.execute("ALTER TABLE facturas ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_facturas_sucursal ON facturas(sucursal)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_facturas_fecha ON facturas(fecha DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_facturas_numero ON facturas(numero_factura)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_facturas_estado ON facturas(estado_factura)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_facturas_factura_sap ON facturas(factura_sap)")
+
+
+def _ensure_facturacion_feature_tables(db) -> None:
+    cur = db.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS facturacion_feature_state (
+            id SMALLINT PRIMARY KEY DEFAULT 1,
+            enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            updated_by_username VARCHAR(120) NOT NULL DEFAULT '',
+            updated_by_role VARCHAR(60) NOT NULL DEFAULT '',
+            updated_by_sucursal VARCHAR(120) NOT NULL DEFAULT '',
+            updated_from VARCHAR(80) NOT NULL DEFAULT 'unknown',
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CHECK (id = 1)
+        )
+        """
+    )
+    cur.execute(
+        """
+        INSERT INTO facturacion_feature_state (id, enabled, updated_from)
+        VALUES (1, TRUE, 'bootstrap')
+        ON CONFLICT (id) DO NOTHING
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS facturacion_feature_log (
+            id BIGSERIAL PRIMARY KEY,
+            enabled BOOLEAN NOT NULL,
+            actor_username VARCHAR(120) NOT NULL DEFAULT '',
+            actor_role VARCHAR(60) NOT NULL DEFAULT '',
+            actor_sucursal VARCHAR(120) NOT NULL DEFAULT '',
+            source VARCHAR(80) NOT NULL DEFAULT 'unknown',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_facturacion_feature_log_created_at ON facturacion_feature_log(created_at DESC)")
 
 
 def _ensure_usuarios_cliente_role_constraint(db) -> None:
