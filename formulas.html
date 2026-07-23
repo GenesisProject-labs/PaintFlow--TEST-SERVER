@@ -7,8 +7,10 @@
     (function(){
         try {
             var raw = localStorage.getItem('currentUser');
+            if (!raw || raw === 'null') { window.location.replace('/'); return; }
             var active = localStorage.getItem('sessionActive');
-            if (!raw || raw === 'null' || active !== 'true') { window.location.replace('/'); return; }
+            if (active === 'false') { window.location.replace('/'); return; }
+            if (!active) { localStorage.setItem('sessionActive', 'true'); }
             var u = JSON.parse(raw);
             var rol = (u.rol || '').toString().trim().toLowerCase();
             var username = (u.username || '').toString().trim().toLowerCase();
@@ -1182,7 +1184,8 @@
         }
 
         function logout() {
-            localStorage.clear();
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('sessionActive');
             window.location.href = '/';
         }
 

@@ -2895,6 +2895,28 @@ function saveSession(usuarioData) {
     localStorage.setItem('sessionActive', 'true');
 }
 
+function getStoredUserData() {
+    try {
+        const rawUser = localStorage.getItem('currentUser');
+        if (!rawUser || rawUser === 'null') return null;
+        const parsed = JSON.parse(rawUser);
+        return parsed && parsed.username ? parsed : null;
+    } catch (_) {
+        return null;
+    }
+}
+
+function hasValidStoredSession() {
+    const userData = getStoredUserData();
+    if (!userData) return false;
+    const sessionActive = localStorage.getItem('sessionActive');
+    if (sessionActive === 'false') return false;
+    if (!sessionActive) {
+        localStorage.setItem('sessionActive', 'true');
+    }
+    return true;
+}
+
 // Limpiar sesión
 function clearSession() {
     localStorage.removeItem('currentUser');
@@ -2957,11 +2979,10 @@ async function checkExistingSession() {
         return;
     }
     
-    const sessionActive = localStorage.getItem('sessionActive');
     const currentUser = localStorage.getItem('currentUser');
     
     // Solo proceder si hay una sesión VÁLIDA y ACTIVA
-    if (sessionActive === 'true' && currentUser && currentUser !== 'null') {
+    if (hasValidStoredSession() && currentUser && currentUser !== 'null') {
         console.log('Sesion activa encontrada para:', currentUser);
         
         try {

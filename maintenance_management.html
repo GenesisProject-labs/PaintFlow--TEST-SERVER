@@ -1117,6 +1117,22 @@
             return params.toString();
         }
         function clearSession() { localStorage.removeItem('currentUser'); localStorage.removeItem('sessionActive'); }
+        function getStoredUserData() {
+            try {
+                const rawUser = localStorage.getItem('currentUser');
+                if (!rawUser || rawUser === 'null') return null;
+                const parsed = JSON.parse(rawUser);
+                return parsed && parsed.username ? parsed : null;
+            } catch (_) { return null; }
+        }
+        function hasValidStoredSession() {
+            const userData = getStoredUserData();
+            if (!userData) return false;
+            const sessionActive = localStorage.getItem('sessionActive');
+            if (sessionActive === 'false') return false;
+            if (!sessionActive) localStorage.setItem('sessionActive', 'true');
+            return true;
+        }
         function goHome() { if (normalizeRole(state.user && state.user.rol) === 'administrador') { window.location.href = '/'; return; } window.location.href = '/maintenance'; }
         function openGlobalModule(path) { window.location.href = path; }
         function handleLogout() { clearSession(); window.location.href = '/'; }
@@ -1158,9 +1174,9 @@
             dropdown.innerHTML = rows.join('');
         }
         function ensureAuthorizedUser() {
-            const sessionActive = localStorage.getItem('sessionActive');
             const rawUser = localStorage.getItem('currentUser');
-            if (sessionActive !== 'true' || !rawUser || rawUser === 'null') { window.location.href = '/'; return false; }
+            if (!rawUser || rawUser === 'null') { window.location.href = '/'; return false; }
+            if (!hasValidStoredSession()) { clearSession(); window.location.href = '/'; return false; }
             try { state.user = JSON.parse(rawUser); } catch (error) { clearSession(); window.location.href = '/'; return false; }
             const role = normalizeRole(state.user.rol);
             if (role !== 'administrador' && role !== 'activos_fijos' && role !== 'tecnicos') {
