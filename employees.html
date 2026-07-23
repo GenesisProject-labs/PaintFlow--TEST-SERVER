@@ -2019,7 +2019,7 @@
             <img class="analyst-brand-mark" src="/logo.png" alt="PaintFlow Logo">
             <div class="analyst-side-title">
                 <h1>PaintFlow</h1>
-                <p>MODULO DE GESTION DE EMPLEADOS</p>
+                <p>CENTRO DE NAVEGACION</p>
             </div>
             <button type="button" class="analyst-side-close" onclick="toggleAnalystNav(false)" aria-label="Cerrar menu">✕</button>
         </div>
@@ -2354,17 +2354,59 @@
             });
         }
 
+        function getCurrentUserRoleNormalized() {
+            try {
+                const userData = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                return normalizeRole(userData.rol || '');
+            } catch (_) {
+                return '';
+            }
+        }
+
+        function openRouteFromAnalystMenu(path, key) {
+            setActiveAnalystMenuKey(key);
+            toggleAnalystNav(false);
+            window.location.href = path;
+        }
+
         function renderAnalystSideMenu() {
             const target = document.getElementById('analystSideNav');
             if (!target) return;
+
+            const role = getCurrentUserRoleNormalized();
+            const canSeeMaintenance = role === 'administrador' || role === 'analista' || role === 'tecnicos' || role === 'activos_fijos';
+            const canSeeFormulas = role === 'analista';
+
+            const moduleLinks = [
+                `<button type="button" class="analyst-side-item" data-key="labelsapp" onclick="openRouteFromAnalystMenu('/labelsapp-web','labelsapp')"><span class="analyst-nav-dot"></span>LabelsApp / Facturacion</button>`,
+            ];
+
+            if (canSeeMaintenance) {
+                moduleLinks.push(`<button type="button" class="analyst-side-item" data-key="maintenance" onclick="openRouteFromAnalystMenu('/maintenance','maintenance')"><span class="analyst-nav-dot"></span>Maintenance</button>`);
+            }
+            if (canSeeFormulas) {
+                moduleLinks.push(`<button type="button" class="analyst-side-item" data-key="formulas" onclick="openRouteFromAnalystMenu('/formulas?role=analista','formulas')"><span class="analyst-nav-dot"></span>Formulas</button>`);
+            }
 
             target.innerHTML = `
                 <div class="analyst-side-group">
                     <div class="analyst-side-label">Principal</div>
                     <div class="analyst-side-list">
                         <button type="button" class="analyst-side-item" data-key="dashboard" onclick="openDashboardFromAnalystMenu()"><span class="analyst-nav-dot"></span>Dashboard</button>
-                        <button type="button" class="analyst-side-item" data-key="empleados" onclick="openEmpleadosFromMenu()"><span class="analyst-nav-dot"></span>Gestion de Empleados</button>
-                        <button type="button" class="analyst-side-item" data-key="inactivos" onclick="openInactivosFromMenu()"><span class="analyst-nav-dot"></span>Inactivos</button>
+                        <button type="button" class="analyst-side-item" data-key="empleados" onclick="openEmpleadosFromMenu()"><span class="analyst-nav-dot"></span>Empleados Activos</button>
+                        <button type="button" class="analyst-side-item" data-key="inactivos" onclick="openInactivosFromMenu()"><span class="analyst-nav-dot"></span>Empleados Inactivos</button>
+                    </div>
+                </div>
+                <div class="analyst-side-group">
+                    <div class="analyst-side-label">Modulos</div>
+                    <div class="analyst-side-list">
+                        ${moduleLinks.join('')}
+                    </div>
+                </div>
+                <div class="analyst-side-group">
+                    <div class="analyst-side-label">Gestion Rapida</div>
+                    <div class="analyst-side-list">
+                        <button type="button" class="analyst-side-item" data-key="sucursal-actual" onclick="openEmpleadosFromMenu()"><span class="analyst-nav-dot"></span>Sucursal Actual</button>
                     </div>
                 </div>
             `;
